@@ -1,0 +1,49 @@
+class Paradoxical::Search::PropertyMatcher
+  attr_accessor :key, :operator, :value
+
+  def initialize key, operator: nil, value: nil
+    @key = key.downcase
+    @operator = operator
+    @value = value
+  end
+
+  def matches? node
+    return false unless node.is_a? Paradoxical::Elements::Document or node.is_a? Paradoxical::Elements::List
+    begin
+      properties = node.send(:children).select do |node| node.is_a? Paradoxical::Elements::Property and node.key.downcase == key end
+    rescue Exception => e
+      require 'pp'
+      pp node
+      raise e
+    end
+  
+    return true if ( operator.nil? or value.nil? ) and not properties.empty?
+
+    properties.any? do |property|
+      tmp = value
+      tmp = tmp.to_i if property.value.is_a? Integer
+      tmp = tmp.to_f if property.value.is_a?(Float) or property.value.is_a?(Paradoxical::Elements::Primitives:: Float)
+      
+      case operator
+      when '='
+        property.value == tmp
+      when '>='
+        property.value >= tmp
+      when '<='
+        property.value <= tmp
+      when '>'
+        property.value > tmp
+      when '<'
+        property.value < tmp
+      when '~='
+        property.value.to_s.include? value.to_s
+      when '^='
+        property.value.to_s.start_with? value.to_s
+      when '$='
+        property.value.to_s.end_with? value.to_s
+      else
+        false
+      end
+    end    
+  end
+end

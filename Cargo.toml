@@ -1,0 +1,12 @@
+[package]
+name = "paradoxical"
+version = "0.0.1"
+
+[lib]
+name = "paradoxical"
+crate-type = ["cdylib"]
+
+[dependencies]
+rutie = "0.5.3"
+pest = "*"
+pest_derive = "*"
