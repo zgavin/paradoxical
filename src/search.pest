@@ -1,0 +1,58 @@
+ws                    = _{ ( " " | "\t" | "\r" | "\n" )* }
+
+ruleset               = _{ SOI ~ ws ~ rule* ~ EOI }
+
+rule                  =  { ( combinator ~ ws)? ~ ( rule_with_key | rule_without_key ) ~ ws? }
+
+rule_with_key         = _{ key ~ ( _name | _id | property_matcher | function_matcher )* }
+
+rule_without_key      = _{ ( _name | _id | property_matcher | function_matcher )+ }
+
+combinator            = @{ ">" | "~" }
+
+key                   = { "*" | string }
+
+_id                   = _{ "#" ~ id }
+
+id                    =  { string }
+
+_name                 = _{ "%" ~ name }
+
+name                  =  { string }
+
+property_matcher      =  { "[" ~ ws ~ string ~ ws ~ ( pm_operator ~ ws ~ value ~ ws )?  ~ ( pm_sensitivity ~ ws )? ~ "]" }
+
+pm_operator           =  { "=" | ">=" | ">" | "<" | "<=" | "~=" | "^=" | "$=" | "*=" }
+
+pm_sensitivity        =  { "i" | "s" }
+
+function_matcher      =  { "&" ~ function_name ~ function_arguments? }
+
+function_name         =  { ( ASCII_ALPHANUMERIC | "_" | "?" | "!" | "-" )+ }
+
+function_arguments    = _{ "(" ~ ws ~ value ~ ws ~ ( "," ~ ws ~ value ~ ws )* ~ ")" }
+
+value                 =  { float | integer | boolean | string | regexp }
+
+numeric               = _{ ASCII_DIGIT+ }
+
+float                 =  @{ integer ~ "." ~ numeric }
+
+integer               =  { "-"? ~ numeric }
+
+boolean               =  { "yes" | "no" | "true" | "false" }
+
+string                =  { unquoted_string | single_quoted_string | double_quoted_string }
+
+unquoted_string       =  { ( ASCII_ALPHANUMERIC | "_" | "@" | "." | ":" )+ }
+
+single_quoted_string  =  { "'" ~ ( ( "\\" ~ ANY ) | ( !"'" ~ ANY ) )* ~ "'" }
+
+double_quoted_string  =  { "\"" ~ ( ( "\\" ~ ANY ) | ( !"\"" ~ ANY ) )* ~ "\"" }
+
+regexp                =  { "/" ~ regexp_content ~ "/" ~ regexp_flag{0,3} }
+
+regexp_content        =  { ( ( "\\" ~ ANY ) |  ( !"/" ~ ANY ) )* }
+
+regexp_flag           =  { "m" | "x" | "i" }
+

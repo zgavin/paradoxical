@@ -51,28 +51,16 @@ module Paradoxical::FileParser
     return document
   end
   
-	def parse data, path: nil, parse_method: :rust
-		document = begin
-      if parse_method == :rust then
-        RustParser.parse data
-      else
-        parse_result = Paradoxical::Parser.new.parse data, reporter: Parslet::ErrorReporter::Deepest.new
-        
-        Paradoxical::RustTransformer.new.apply parse_result
-      end      
-    rescue StandardError => error
-      puts "Error parsing #{path}#{ self.is_a?(Paradoxical::Mod) ? " ( #{name} )" : '' }" unless path.nil?
-      puts error.message
-      exit
-		rescue Parslet::ParseFailed => error
-      puts "Error parsing #{path}#{ self.is_a?(Paradoxical::Mod) ? " ( #{name} )" : '' }" unless path.nil?
-		  puts error.parse_failure_cause.ascii_tree
-			exit
-		end    
-    
+	def parse data, path: nil
+		document = Paradoxical::Parser.parse data
+  
     document.instance_variable_set( :@owner, self )
     document.instance_variable_set( :@path, path )
     
     document
-  end
+  rescue Paradoxical::Parser::ParseError => error
+    puts "Error parsing #{path}#{ self.is_a?(Paradoxical::Mod) ? " ( #{name} )" : '' }" unless path.nil?
+    puts error.message
+    exit
+	end  
 end

@@ -39,7 +39,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 10.0"
   
   spec.add_dependency "active_support/all", "~> 5"
-  spec.add_dependency "parslet", "~> 1.8"
   spec.add_dependency "rubyzip", "~> 1.2"
   spec.add_dependency "rutie", "= 0.0.4"
 end

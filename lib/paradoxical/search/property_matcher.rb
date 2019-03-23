@@ -9,15 +9,12 @@ class Paradoxical::Search::PropertyMatcher
 
   def matches? node
     return false unless node.is_a? Paradoxical::Elements::Document or node.is_a? Paradoxical::Elements::List
-    begin
-      properties = node.send(:children).select do |node| node.is_a? Paradoxical::Elements::Property and node.key.downcase == key end
-    rescue Exception => e
-      require 'pp'
-      pp node
-      raise e
-    end
-  
-    return true if ( operator.nil? or value.nil? ) and not properties.empty?
+    
+    properties = node.send(:children).select do |node| node.is_a? Paradoxical::Elements::Property and node.key.downcase == key end
+
+    return false if properties.empty?
+
+    return true if operator.nil? or value.nil?
 
     properties.any? do |property|
       tmp = value

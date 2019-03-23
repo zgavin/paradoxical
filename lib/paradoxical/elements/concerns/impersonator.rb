@@ -47,14 +47,8 @@ module Paradoxical::Elements::Concerns::Impersonator
       methods.each do |method|
         define_method method do |other|
           other = other.to_real if other.is_a? Paradoxical::Elements::Concerns::Impersonator
-          
-          
-          begin
-            to_real.send(method, other) 
-          rescue Exception => e
-            puts method
-            raise e
-          end
+
+          to_real.send(method, other) 
         end
       end
     end
@@ -62,8 +56,6 @@ module Paradoxical::Elements::Concerns::Impersonator
   
   def initialize value
 		@value = value
-    
-    raise "what the fuck" if value == nil
   end
 
   def dup
@@ -98,6 +90,10 @@ module Paradoxical::Elements::Concerns::Impersonator
       
       to_real.send(method, other)
     end
+  end
+  
+  def inspect
+    %{#{@value.inspect}@pdx}
   end
   
 	def respond_to? sym, include_private=false

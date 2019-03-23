@@ -28,14 +28,13 @@ class String
   end
   
   def quote
-    Paradoxical::Elements::Value.new Paradoxical::Elements::Primitives::String.new %{"#{self}"}
+    Paradoxical::Elements::Primitives::String.new self, is_quoted: true
   end
   
   def literal
-    Paradoxical::Elements::Value.new Paradoxical::Elements::Primitives::String.new self
+    Paradoxical::Elements::Primitives::String.new self, is_quoted: false
   end
 end
-
 
 class Float
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
@@ -71,6 +70,6 @@ class Array
 	end
 	
 	def pdx_add_padding_lines
-		self.map do |v| [ v, Paradoxical::Elements::Value.new('') ] end.flatten(1)[0..-2]
+		self.map do |v| [ v, Paradoxical::Elements::Value.new( Paradoxical::Elements::Primitives::String.new '' ) ] end.flatten(1)[0..-2]
 	end
 end

@@ -1,99 +1,49 @@
-document = _{
-  SOI ~ expression* ~ ws ~ EOI
-}
+document              = _{ SOI ~ expression* ~ ws ~ EOI }
 
-expression = _{
-  comment | property | list
-}
+expression            = _{ comment | property | list }
 
-comment = { 
-  ws ~ "#" ~ comment_text
-}
+comment               =  { ws ~ "#" ~ comment_text }
 
-comment_text = @{
-  ( !NEWLINE ~ ANY )*
-}
+comment_text           = @{ ( !NEWLINE ~ ANY )* }
 
-value = {
-	ws ~ primitive
-}
+value                 =  { ws ~ primitive }
 
-property = { 
-  ws ~ primitive ~ ws ~ operator ~ ws ~ primitive
-}
+property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 
-list = { 
-  keyable_list | array_list
-}
+list                  =  { keyable_list | array_list }
 
-keyable_list = _{
-	ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ expression* ~ ws ~ "}"
-}
+keyable_list          = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
 
-array_list = _{
-	ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}"
-}
+array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
 
-keyless_list = {
-  ws ~ "{" ~ expression* ~ ws ~ "}"
-}
+keyless_list          =  { ws ~ "{" ~ expression* ~ ws ~ "}" }
 
-primitive = {
-  ( percentage | date | float | integer | boolean | string )
-}
+primitive             =  { ( percentage | date | float | integer | boolean | string ) }
 
-operator = @{
-	( "=" | ">=" | "<=" | ">" | "<" )
-}
+operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" ) }
 
-date = @{
-  ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASCII_DIGIT{1,2} 
-}
+date                  = @{ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASCII_DIGIT{1,2}  }
 
-numeric = @{
-  ASCII_DIGIT+
-}
+numeric               = @{ ASCII_DIGIT+ }
 
-float = @{
-  ( ( ( "-"? ~ numeric )? ~ "." ~ numeric ) | ( "-"? ~ numeric ~ "." ~ numeric? ) ) ~ &whitespace_character
-}
+float                 = @{ ( ( ( "-"? ~ numeric )? ~ "." ~ numeric ) | ( "-"? ~ numeric ~ "." ~ numeric? ) ) ~ &whitespace_character }
 
-integer = @{ 
-  "-"? ~ numeric ~ &reserved_character
-}
+integer               = @{ "-"? ~ numeric ~ &break_character }
 
-boolean = @{
-   ( "yes" | "no" ) ~ &reserved_character
-}
+boolean               = @{ ( "yes" | "no" ) ~ &break_character }
 
-string = @{
-	empty_string | quoted_string | unquoted_string
-}
+string                = @{ empty_string | quoted_string | unquoted_string }
 
-unquoted_string = {
-	( ( ( "@" | "_"+ ) ~ ASCII_ALPHANUMERIC ) | ASCII_ALPHANUMERIC ) ~ ( !( reserved_character ) ~ ANY )*
-}
+unquoted_string       =  { ( ( ( "@" | "_"+ ) ~ ASCII_ALPHANUMERIC ) | ASCII_ALPHANUMERIC ) ~ ( !( break_character ) ~ ANY )* }
 
-quoted_string = @{
-	( "\"" ~ (!"\"" ~ ANY)* ~ "\"" )
-}
+quoted_string         = @{ ( "\"" ~ (!"\"" ~ ANY)* ~ "\"" ) }
 
-empty_string = @{
-	"\"\""
-}
+empty_string          = @{ "\"\"" }
 
-percentage = {
-  ( numeric ~ "%"+ )
-}
+percentage            =  { ( numeric ~ "%"+ ) }
 
-reserved_character = _{
-  whitespace_character | operator | "{" | "}" | "#"
-}
+break_character       = _{ whitespace_character | operator | "{" | "}" | "#" }
 
-whitespace_character = _{
-	" " | "\t" | "\r" | "\n"
-}
+whitespace_character  = _{ " " | "\t" | "\r" | "\n" }
 
-ws = {
-  whitespace_character* ~ !whitespace_character
-}
+ws                    =  { whitespace_character* ~ !whitespace_character }

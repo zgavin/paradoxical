@@ -12,13 +12,9 @@ class Paradoxical::Generator
 	def empty_list k
 		Paradoxical::Elements::List.new k, []
 	end
-  
-	def literal s
-		Paradoxical::Elements::Value.new Paradoxical::Elements::Primitives::String.new s
-	end
 
 	def empty_line
-		literal ''
+		Paradoxical::Elements::Value.new Paradoxical::Elements::Primitives::String.new '', is_quoted: false
 	end
   
   def comment s
@@ -94,8 +90,8 @@ class Paradoxical::Generator
 				operator = '='
 			end
 		
-			if value.is_a? String and not ( value.start_with? '@' or %w{ owner space_owner root this prev prevprev from fromfrom }.include? value ) then
-				value = literal %{"#{value}"}
+			if not value.is_a? Paradoxical::Elements::Primitives::String and value.is_a? String and not ( value.start_with? '@' or %w{ owner space_owner root this prev prevprev from fromfrom }.include? value ) then
+				value = value.quote
 			end
 		
 			l( key, p('which', which), p('value', operator, value ) ).single_line!

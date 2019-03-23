@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate rutie;
-use rutie::{Class, Object, RString, VM, Array, Hash, Symbol, AnyObject, Module, Boolean };
+use rutie::{ Object, RString, VM, Array, Hash, Symbol, AnyObject, Module, Boolean };
 
 extern crate pest;
 use pest::Parser;
@@ -10,22 +10,27 @@ use pest::iterators::Pair;
 #[macro_use]
 extern crate pest_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
 #[derive(Parser)]
 #[grammar = "script.pest"]
 struct ScriptParser;
 
-class!(RustParser);
+mod search;
+
+class!(ParadoxicalParser);
 
 methods!(
-    RustParser,
+    ParadoxicalParser,
     _itself,
 
-    fn rust_parse(data: RString) -> AnyObject {
+    fn parse(data: RString) -> AnyObject {
         let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string_unchecked();
 
 
         let pairs = ScriptParser::parse(Rule::document, &string ).map_err(|e|  
-            VM::raise( Class::from_existing("StandardError"), &e.to_string()  )  
+            VM::raise( Module::from_existing("Paradoxical").get_nested_module("Parser").get_nested_class("ParseError"), &e.to_string()  )  
         ).unwrap();
 
         return document( pairs )
@@ -273,8 +278,12 @@ fn k( s:&str ) -> Symbol {
 #[allow(non_snake_case)]
 #[no_mangle]
 pub extern "C" fn Init_Rust_Parser() {
-    Class::new("RustParser", None).define(|itself| {
-        itself.def_self("parse", rust_parse);
+    Module::from_existing("Paradoxical").get_nested_module("Parser").define(|itself| {
+        itself.def_self("parse", parse);
+    });
+
+    Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_module("Parser").define(|itself| {
+        itself.def_self("parse", search::parse);
     });
 }
     

@@ -5,10 +5,22 @@ class Paradoxical::Elements::Primitives::String
   
   impersonate_infix_methods %i{ !~ % * + =~ << }
   
-  def initialize string
-    @is_quoted = ( string.start_with? '"' and string.end_with? '"' )
-    
-    super( @is_quoted ? string[1..-2] : string )
+  attr_reader :is_quoted
+  
+  def initialize string, is_quoted: nil
+    if is_quoted.nil? then
+      @is_quoted = ( string.start_with? '"' and string.end_with? '"' ) 
+      
+      super @is_quoted ? string[1..-2] : string
+    else
+      @is_quoted = is_quoted
+      
+      super string
+    end
+  end
+
+  def dup
+    self.class.new @value, is_quoted: @is_quoted
   end
   
   def to_pdx

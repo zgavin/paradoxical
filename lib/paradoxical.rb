@@ -1,5 +1,4 @@
 require 'active_support/all'
-require 'parslet'
 require 'zip'
 require 'yaml'
 require 'rutie'
@@ -37,19 +36,20 @@ end
 
 %w{
   version
-
-  parser
-  transformer
-  helper
-  generator
+  
   file_parser
+
   game
+  generator
+  helper
   mod
+  parser
+  search
 
   elements/concerns/arrayable
-  elements/concerns/searchable
   elements/concerns/impersonator
-
+  elements/concerns/searchable
+  
   elements/node
 
   elements/comment
@@ -64,12 +64,10 @@ end
   elements/primitives/integer
   elements/primitives/string
 
-  search/search
-  search/parser
-  search/transformer
-  search/rule
-  search/property_matcher
   search/function_matcher
+  search/parser
+  search/property_matcher
+  search/rule  
 }.each do |file|
   require "paradoxical/#{file}"
 end

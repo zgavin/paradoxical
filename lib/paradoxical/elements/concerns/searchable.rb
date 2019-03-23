@@ -1,27 +1,41 @@
 module Paradoxical::Elements::Concerns::Searchable
   extend ActiveSupport::Concern
   
-  def search search_string
-    self.send :__search, Paradoxical::Search.parse( search_string ) 
+  def search search
+    if search.is_a? String then
+      self.send :__search, Paradoxical::Search.parse( search )
+    elsif search.is_a? Array and search.all? do |r| r.is_a? Paradoxical::Search::Rule end then
+      self.send :__search, search
+    else
+      raise ArgumentError.new( "expected String or Array of Paradoxical::Search::Rule objects")
+    end 
   end
   
-  def find_all search_string=nil, &block
-    if search_string.nil? and block.nil? then
+  def find_all search=nil, &block
+    if search.nil? and block.nil? then
       self.to_enum :find_all
-    elsif search_string.nil? then
+    elsif search.nil? then
       @list.find &block
+    elsif search.is_a? String then
+      self.send :__search, Paradoxical::Search.parse( search )
+    elsif search.is_a? Array and search.all? do |r| r.is_a? Paradoxical::Search::Rule end then
+      self.send :__search, search
     else
-      self.send :__search, Paradoxical::Search.parse( search_string ) 
+      raise ArgumentError.new( "expected String or Array of Paradoxical::Search::Rule objects")
     end
   end
 
-  def find search_string=nil, &block
-    if search_string.nil? and block.nil? then
+  def find search=nil, &block
+    if search.nil? and block.nil? then
       self.to_enum :find
-    elsif search_string.nil? then
+    elsif search.nil? then
       @list.find &block
+    elsif search.is_a? String then
+      self.send :__find, Paradoxical::Search.parse( search )
+    elsif search.is_a? Array and search.all? do |r| r.is_a? Paradoxical::Search::Rule end then
+      self.send :__find, search
     else
-      self.send :__find, Paradoxical::Search.parse( search_string )
+      raise ArgumentError.new( "expected String or Array of Paradoxical::Search::Rule objects")
     end
   end
   

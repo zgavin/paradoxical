@@ -10,3 +10,5 @@ crate-type = ["cdylib"]
 rutie = "0.5.3"
 pest = "*"
 pest_derive = "*"
+regex = "1"
+lazy_static = "1.3.0"

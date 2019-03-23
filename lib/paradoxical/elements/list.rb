@@ -36,8 +36,6 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   INDENTS = ["\r\n"]
   
   def to_pdx indent: 0, buffer: ""
-
-    
 		whitespace = ( self.whitespace or [] ) 
     
     buffer << ( whitespace.first or INDENTS[indent] )
@@ -63,7 +61,7 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
       end
     end 
     
-    buffer << ( whitespace.last or indent )
+    buffer << ( whitespace.last or INDENTS[indent] )
     buffer << '}'
     
     buffer

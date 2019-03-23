@@ -8,7 +8,7 @@ class Paradoxical::Search::Rule
     @function_matchers = function_matchers
 
     @property_matchers << Paradoxical::Search::PropertyMatcher.new( 'id', operator: '=', value: id ) unless id.nil?
-    @property_matchers << Paradoxical::Search::PropertyMatcher.new( 'name', operator: '=', value: name.first ) unless name.nil? # for some reason name gets passed as an array
+    @property_matchers << Paradoxical::Search::PropertyMatcher.new( 'name', operator: '=', value: name ) unless name.nil?
   end
 
   def matches? node
