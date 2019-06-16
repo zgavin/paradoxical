@@ -37,7 +37,7 @@ class Paradoxical::Mod
 		result = nil
 		
 		Zip::File.open( archive ) do |zip_file|
-		  result = zip_file.glob( relative_path ).first.present?
+		  result = zip_file.glob( relative_path.to_s ).first.present?
 		end
 		
 		result
@@ -49,7 +49,7 @@ class Paradoxical::Mod
 		result = nil
 		
 		Zip::File.open( archive ) do |zip_file|
-		  result = zip_file.glob( relative_path ).map(&:name)
+		  result = zip_file.glob( relative_path.to_s ).map(&:name)
 		end
 		
 		result
@@ -61,13 +61,13 @@ class Paradoxical::Mod
 		result = nil
 		
 		Zip::File.open( archive ) do |zip_file|
-		  result = zip_file.glob( relative_path ).first.get_input_stream.read
+		  result = zip_file.glob( relative_path.to_s ).first.get_input_stream.read
 		end
 		
 		result
 	end
 	
-	def root_directory
+	def root
 		Pathname.new( File.join game.user_directory, path )
 	end
 	
@@ -153,7 +153,15 @@ class Paradoxical::Mod
       
       s =  "\uFEFF"  # BOM marker
       s << "l_#{language}:\n"
-      s + result.map do |(k,v)| " #{k.to_s}: #{v.to_s.inspect}" end.join("\n")
+      s + result.map do |pair| 
+        next pair.to_pdx if pair.is_a? Paradoxical::Elements::Value
+        next ' ' if pair.empty?
+        next pair.first.to_pdx if pair.count == 1
+
+        k,v = pair
+
+        " #{k.to_s}: #{v.to_s.inspect}"       
+      end.join("\n")
     else
 			block.call
 		end

@@ -1,25 +1,37 @@
 class Paradoxical::Generator
-	def l k, *args
+	def list k, *args
 		opts = args.extract_options!
+    
+    args = args.flatten.map do |arg|
+      arg.is_a?(Paradoxical::Elements::Node) ? arg : val(arg)
+    end
 	
 	  Paradoxical::Elements::List.new k, args, opts
 	end
+  alias_method :l, :list
 
-	def p key,operator,value=nil
-	  Paradoxical::Elements::Property.new key,operator,value
+	def property key, operator, value=nil, whitespace: nil
+	  Paradoxical::Elements::Property.new key, operator, value, whitespace: whitespace
 	end
+  alias_method :p, :property
+  
+  def val value, whitespace: nil
+    Paradoxical::Elements::Value.new value, whitespace: whitespace
+  end
+  alias_method :v, :val
+  
+  def comment s, whitespace: nil
+    Paradoxical::Elements::Comment.new " #{s}\r\n", whitespace: whitespace
+  end
+  alias_method :c, :comment
 
 	def empty_list k
-		Paradoxical::Elements::List.new k, []
+		list k, []
 	end
 
 	def empty_line
-		Paradoxical::Elements::Value.new Paradoxical::Elements::Primitives::String.new '', is_quoted: false
+		val Paradoxical::Elements::Primitives::String.new '', is_quoted: false
 	end
-  
-  def comment s
-    Paradoxical::Elements::Comment.new " #{s}\r\n"
-  end
 
 	def pdx_not *args
 		obj = l 'NOT', *args
@@ -65,14 +77,15 @@ class Paradoxical::Generator
   end
   
   SIZE_KEYS = {
-    standard: %w{x y},
-    full: %w{width height}
+    container: %w{width height}
   }
   
-  def size x, y, keys: :standard
-    x_key, y_key = SIZE_KEYS[keys]
+  def size x, y, parent: nil
+    parent = parent.key == 'containerWindowType' ? :container : nil if parent.respond_to?(:key)
     
-    l( 'size', p(x_key, '=', x), p(y_key, '=', y) ).single_line!
+    x_key, y_key = parent.nil? ? %w{x y} : SIZE_KEYS[parent]
+    
+    l( 'size', p( x_key, '=', x ), p( y_key, '=', y ) ).single_line!
   end
 
 	%w{ if while AND NAND OR NOR }.each do |word|
@@ -120,14 +133,16 @@ class Paradoxical::Generator
   end
 
 	def pdx_obj key, *args  
-		args = args.map do |v| v.nil? ? Paradoxical::Elements::Value.new('') : v end
+		args = args.map do |v| v.nil? ? empty_line : v end
 	
 		if args.empty? then
 			Paradoxical::Elements::Primitives::String.new key
-	  elsif (1..2).include? args.count and args.none? do |obj| obj.is_a? Paradoxical::Elements::List or obj.is_a? Paradoxical::Elements::Property end then
-	    p key, *args
-	  else
-			l key, *args
+	  elsif args.all? do |obj| obj.is_a? Paradoxical::Elements::Node end then
+	    l key, *args
+    elsif args.none? do |obj| obj.is_a? Paradoxical::Elements::Node end then          
+			p key, *args
+    else
+      raise ArgumentError.new "expected all Node or all Primitive arguments"
 	  end
 	end
 

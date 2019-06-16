@@ -11,7 +11,11 @@ class Paradoxical::Search::FunctionMatcher
   end
 
   def comment node
-    node.is_a? Paradoxical::Elements::Comment
+    return false unless node.is_a? Paradoxical::Elements::Comment 
+    
+    return true if arguments.empty?
+    
+    arguments.first.is_a?(Regexp) ? arguments.first =~ node.text : node.text.include?( arguments.first.to_s )
   end
 
   def list node
@@ -40,6 +44,10 @@ class Paradoxical::Search::FunctionMatcher
 
   def nth_child node
     node == node.parent&.send(:children)&.at( arguments.first )
+  end
+  
+  def value node
+    node.value == arguments.first
   end
 
   def value_matches node

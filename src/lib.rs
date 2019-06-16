@@ -236,6 +236,7 @@ fn primitive( pair:Pair<Rule> ) -> AnyObject {
 
     for pair in pair.into_inner() {
         class_name = match pair.as_rule() {
+            Rule::color => "Color",
             Rule::date => "Date",
             Rule::float => "Float",
             Rule::integer => "Integer",

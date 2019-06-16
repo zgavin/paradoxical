@@ -8,7 +8,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   }
 
   DELEGATED_METHODS = %i{ 
-    any? at count drop empty? fetch first frozen? last length reverse rotate sample shuffle size
+    all? any? at count drop empty? fetch first frozen? last length none? reverse rotate sample shuffle size
     slice sort take to_a values_at
   }
 
@@ -65,10 +65,10 @@ module Paradoxical::Elements::Concerns::Arrayable
   end
   
   def [] *args
-    if args.first.is_a?(::String) or args.first.is_a?(Symbol) then
+    if [::String, Symbol, Paradoxical::Elements::Primitives::String].any? do |klass| args.first.is_a?(klass) end  then
       key = args.first.to_s.downcase
       
-      @children.find do |obj| obj.respond_to?(:key) and obj.key.downcase == key end
+      @children.find do |obj| obj.respond_to?(:key) and obj.key.to_s.downcase == key end
     else
       @children[*args]
     end
@@ -101,7 +101,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   end
 
   def clear
-    @children.each do |p| object.send( :parent=, nil ) end
+    @children.each do |object| object.send( :parent=, nil ) end
   
     @children.clear
   
@@ -226,7 +226,7 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   alias_method :collect!, :map!
 
-  def pop n=nil
+  def pop n=1
     @children.pop(n)&.tap do |result|
       Array(result).each do |object| 
         object.send( :parent=, nil ) 
@@ -286,7 +286,7 @@ module Paradoxical::Elements::Concerns::Arrayable
     self
   end
 
-  def shift n=nil
+  def shift n=1
     @children.shift(n)&.tap do |result|  
       Array(result).each do |object| 
         object.send( :parent=, nil ) 
@@ -324,6 +324,10 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   def lists
     @children.select do |obj| obj.is_a? Paradoxical::Elements::List end
+  end
+  
+  def values 
+    @children.select do |obj| obj.is_a? Paradoxical::Elements::Value end
   end
 
   def properties

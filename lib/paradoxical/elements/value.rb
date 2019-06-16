@@ -11,11 +11,11 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   end
   
   def eql? other
-    other.is_a?( self.class ) and @value.eql?( other.string )
+    other.is_a?( self.class ) and @value.eql?( other.value )
   end
   
   def == other
-    other.is_a?( self.class ) and @value == other.string
+    other.is_a?( self.class ) and @value == other.value
   end
   
   def hash

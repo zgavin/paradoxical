@@ -15,7 +15,7 @@ class Paradoxical::Search::PropertyMatcher
     return false if properties.empty?
 
     return true if operator.nil? or value.nil?
-
+    
     properties.any? do |property|
       tmp = value
       tmp = tmp.to_i if property.value.is_a? Integer

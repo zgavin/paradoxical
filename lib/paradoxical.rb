@@ -1,7 +1,8 @@
 require 'active_support/all'
-require 'zip'
-require 'yaml'
+require 'pathname'
 require 'rutie'
+require 'yaml'
+require 'zip'
 
 Zip.warn_invalid_date = false
 
@@ -58,6 +59,7 @@ end
   elements/property
   elements/value
 
+  elements/primitives/color
   elements/primitives/core_extensions
   elements/primitives/date
   elements/primitives/float

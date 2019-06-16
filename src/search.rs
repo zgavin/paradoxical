@@ -190,7 +190,7 @@ fn value( pair:Pair<Rule> ) -> AnyObject {
         Rule::boolean => { 
             let string = inner.as_str();
 
-            Boolean::new( string == "yes" || string == "no").to_any_object()
+            Boolean::new( string == "yes" || string == "true" ).to_any_object()
         }
         Rule::regexp => { regexp( inner ) }
         _ => {
@@ -200,9 +200,8 @@ fn value( pair:Pair<Rule> ) -> AnyObject {
     }
 }
 
-
 lazy_static! {
-    static ref SLASH_REGEX:Regex = Regex::new(r"\\(.)").unwrap();
+    static ref REGEXP_REGEX:Regex = Regex::new(r"\\/").unwrap();
 }
 
 fn regexp ( pair:Pair<Rule> ) -> AnyObject {
@@ -214,7 +213,7 @@ fn regexp ( pair:Pair<Rule> ) -> AnyObject {
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::regexp_content => { 
-                let replaced  = SLASH_REGEX.replace_all( pair.as_str(), "$1" );
+                let replaced  = REGEXP_REGEX.replace_all( pair.as_str(), "/" );
 
                 contents = Some( s( &replaced ).to_any_object() );
             },
@@ -239,6 +238,10 @@ fn regexp ( pair:Pair<Rule> ) -> AnyObject {
     return class.new_instance(Some(&arguments));
 }
 
+lazy_static! {
+    static ref STRING_REGEX:Regex = Regex::new(r"\\(.)").unwrap();
+}
+
 fn string( pair:Pair<Rule>) -> RString {
     let mut iter = pair.into_inner();
 
@@ -251,7 +254,7 @@ fn string( pair:Pair<Rule>) -> RString {
 
             string = &string[1..(string.len()-1)];
             
-            let replaced = SLASH_REGEX.replace_all(&string, "$1");
+            let replaced = STRING_REGEX.replace_all(&string, "$1");
 
             s( &replaced )
         }

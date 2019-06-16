@@ -1,15 +1,15 @@
 class Paradoxical::Game
   include Paradoxical::FileParser
   
-	attr_accessor :name, :executable, :root_directory, :user_directory
+	attr_accessor :name, :executable, :root, :user_directory
 	
-	def initialize name, executable: nil, root_directory: nil, user_directory: nil
+	def initialize name, executable: nil, root: nil, user_directory: nil
 		@name = name
 		@executable = ( executable or name.downcase )
-		@root_directory = Pathname.new( ( root_directory or File.expand_path("~/Library/Application Support/Steam/steamapps/common/#{name}" ) ) )
+		@root = Pathname.new( ( root or File.expand_path("~/Library/Application Support/Steam/steamapps/common/#{name}" ) ) )
 		@file_cache = {}
 		
-		userdir_txt_path = @root_directory.join 'userdir.txt'
+		userdir_txt_path = @root.join 'userdir.txt'
 		
 		if user_directory.present? then
 			@user_directory = user_directory
@@ -27,7 +27,7 @@ class Paradoxical::Game
 	end
 	
 	def enabled_mods
-		return self.enabled_mods = @mods if @enabled_mods.nil?
+		return self.enabled_mods = mods if @enabled_mods.nil?
 		
 		@enabled_mods.dup
 	end

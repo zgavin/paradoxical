@@ -66,9 +66,11 @@ module Paradoxical::Elements::Concerns::Impersonator
 		@value
   end
 	
-	def to_s
-		@value.to_s
-	end
+  %i{to_s to_i to_f}.each do |m|
+    define_method m do
+      @value.send(m)
+    end
+  end
   
   def hash
     @value.hash

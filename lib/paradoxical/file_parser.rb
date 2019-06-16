@@ -14,7 +14,7 @@ module Paradoxical::FileParser
   end
   
 	def glob relative_path
-		Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root_directory.to_s + '/').reverse ).reverse end
+		Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root.to_s + '/').reverse ).reverse end
 	end
   
   def read relative_path
@@ -22,7 +22,7 @@ module Paradoxical::FileParser
   end
   
   def full_path_for path
-    path.start_with?('/') ? path : root_directory.join( path )
+    path.to_s.start_with?('/') ? path : root.join( path )
   end
   
   def parse_file path, mutex: nil

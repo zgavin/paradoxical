@@ -38,11 +38,13 @@ class Paradoxical::Elements::Node
   def replace! object
     raise ArgumentError.new "Cannot replace a node with nil parent" if @parent.nil?
     
-    insert_before object
+    index = parent.find_index do |obj| obj.equal? self end
+    
+    insert_after object
     
     object.whitespace = self.whitespace.dup
     
-    remove
+    @parent.delete_at index
     
     object
   end
