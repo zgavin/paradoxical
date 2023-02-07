@@ -81,7 +81,13 @@ module Paradoxical::Elements::Concerns::Arrayable
       property = self[key]
       
       if property.nil? then
-        self << Paradoxical::Elements::Property.new( key, '=', value ) 
+				child = @children.reverse_each.find do |child| child.is_a? Paradoxical::Elements::Property end
+				property = Paradoxical::Elements::Property.new( key, '=', value ) 
+				if child.present? then
+					child.insert_after property
+				else	
+        	self << property
+				end
         
         value
       elsif property.is_a? Paradoxical::Elements::Property then

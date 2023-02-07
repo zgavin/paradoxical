@@ -22,8 +22,7 @@ methods!(
     _itself,
 
     fn parse(data: RString) -> Array {
-        let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string_unchecked();
-
+        let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string();
 
         let pairs = SearchParser::parse(Rule::ruleset, &string ).map_err(|e|  
             VM::raise( Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_module("Parser").get_nested_class("ParseError"), &e.to_string()  )  
@@ -38,7 +37,7 @@ fn ruleset( pairs: Pairs<Rule> ) -> Array {
 
     for pair in pairs {
         match pair.as_rule() {
-            Rule::rule => { 
+            Rule::rule => {
                 rules.push( rule( pair ) );
             }
             Rule::EOI => {}
@@ -106,7 +105,7 @@ fn rule( pair:Pair<Rule> ) -> AnyObject {
 
     let arguments = [key.to_any_object(), options.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    return class.new_instance(&arguments);
 }
 
 fn property_matcher( pair:Pair<Rule> ) -> AnyObject {
@@ -139,7 +138,7 @@ fn property_matcher( pair:Pair<Rule> ) -> AnyObject {
 
     let arguments = [ key.unwrap(), options.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    return class.new_instance(&arguments);
 }
 
 fn function_matcher( pair:Pair<Rule> ) -> AnyObject {
@@ -169,7 +168,7 @@ fn function_matcher( pair:Pair<Rule> ) -> AnyObject {
 
     let arguments = [ name.unwrap(), options.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    return class.new_instance(&arguments);
 }
 
 fn value( pair:Pair<Rule> ) -> AnyObject {
@@ -235,7 +234,7 @@ fn regexp ( pair:Pair<Rule> ) -> AnyObject {
 
     let arguments = [ contents.unwrap(), Integer::new( flag ).to_any_object() ];
 
-    return class.new_instance(Some(&arguments));
+    return class.new_instance(&arguments);
 }
 
 lazy_static! {

@@ -10,7 +10,7 @@ module Paradoxical::FileParser
   end
   
   def exists? relative_path
-    File.exists? full_path_for relative_path
+    File.exist? full_path_for relative_path
   end
   
 	def glob relative_path
@@ -25,7 +25,7 @@ module Paradoxical::FileParser
     path.to_s.start_with?('/') ? path : root.join( path )
   end
   
-  def parse_file path, mutex: nil
+  def parse_file path, mutex: nil, ignore_cache: false
     document = nil
     
     mutex ||= Object.new.tap do |o| o.define_singleton_method :synchronize do |&block| block.call end end
@@ -34,7 +34,7 @@ module Paradoxical::FileParser
       document = @file_cache[path] 
     end
     
-    return document unless document.nil?
+    return document unless ignore_cache or document.nil? 
     
     data = read( path ).force_encoding("windows-1252").encode("utf-8")
     
@@ -56,6 +56,7 @@ module Paradoxical::FileParser
   
     document.instance_variable_set( :@owner, self )
     document.instance_variable_set( :@path, path )
+		document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
     
     document
   rescue Paradoxical::Parser::ParseError => error

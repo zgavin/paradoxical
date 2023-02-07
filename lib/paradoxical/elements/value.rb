@@ -1,6 +1,14 @@
 class Paradoxical::Elements::Value < Paradoxical::Elements::Node  
   attr_accessor :value
   
+  def self.empty_line
+    empty_line = self.new Paradoxical::Elements::Primitives::String.new '', is_quoted: false
+    
+    empty_line.instance_variable_set :@empty_line, true
+    
+    empty_line
+  end
+  
   def initialize value, whitespace: nil
 		self.value = value
 		self.whitespace = whitespace
@@ -33,4 +41,8 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   def reset_whitespace!
     self.whitespace = nil
   end	
+  
+  def empty_line? 
+    @empty_line == true
+  end
 end

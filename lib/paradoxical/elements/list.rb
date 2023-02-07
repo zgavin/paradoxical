@@ -33,15 +33,19 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     [@key, *@children].hash
   end
   
-  INDENTS = ["\r\n"]
-  
+	def line_break
+		document&.line_break or "\n"
+	end
+	
   def to_pdx indent: 0, buffer: ""
 		whitespace = ( self.whitespace or [] ) 
+		
+		current_indent = line_break + ("\t" * indent)
     
-    buffer << ( whitespace.first or INDENTS[indent] )
+    buffer << ( whitespace.first or current_indent )
     
     unless key == false then
-      buffer << key.to_pdx
+      buffer << key.to_s
       buffer << ( whitespace[1] or ' ' )
       buffer << operator
       buffer << ( whitespace[2] or ' ' )
@@ -49,19 +53,15 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     
     buffer << '{'
     
-    next_indent = INDENTS[indent+1]
-    
-    INDENTS << ( next_indent = "#{INDENTS[indent]}\t" ) if next_indent == nil
-    
     @children.each do |object| 
       if object.is_a? Paradoxical::Elements::List then
         object.to_pdx indent: indent + 1, buffer: buffer 
       else
-        object.to_pdx indent: next_indent, buffer: buffer 
+        object.to_pdx indent: "#{current_indent}\t", buffer: buffer 
       end
     end 
     
-    buffer << ( whitespace.last or INDENTS[indent] )
+    buffer << ( whitespace.last or current_indent )
     buffer << '}'
     
     buffer

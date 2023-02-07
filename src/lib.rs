@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate rutie;
-use rutie::{ Object, RString, VM, Array, Hash, Symbol, AnyObject, Module, Boolean };
+use rutie::{ Object, RString, VM, Array, AnyObject, Module, Boolean };
 
 extern crate pest;
 use pest::Parser;
@@ -26,7 +26,7 @@ methods!(
     _itself,
 
     fn parse(data: RString) -> AnyObject {
-        let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string_unchecked();
+        let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string();
 
 
         let pairs = ScriptParser::parse(Rule::document, &string ).map_err(|e|  
@@ -38,7 +38,6 @@ methods!(
 );
 
 fn document( pairs: Pairs<Rule> ) -> AnyObject {
-    let mut hash = Hash::new();
     let mut children = Array::new();
     let mut whitespace = Array::new();
 
@@ -56,17 +55,18 @@ fn document( pairs: Pairs<Rule> ) -> AnyObject {
         };
     }
 
-    hash.store( k( "whitespace" ), whitespace );
-
     let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Document");
 
-    let arguments = [children.to_any_object(), hash.to_any_object()];
+    let arguments = [children.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    let mut instance = class.new_instance(&arguments);
+
+    instance.instance_variable_set("@whitespace", whitespace);
+
+    return instance
 }
 
 fn comment( pair:Pair<Rule> ) -> AnyObject {
-    let mut hash = Hash::new();
     let mut whitespace = Array::new();
 
     let mut key = s("");
@@ -82,17 +82,18 @@ fn comment( pair:Pair<Rule> ) -> AnyObject {
         };
     }
 
-    hash.store( k( "whitespace" ), whitespace );
-
     let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Comment");
 
-    let arguments = [key.to_any_object(), hash.to_any_object()];
+    let arguments = [key.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    let mut instance = class.new_instance(&arguments);
+
+    instance.instance_variable_set("@whitespace", whitespace);
+
+    return instance
 }
 
 fn value( pair:Pair<Rule> ) -> AnyObject {
-    let mut hash = Hash::new();
     let mut whitespace = Array::new();
 
     let mut value = s("").to_any_object();
@@ -108,17 +109,18 @@ fn value( pair:Pair<Rule> ) -> AnyObject {
         };
     }
 
-    hash.store( k( "whitespace" ), whitespace );
-
     let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Value");
 
-    let arguments = [value.to_any_object(), hash.to_any_object()];
+    let arguments = [value.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    let mut instance = class.new_instance(&arguments);
+
+    instance.instance_variable_set("@whitespace", whitespace);
+
+    return instance
 }
 
 fn property( pair:Pair<Rule> ) -> AnyObject {
-    let mut hash = Hash::new();
     let mut whitespace = Array::new();
     
     let mut key = s("").to_any_object();
@@ -146,17 +148,18 @@ fn property( pair:Pair<Rule> ) -> AnyObject {
         };
     }
 
-    hash.store( k( "whitespace" ), whitespace );
-
     let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Property");
 
-    let arguments = [key.to_any_object(), operator.to_any_object(), value.to_any_object(), hash.to_any_object()];
+    let arguments = [key.to_any_object(), operator.to_any_object(), value.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    let mut instance = class.new_instance(&arguments);
+
+    instance.instance_variable_set("@whitespace", whitespace);
+
+    return instance
 }
 
 fn list( pair:Pair<Rule> ) -> AnyObject {
-    let mut hash = Hash::new();
     let mut children = Array::new();
     let mut whitespace = Array::new();
 
@@ -186,18 +189,19 @@ fn list( pair:Pair<Rule> ) -> AnyObject {
         };
     }
 
-    hash.store( k( "whitespace" ), whitespace );
-    hash.store( k( "operator" ), operator );
-
     let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("List");
 
-    let arguments = [key.to_any_object(), children.to_any_object(), hash.to_any_object()];
+    let arguments = [key.to_any_object(), children.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    let mut instance = class.new_instance(&arguments);
+
+    instance.instance_variable_set("@whitespace", whitespace);
+    instance.instance_variable_set("@operator", operator);
+
+    return instance
 }
 
 fn keyless_list( pair:Pair<Rule> ) -> AnyObject {
-    let mut hash = Hash::new();
     let mut children = Array::new();
     let mut whitespace = Array::new();
 
@@ -220,13 +224,15 @@ fn keyless_list( pair:Pair<Rule> ) -> AnyObject {
         };
     }
 
-    hash.store( k( "whitespace" ), whitespace );
-
     let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("List");
 
-    let arguments = [Boolean::new(false).to_any_object(), children.to_any_object(), hash.to_any_object()];
+    let arguments = [Boolean::new(false).to_any_object(), children.to_any_object()];
 
-    return class.new_instance(Some(&arguments));
+    let mut instance = class.new_instance(&arguments);
+
+    instance.instance_variable_set("@whitespace", whitespace);
+
+    return instance
 }
 
 fn primitive( pair:Pair<Rule> ) -> AnyObject {
@@ -252,7 +258,7 @@ fn primitive( pair:Pair<Rule> ) -> AnyObject {
     }
 
     if class_name == "Boolean"  {
-         let bool_value = if value.to_str_unchecked() == "yes" { true } else { false };
+        let bool_value = if value.to_str() == "yes" { true } else { false };
 
         return Boolean::new(bool_value).to_any_object();
     } else {
@@ -260,7 +266,7 @@ fn primitive( pair:Pair<Rule> ) -> AnyObject {
 
         let arguments = [ value.to_any_object() ];
 
-        return class.new_instance(Some(&arguments));
+        return class.new_instance(&arguments);
     }
 }
 
@@ -270,10 +276,6 @@ fn p( pair:Pair<Rule> ) -> RString {
 
 fn s( s:&str ) -> RString {
     RString::new_utf8( s )
-}
-
-fn k( s:&str ) -> Symbol {
-    Symbol::new(s)
 }
     
 #[allow(non_snake_case)]

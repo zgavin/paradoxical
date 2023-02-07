@@ -6,15 +6,15 @@ comment               =  { ws ~ "#" ~ comment_text }
 
 comment_text          = @{ ( !NEWLINE ~ ANY )* }
 
-
-
 value                 =  { ws ~ primitive }
 
 property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 
-list                  =  { keyable_list | array_list }
+list                  =  { keyable_list | array_list | mixed_list }
 
 keyable_list          = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+
+mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
 array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
 
@@ -24,7 +24,7 @@ primitive             =  { ( color | percentage | date | float | integer | boole
 
 operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" ) }
 
-color                 =  @{ ( "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3} ~ ws ~ "}"  }
+color                 = @{ ( "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3} ~ ws ~ "}"  }
 
 date                  = @{ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASCII_DIGIT{1,2}  }
 
@@ -46,7 +46,7 @@ quoted_string         = @{ ( "\"" ~ (!"\"" ~ ANY)* ~ "\"" ) }
 
 empty_string          = @{ "\"\"" }
 
-percentage            =  { ( numeric ~ "%"+ ) }
+percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 
 break_character       = _{ whitespace_character | operator | "{" | "}" | "#" }
 

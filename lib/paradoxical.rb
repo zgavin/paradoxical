@@ -12,11 +12,7 @@ module Paradoxical
   module Elements::Primitives end
   module Search end 
   
-	class << self 
-		def generate &block
-			Generator.new.instance_exec &block
-		end
-	
+	class << self 	
 		def game= game
 			@game = game
 		end
@@ -40,8 +36,8 @@ end
   
   file_parser
 
+  builder
   game
-  generator
   helper
   mod
   parser

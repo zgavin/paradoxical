@@ -49,7 +49,7 @@ class Integer
   
   def to_pdx
     to_s
-  end    
+  end
 end
 
 class TrueClass
@@ -70,6 +70,6 @@ class Array
 	end
 	
 	def pdx_add_padding_lines
-		self.map do |v| [ v, Paradoxical::Elements::Value.new( Paradoxical::Elements::Primitives::String.new '' ) ] end.flatten(1)[0..-2]
+		self.map do |v| [ v, Paradoxical::Elements::Value.empty_line ] end.flatten(1)[0..-2]
 	end
 end

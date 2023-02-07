@@ -56,6 +56,10 @@ class Paradoxical::Elements::Node
   def siblings
     @parent.nil? ? [] : @parent.send(:children) - [self]
   end
+	
+	def line_break 
+		@line_break ||= ( parent&.line_break or "\n" )
+	end
   
   private 
   
@@ -64,6 +68,8 @@ class Paradoxical::Elements::Node
     
     @parent.delete self unless @parent.nil? or parent.nil?
     
+		@line_break = nil
+		
     @parent = parent
   end
 end

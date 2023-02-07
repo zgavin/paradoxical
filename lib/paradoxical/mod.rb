@@ -68,102 +68,44 @@ class Paradoxical::Mod
 	end
 	
 	def root
-		Pathname.new( File.join game.user_directory, path )
+		Pathname.new( path.to_s.start_with?('/') ? path :  File.join( game.user_directory, path ) )
 	end
 	
-	def update_file relative_path, name: "GENERATED CONTENT", start_delimeter: nil, end_delimeter: nil, wrap_block_with_generate: nil, &block
-		raise "zipped mods are read-only" if archive?
-		
-		full_path = full_path_for relative_path
-		
-		data = File.read full_path
-
-		line_break = data.include?( "\r\n" ) ? "\r\n" : "\n"
-
-		start_delimeter ||= "# #{name} START"
-		end_delimeter ||= "# #{name} END"
-
-		start_index = data.index start_delimeter
-		
-		end_index = data.index( /#{end_delimeter}#{line_break}/, start_index ) + end_delimeter.length + line_break.length - 1
-
-		whitespace = ( data[0..(start_index-1)].scan( /^([\t ]*)\z/ ).first&.first or "" )
-
-		wrap_block_with_generate ||= %{.gui .gfx .txt}.include? File.extname( relative_path ) 
-
-		generated_content = if wrap_block_with_generate then
-			result = Paradoxical.generate do self.instance_exec &block end
-			
-			document = if result.is_a? Array then 
-				Paradoxical::Elements::Document.new result
-			elsif result.is_a? Paradoxical::Elements::Document then
-				result
-			else
-				Paradoxical::Elements::Document.new [result]
-			end
-
-			document.to_pdx.split("\r\n")
-		else
-			result = block.call
-			
-			if result.is_a?(Array) then
-				result.flatten.map do |s| s.is_a?( Paradoxical::Elements::Value ) ? s.value : s end
-			elsif result.is_a?(String) then
-				result.split(/\r?\n/)
-			else
-				Array(result)
-			end
-		end
-		
-		generated_content.unshift ""
-		generated_content.push "", end_delimeter
-
-		generated_content.map! do |line| "#{whitespace}#{line}" end
-
-		generated_content.unshift start_delimeter
-
-		data[start_index..end_index] = generated_content.join(line_break) + line_break
-	
-		File.write full_path, data
-	end
-	
-	def write_file relative_path, data=nil, wrap_block_with_generate: nil, language: nil, &block
+	def write_file relative_path, data=nil, language: nil, &block
     extension = File.extname( relative_path )[1..-1] 
-    
-		wrap_block_with_generate ||= %w{gui gfx txt}.include? extension
 		
-		data ||= if wrap_block_with_generate then
-			result = Paradoxical.generate do
-				self.instance_exec &block
+		data ||= begin
+			if %w{gui gfx txt}.include? extension then
+				result = Paradoxical::Builder.new.build &block
+      
+	      document = if result.is_a? Paradoxical::Elements::Node then
+	        Paradoxical::Elements::Document.new [result]
+	      elsif result.is_a? Array then
+	        Paradoxical::Elements::Document.new result
+	      else
+	        result
+	      end        
+      
+	      document.to_pdx
+	    elsif %w{yaml yml}.include? extension then
+	      language ||= ( relative_path.match(/l_(\w+)\.#{extension}$/) or %w{english} ).to_a.last
+      
+	      result = block.call
+      
+	      s =  "\uFEFF"  # BOM marker
+	      s << "l_#{language}:\n"
+	      s + result.map do |pair| 
+	        next pair.to_pdx if pair.is_a? Paradoxical::Elements::Value
+	        next ' ' if pair.empty?
+	        next pair.first.to_pdx if pair.count == 1
+
+	        k,v = pair
+
+	        " #{k.to_s}: #{v.to_s.inspect}"       
+	      end.join("\n")
+	    else
+				block.call
 			end
-      
-      document = if result.is_a? Paradoxical::Elements::Node then
-        Paradoxical::Elements::Document.new [result]
-      elsif result.is_a? Array then
-        Paradoxical::Elements::Document.new result
-      else
-        result
-      end        
-      
-      document.to_pdx
-    elsif %w{yaml yml}.include? extension then
-      language ||= ( relative_path.match(/l_(\w+)\.#{extension}$/) or %w{english} ).to_a.last
-      
-      result = block.call
-      
-      s =  "\uFEFF"  # BOM marker
-      s << "l_#{language}:\n"
-      s + result.map do |pair| 
-        next pair.to_pdx if pair.is_a? Paradoxical::Elements::Value
-        next ' ' if pair.empty?
-        next pair.first.to_pdx if pair.count == 1
-
-        k,v = pair
-
-        " #{k.to_s}: #{v.to_s.inspect}"       
-      end.join("\n")
-    else
-			block.call
 		end
 		
 		full_path = full_path_for relative_path
