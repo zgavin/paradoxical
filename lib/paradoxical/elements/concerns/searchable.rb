@@ -52,7 +52,7 @@ module Paradoxical::Elements::Concerns::Searchable
     matches = objects.select do |object| rule.matches? object end
 
     matches.each do |match| 
-      result = match.send :__find, rules 
+      result = match.send :__find, rules if match.respond_to? :__find, true
 
       return result unless result.nil?
     end

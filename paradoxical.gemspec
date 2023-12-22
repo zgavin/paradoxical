@@ -41,6 +41,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "activesupport", "~> 5"
   spec.add_dependency "rubyzip", "~> 1.2"
   spec.add_dependency "rutie", "= 0.0.4"
+	spec.add_dependency "sqlite3", '~> 1.3'
 end
 
 

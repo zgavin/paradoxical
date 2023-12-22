@@ -21,7 +21,7 @@ end
 class String
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
   
-	IS_VALID_RAW_STRING_REGEXP = /^(hidden:event_target:|event_target:|hidden:|parameter:|@|\w|-?\d+\.?\d*%+$)[\w\.]*$/ 	
+	IS_VALID_RAW_STRING_REGEXP = /^(hidden:event_target:|event_target:|trigger:|modifier:|value:|hidden:|parameter:|@|\w|-?\d+\.?\d*%+$)[\w\.]*$/ 	
   
   def to_pdx
     IS_VALID_RAW_STRING_REGEXP =~ self ? self : %{"#{self}"}
@@ -40,7 +40,7 @@ class Float
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
   
   def to_pdx
-    round(3).to_s
+    '%.3f' % self
   end
 end
 

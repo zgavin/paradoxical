@@ -42,7 +42,7 @@ computation_string    = @{ ( "@\\[" ~ (!"]" ~ ANY)* ~ "]" ) }
 
 unquoted_string       =  { ( ( ( "@" | "_"+ | "$" ) ~ ASCII_ALPHANUMERIC ) |  ASCII_ALPHANUMERIC ) ~ ( !( break_character ) ~ ANY )* }
 
-quoted_string         = @{ ( "\"" ~ (!"\"" ~ ANY)* ~ "\"" ) }
+quoted_string         = @{ ( "\"" ~ ( "\\\"" | ( !"\"" ~ ANY ) )* ~ "\"" ) }
 
 empty_string          = @{ "\"\"" }
 

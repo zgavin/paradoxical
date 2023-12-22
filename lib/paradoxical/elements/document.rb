@@ -4,21 +4,20 @@ class Paradoxical::Elements::Document
 
   attr_reader :path, :whitespace, :owner
   
-  def initialize children=[], whitespace: nil, path: nil, owner: nil
+  def initialize children=[], whitespace: nil, path: nil, owner: nil, bom: false
     @children = children
     @whitespace = whitespace
+		@bom = bom
       
     @children.each do |obj| obj.send( :parent=, self ) end
       
     @path = path
     
     @owner = owner
-      
-    @owner = nil 
   end
   
   def dup children: nil, path: nil
-    self.class.new ( children or @children ).map( &:dup ), whitespace: @whitespace.dup, path: path
+    self.class.new ( children or @children ).map( &:dup ), whitespace: @whitespace.dup, path: path, bom: @bom
   end
   
   def eql? other
@@ -38,7 +37,7 @@ class Paradoxical::Elements::Document
 	end
   
 	def to_pdx
-    buffer = ""
+    buffer =  ""
     
 		@children.each_with_index do |obj,i|
 			indent = i == 0 ? '' : line_break
@@ -57,6 +56,10 @@ class Paradoxical::Elements::Document
     @owner.is_a? Paradoxical::Game
   end
 	
+	def bom? 
+		@bom
+	end
+	
   def reset_whitespace!
     @whitespace = nil
     
@@ -68,4 +71,15 @@ class Paradoxical::Elements::Document
 				
 		self
   end
+	
+	def reset_line_breaks!
+		descendents
+			.flat_map do |n| n.whitespace end
+			.compact
+			.each do |s| s.gsub! /\r\n?/, "\n" end
+				
+		@line_break = "\n"
+		
+		self
+	end
 end

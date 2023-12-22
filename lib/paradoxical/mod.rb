@@ -1,11 +1,13 @@
 class Paradoxical::Mod
   include Paradoxical::FileParser
   
-	attr_reader :path, :game, :corrections
+	attr_reader :game, :id, :path, :corrections
 	
-	def initialize game, path
-		@path = Pathname.new path
+	def initialize game, id, path
 		@game = game
+		@id = id
+		@path = Pathname.new path
+
     @file_cache = {}    
     @config = {}
     @corrections = {}
@@ -71,47 +73,27 @@ class Paradoxical::Mod
 		Pathname.new( path.to_s.start_with?('/') ? path :  File.join( game.user_directory, path ) )
 	end
 	
-	def write_file relative_path, data=nil, language: nil, &block
-    extension = File.extname( relative_path )[1..-1] 
-		
-		data ||= begin
-			if %w{gui gfx txt}.include? extension then
-				result = Paradoxical::Builder.new.build &block
-      
-	      document = if result.is_a? Paradoxical::Elements::Node then
-	        Paradoxical::Elements::Document.new [result]
-	      elsif result.is_a? Array then
-	        Paradoxical::Elements::Document.new result
-	      else
-	        result
-	      end        
-      
-	      document.to_pdx
-	    elsif %w{yaml yml}.include? extension then
-	      language ||= ( relative_path.match(/l_(\w+)\.#{extension}$/) or %w{english} ).to_a.last
-      
-	      result = block.call
-      
-	      s =  "\uFEFF"  # BOM marker
-	      s << "l_#{language}:\n"
-	      s + result.map do |pair| 
-	        next pair.to_pdx if pair.is_a? Paradoxical::Elements::Value
-	        next ' ' if pair.empty?
-	        next pair.first.to_pdx if pair.count == 1
-
-	        k,v = pair
-
-	        " #{k.to_s}: #{v.to_s.inspect}"       
-	      end.join("\n")
-	    else
-				block.call
-			end
-		end
-		
-		full_path = full_path_for relative_path
+	def write file
+		full_path = full_path_for file.path
 
 		FileUtils.mkdir_p File.dirname full_path
 		
+		data = file.bom? ? "\xEF\xBB\xBF" : ""
+		data << file.to_pdx
+		
 		File.write full_path, data
+	end
+	
+	def delete path
+		full_path = full_path_for path
+		File.delete full_path if exists? full_path
+		
+		return unless full_path.to_s.start_with? root.to_s
+
+		dir = full_path.dirname
+		while dir.empty? and dir != root do
+			File.rmdir dir
+			dir = dir.dirname
+		end
 	end
 end

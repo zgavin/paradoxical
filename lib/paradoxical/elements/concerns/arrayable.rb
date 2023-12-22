@@ -18,7 +18,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   }
 
   DELEGATED_MUTATING_METHODS = %i{ 
-    #reverse! #rotate! #shuffle! #sort! #sort_by!
+    reverse! rotate! shuffle! sort! sort_by!
   }
 
   CUSTOM_METHODS = %i{ 
@@ -130,7 +130,7 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   def delete object, &block
     @children.delete( object, &block ).tap do |result|
-      object.send( :parent=, nil ) if result == object
+      object.send( :parent=, nil ) if result.equal? object
     end
   end
 
@@ -339,10 +339,18 @@ module Paradoxical::Elements::Concerns::Arrayable
   def properties
     @children.select do |obj| obj.is_a? Paradoxical::Elements::Property end
   end
+	
+	def comments
+		@children.select do |obj| obj.is_a? Paradoxical::Elements::Comment end
+	end
 
   def keyable
     @children.select do |obj| obj.respond_to? :key end
   end 
+	
+	def keys
+		keyable.map(&:key)
+	end
   
   def value_for key
     key = key.to_s.downcase

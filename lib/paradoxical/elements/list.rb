@@ -17,8 +17,8 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     end
   end
 
-  def dup children: nil
-    self.class.new @key.dup, ( children or @children ).map( &:dup ), whitespace: @whitespace.dup
+  def dup children: nil, key: nil
+    self.class.new( (key or @key).dup, ( children or @children ).map( &:dup ), whitespace: @whitespace.dup )
   end
   
   def eql? other
@@ -42,7 +42,7 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
 		
 		current_indent = line_break + ("\t" * indent)
     
-    buffer << ( whitespace.first or current_indent )
+    buffer << ( whitespace[0] or current_indent )
     
     unless key == false then
       buffer << key.to_s
@@ -61,7 +61,7 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
       end
     end 
     
-    buffer << ( whitespace.last or current_indent )
+    buffer << ( whitespace[3] or current_indent )
     buffer << '}'
     
     buffer

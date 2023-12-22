@@ -1,7 +1,10 @@
+require 'sqlite3'
+
 class Paradoxical::Game
   include Paradoxical::FileParser
-  
+	
 	attr_accessor :name, :executable, :root, :user_directory
+	attr_reader :mod, :playset
 	
 	def initialize name, executable: nil, root: nil, user_directory: nil
 		@name = name
@@ -14,8 +17,10 @@ class Paradoxical::Game
 		if user_directory.present? then
 			@user_directory = user_directory
 		elsif File.exist? userdir_txt_path then
-			@user_directory = File.read(userdir_path).chomp
-		else
+			@user_directory = File.read(userdir_txt_path).chomp
+		end
+		
+		if @user_directory.blank? then
 			@user_directory = File.expand_path("~/Documents/Paradox Interactive/#{name}")
 		end
     
@@ -26,12 +31,28 @@ class Paradoxical::Game
 		_mods.dup
 	end
 	
+	def db
+		@db ||= SQLite3::Database.new user_directory.join("launcher-v2.sqlite")
+	end
+	
 	def enabled_mods
 		_enabled_mods.dup
 	end
 	
-	def enabled_mods= mods
-		@enabled_mods = mods.dup
+	def mod_named name
+		mods.find do |mod| mod.name.include? name	end
+	end
+	
+	def mod= mod
+		@mod = mod
+		@enabled_mods = nil
+		@mod
+	end
+
+	def playset= playset
+		@playset = playset
+		@enabled_mods = nil
+		@playset
 	end
   
   def exists? relative_path, mod: false
@@ -80,16 +101,32 @@ class Paradoxical::Game
     results.count > 1 ? results : results.first
 	end
   
-  private 
-  
+  private
+	
   def _mods
-		(@mods ||= Dir[ user_directory.join 'mod', '*.mod' ].map do |path| Paradoxical::Mod.new self, path end).dup
+		@mods ||= begin
+			db.execute("SELECT id, gameRegistryId  FROM mods;").map do |(id, gameRegistryId)|
+				Paradoxical::Mod.new self, id, user_directory.join(gameRegistryId)
+			end
+		end
   end
   
   def _enabled_mods
-    @enabled_mods or _mods
+    @enabled_mods ||= begin						 
+			enabled_mods = if @playset.present? then
+				db
+					.execute("SELECT m.id FROM mods m join playsets_mods pm on pm.modId = m.id join playsets p on pm.playsetId = p.id where pm.enabled and p.name = '#{@playset}' order by pm.position ASC;")
+					.map do |(id)| _mods.find do |mod| mod.id == id end end
+			else
+				_mods.dup
+			end
+		
+			enabled_mods.delete_if do |other| other.id == @mod.id end if @mod.present?
+			
+			enabled_mods
+		end
   end
-  
+
   def mod_for_path relative_path, mod: nil
     return mod unless mod.nil?
     

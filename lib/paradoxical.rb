@@ -20,14 +20,6 @@ module Paradoxical
 		def game
 			@game
 		end
-	
-		def mod= mod
-			@mod = mod
-		end
-	
-		def mod
-			@mod
-		end
 	end
 end
 
@@ -37,6 +29,7 @@ end
   file_parser
 
   builder
+	editor
   game
   helper
   mod
@@ -54,6 +47,7 @@ end
   elements/list
   elements/property
   elements/value
+	elements/yaml
 
   elements/primitives/color
   elements/primitives/core_extensions

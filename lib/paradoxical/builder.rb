@@ -71,6 +71,10 @@ class Paradoxical::Builder
     push Paradoxical::Elements::Value.new value, whitespace: whitespace
   end
   alias_method :v, :val
+	
+	def literal value, whitespace: nil
+		val value.to_s.literal, whitespace: whitespace
+	end
   
   def comment comment, whitespace: nil, inline: nil
 		whitespace ||= [" "] if inline
@@ -116,10 +120,11 @@ class Paradoxical::Builder
 		obj
 	end
 	alias_method :else_if_, :pdx_else_if
+	alias_method :else_if, :pdx_else_if
   
   def pdx_if_else_if iterable, &block    
     iterable.each_with_index.map do |value, i|
-      if iterable.first == value then
+      if i == 0 then
         pdx_if do 
           instance_exec value, i, &block 
         end
@@ -131,6 +136,7 @@ class Paradoxical::Builder
     end
   end
 	alias_method :if_else_if_, :pdx_if_else_if
+	alias_method :if_else_if, :pdx_if_else_if
   
   def event_target key, *args, &block
     l "event_target:#{key}", *args, &block
@@ -139,6 +145,10 @@ class Paradoxical::Builder
   def position x, y
     l( 'position', p('x', '=', x), p('y', '=', y) ).single_line!
   end
+	
+	def hidden_position 
+		l( 'position', p('x', '=', -10_000), p('y', '=', -10_000) ).single_line!
+	end
 	
 	def off_screen
 		position( -10_000, -10_000 )
@@ -166,26 +176,36 @@ class Paradoxical::Builder
 		end
 	end
 
-	%w{ set check change subtract multiply divide modulo }.each do |word|
-		key = "#{word}_variable"
+	%w{ set check change subtract multiply divide modulo round_variable_to_closest }.each do |word|
+		key = word.include?("variable") ? word : "#{word}_variable" 
 	
 		define_method key do |which, operator, value=nil|			
-			if value.nil? then
-				value = operator
-				operator = '='
-			end
-		
+			value, operator = operator, '=' if value.nil?
 			l( key, p('which', which), p('value', operator, value ) ).single_line!
 		end
 	end
 	
-  def resource_stockpile_compare resource, operator, value=nil
+	def check_galaxy_setup_value setting, operator, value=nil
+		value, operator = operator, '=' if value.nil?
+		l( "get_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
+	end
+	
+	def check_galaxy_setup_value setting, operator, value=nil
+		value, operator = operator, '=' if value.nil?
+		l( "check_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
+	end
+	
+  def resource_stockpile_compare resource, operator, value=nil, mult: nil
 		if value.nil? then
 			value = operator
 			operator = '='
 		end
 	
-		l( 'resource_stockpile_compare', p('resource', resource ), p('value', operator, value ) ).single_line!
+		if mult.nil? then
+			l( 'resource_stockpile_compare', p('resource', resource ), p('value', operator, value ) ).single_line!
+		else
+			l( 'resource_stockpile_compare', p('resource', resource ), p('value', operator, value ), p('mult', mult) )
+		end
   end
   
   def add_resource( resource, value )
@@ -214,6 +234,14 @@ class Paradoxical::Builder
   
   def limit *args, &block
 		obj = l 'limit', *args, &block
+	  
+		obj.single_line! if obj.singleton?
+	
+		obj
+  end
+	
+  def potential *args, &block
+		obj = l 'potential', *args, &block
 	  
 		obj.single_line! if obj.singleton?
 	

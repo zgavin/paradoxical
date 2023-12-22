@@ -13,8 +13,8 @@ class Paradoxical::Elements::Property < Paradoxical::Elements::Node
     self.whitespace = whitespace
   end
 
-  def dup
-    self.class.new key.dup, operator.dup, value.dup, whitespace: whitespace.dup 
+  def dup key: nil
+    self.class.new (key or @key).dup, operator.dup, value.dup, whitespace: whitespace.dup 
   end
   
   def eql? other
@@ -53,5 +53,7 @@ class Paradoxical::Elements::Property < Paradoxical::Elements::Node
   
   def reset_whitespace!
     self.whitespace = nil
+		
+		self
   end	
 end

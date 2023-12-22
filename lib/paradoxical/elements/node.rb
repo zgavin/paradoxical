@@ -10,7 +10,9 @@ class Paradoxical::Elements::Node
   end
   
   def remove
-    @parent&.delete self
+    raise ArgumentError.new "Cannot remove from a nil parent" if @parent.nil?
+		
+    @parent.delete_at self.__index
     
     self
   end
@@ -18,7 +20,7 @@ class Paradoxical::Elements::Node
   def insert_before *objects, offset: 0
     raise ArgumentError.new "Cannot insert into nil parent" if @parent.nil?
     
-  	index = @parent.index(self) + offset
+  	index = self.__index + offset
 
   	@parent.insert index, *objects
     
@@ -28,7 +30,7 @@ class Paradoxical::Elements::Node
   def insert_after *objects, offset: 0
     raise ArgumentError.new "Cannot insert into nil parent" if @parent.nil?
     
-  	index = @parent.index( self ) + offset + 1
+  	index = self.__index + offset + 1
 
   	@parent.insert index, *objects
     
@@ -38,7 +40,7 @@ class Paradoxical::Elements::Node
   def replace! object
     raise ArgumentError.new "Cannot replace a node with nil parent" if @parent.nil?
     
-    index = parent.find_index do |obj| obj.equal? self end
+    index = self.__index
     
     insert_after object
     
@@ -50,7 +52,7 @@ class Paradoxical::Elements::Node
   end
   
   def ancestors up_to: nil
-    parent.is_a?( Paradoxical::Elements::Document ) or parent == up_to ? [@parent] : [@parent, *@parent.ancestors]
+    (parent.is_a?( Paradoxical::Elements::Document ) or parent == up_to) ? [@parent] : [@parent, *@parent.ancestors]
   end
   
   def siblings
@@ -62,6 +64,10 @@ class Paradoxical::Elements::Node
 	end
   
   private 
+	
+	def __index 
+		@parent&.find_index do |other| other.equal? self end
+	end
   
   def parent= parent
     raise ArgumentError.new "must be Paradoxical::Elements::List, Paradoxical::Elements::Document, or nil" unless parent.nil? or parent.is_a? Paradoxical::Elements::List or parent.is_a? Paradoxical::Elements::Document

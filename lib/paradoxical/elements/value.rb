@@ -40,6 +40,8 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   
   def reset_whitespace!
     self.whitespace = nil
+		
+		self
   end	
   
   def empty_line? 

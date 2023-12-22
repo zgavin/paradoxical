@@ -32,10 +32,6 @@ class Paradoxical::Search::FunctionMatcher
     node.respond_to? :key
   end
 
-  def value node
-    node.is_a? Paradoxical::Elements::Value
-  end
-
   def first_child node
     node == node.parent&.send(:children)&.first
   end
@@ -49,7 +45,7 @@ class Paradoxical::Search::FunctionMatcher
   end
   
   def value node
-    node.value == arguments.first
+    (arguments.nil? or arguments.empty?) ? node.is_a?( Paradoxical::Elements::Value) : node.value == arguments.first
   end
 
   def value_matches node

@@ -36,13 +36,15 @@ module Paradoxical::FileParser
     
     return document unless ignore_cache or document.nil? 
     
-    data = read( path ).force_encoding("windows-1252").encode("utf-8")
+		data = read path 
+		bom = data.start_with? "\xEF\xBB\xBF"
+    data.delete_prefix!("\xEF\xBB\xBF") if bom 
     
     ( corrections[ path ] or [] ).each do |block|
       block.call data
     end
     
-    document = parse data, path: path
+    document = parse data, path: path, bom: bom
     
 		mutex.synchronize do
 			@file_cache[path] = document
@@ -51,12 +53,13 @@ module Paradoxical::FileParser
     return document
   end
   
-	def parse data, path: nil
+	def parse data, path: nil, bom: false
 		document = Paradoxical::Parser.parse data
   
     document.instance_variable_set( :@owner, self )
     document.instance_variable_set( :@path, path )
 		document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
+		document.instance_variable_set( :@bom, bom )
     
     document
   rescue Paradoxical::Parser::ParseError => error
