@@ -1,17 +1,18 @@
-#[macro_use]
-extern crate rutie;
-use rutie::{ Object, RString, VM, Array, AnyObject, Module, Boolean };
+use magnus::{
+    function,
+    prelude::*,
+    value::{Lazy, ReprValue},
+    ArgList, Error, ExceptionClass, IntoValue, RArray, RClass, RModule, RObject, RString, Ruby,
+    Value,
+};
 
-extern crate pest;
+fn instantiate(cls: RClass, args: impl ArgList) -> RObject {
+    RObject::try_convert(cls.new_instance(args).unwrap()).unwrap()
+}
+
+use pest::iterators::{Pair, Pairs};
 use pest::Parser;
-use pest::iterators::Pairs;
-use pest::iterators::Pair;
-
-#[macro_use]
-extern crate pest_derive;
-
-#[macro_use]
-extern crate lazy_static;
+use pest_derive::Parser;
 
 #[derive(Parser)]
 #[grammar = "script.pest"]
@@ -19,281 +20,246 @@ struct ScriptParser;
 
 mod search;
 
-class!(ParadoxicalParser);
+fn paradoxical(ruby: &Ruby) -> RModule {
+    ruby.class_object().const_get("Paradoxical").unwrap()
+}
 
-methods!(
-    ParadoxicalParser,
-    _itself,
+fn elements(ruby: &Ruby) -> RModule {
+    paradoxical(ruby).const_get("Elements").unwrap()
+}
 
-    fn parse(data: RString) -> AnyObject {
-        let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string();
+fn primitives(ruby: &Ruby) -> RModule {
+    elements(ruby).const_get("Primitives").unwrap()
+}
 
+static DOCUMENT_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("Document").unwrap());
+static COMMENT_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("Comment").unwrap());
+static VALUE_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("Value").unwrap());
+static PROPERTY_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("Property").unwrap());
+static LIST_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("List").unwrap());
 
-        let pairs = ScriptParser::parse(Rule::document, &string ).map_err(|e|  
-            VM::raise( Module::from_existing("Paradoxical").get_nested_module("Parser").get_nested_class("ParseError"), &e.to_string()  )  
-        ).unwrap();
+static COLOR_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("Color").unwrap());
+static DATE_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("Date").unwrap());
+static FLOAT_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("Float").unwrap());
+static INTEGER_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("Integer").unwrap());
+static STRING_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("String").unwrap());
 
-        return document( pairs )
-    }
-);
+fn parse(ruby: &Ruby, data: String) -> Result<Value, Error> {
+    let pairs = ScriptParser::parse(Rule::document, &data).map_err(|e| {
+        let parser: RModule = paradoxical(ruby).const_get("Parser").unwrap();
+        let parse_error: ExceptionClass = parser.const_get("ParseError").unwrap();
+        Error::new(parse_error, e.to_string())
+    })?;
 
-fn document( pairs: Pairs<Rule> ) -> AnyObject {
-    let mut children = Array::new();
-    let mut whitespace = Array::new();
+    Ok(document(ruby, pairs))
+}
+
+fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
+    let children = RArray::new();
+    let whitespace = RArray::new();
 
     for pair in pairs {
         match pair.as_rule() {
-            Rule::comment => { children.push( comment(pair) ); },
-            Rule::property => { children.push( property(pair) ); },
-            Rule::list => { children.push( list(pair) ); },
-            Rule::ws => { whitespace.push( p( pair ) ); },
-            Rule::EOI => {},
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
-        };
+            Rule::comment => children.push(comment(ruby, pair)).unwrap(),
+            Rule::property => children.push(property(ruby, pair)).unwrap(),
+            Rule::list => children.push(list(ruby, pair)).unwrap(),
+            Rule::ws => whitespace.push(p(ruby, pair)).unwrap(),
+            Rule::EOI => {}
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Document");
-
-    let arguments = [children.to_any_object()];
-
-    let mut instance = class.new_instance(&arguments);
-
-    instance.instance_variable_set("@whitespace", whitespace);
-
-    return instance
+    let instance = instantiate(ruby.get_inner(&DOCUMENT_CLASS), (children,));
+    instance.ivar_set("@whitespace", whitespace).unwrap();
+    instance.as_value()
 }
 
-fn comment( pair:Pair<Rule> ) -> AnyObject {
-    let mut whitespace = Array::new();
+fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let whitespace = RArray::new();
+    let mut key = s(ruby, "");
 
-    let mut key = s("");
-
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::ws => { whitespace.push( p( pair ) ); },
-            Rule::comment_text => { key = p(pair); },
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
-        };
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::comment_text => key = p(ruby, inner),
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Comment");
-
-    let arguments = [key.to_any_object()];
-
-    let mut instance = class.new_instance(&arguments);
-
-    instance.instance_variable_set("@whitespace", whitespace);
-
-    return instance
+    let instance = instantiate(ruby.get_inner(&COMMENT_CLASS), (key,));
+    instance.ivar_set("@whitespace", whitespace).unwrap();
+    instance.as_value()
 }
 
-fn value( pair:Pair<Rule> ) -> AnyObject {
-    let mut whitespace = Array::new();
+fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let whitespace = RArray::new();
+    let mut val: Value = s(ruby, "").as_value();
 
-    let mut value = s("").to_any_object();
-
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::ws => { whitespace.push( p( pair ) ); },
-            Rule::primitive => { value = primitive(pair); },
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
-        };
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::primitive => val = primitive(ruby, inner),
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Value");
-
-    let arguments = [value.to_any_object()];
-
-    let mut instance = class.new_instance(&arguments);
-
-    instance.instance_variable_set("@whitespace", whitespace);
-
-    return instance
+    let instance = instantiate(ruby.get_inner(&VALUE_CLASS), (val,));
+    instance.ivar_set("@whitespace", whitespace).unwrap();
+    instance.as_value()
 }
 
-fn property( pair:Pair<Rule> ) -> AnyObject {
-    let mut whitespace = Array::new();
-    
-    let mut key = s("").to_any_object();
-    let mut value = s("").to_any_object();
-    let mut operator = s("");
+fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let whitespace = RArray::new();
+
+    let mut key: Value = s(ruby, "").as_value();
+    let mut val: Value = s(ruby, "").as_value();
+    let mut operator: RString = s(ruby, "");
 
     let mut did_set_key = false;
 
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::ws => { whitespace.push( p( pair ) ); },
-            Rule::operator => { operator = p( pair ) },
-            Rule::primitive => { 
-                if did_set_key { 
-                    value = primitive(pair);   
-                } else { 
-                    key = primitive(pair); 
-                    did_set_key = true;  
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::operator => operator = p(ruby, inner),
+            Rule::primitive => {
+                if did_set_key {
+                    val = primitive(ruby, inner);
+                } else {
+                    key = primitive(ruby, inner);
+                    did_set_key = true;
                 }
-            },
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
             }
-        };
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("Property");
-
-    let arguments = [key.to_any_object(), operator.to_any_object(), value.to_any_object()];
-
-    let mut instance = class.new_instance(&arguments);
-
-    instance.instance_variable_set("@whitespace", whitespace);
-
-    return instance
+    let instance = instantiate(ruby.get_inner(&PROPERTY_CLASS), (key, operator, val));
+    instance.ivar_set("@whitespace", whitespace).unwrap();
+    instance.as_value()
 }
 
-fn list( pair:Pair<Rule> ) -> AnyObject {
-    let mut children = Array::new();
-    let mut whitespace = Array::new();
+fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let children = RArray::new();
+    let whitespace = RArray::new();
 
-    let mut kind = Boolean::new(false).to_any_object();
-    let mut key = s("").to_any_object();
-    let mut operator = Boolean::new(false).to_any_object();
-    let mut gui_type = Boolean::new(false);
+    let mut kind: Value = ruby.qfalse().as_value();
+    let mut key: Value = s(ruby, "").as_value();
+    let mut operator: Value = ruby.qfalse().as_value();
+    let mut gui_type = false;
 
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::primitive => { key = primitive( pair ) },
-            Rule::operator => { operator = p( pair ).to_any_object() },
-            Rule::ws => { whitespace.push( p( pair ) ); },
-            Rule::gui_kind | Rule::gui_type_kind | Rule::scripted_kind => { kind = p( pair ).to_any_object()  },
-            Rule::gui_type => { gui_type = Boolean::new(true); }
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::primitive => key = primitive(ruby, inner),
+            Rule::operator => operator = p(ruby, inner).as_value(),
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::gui_kind | Rule::gui_type_kind | Rule::scripted_kind => {
+                kind = p(ruby, inner).as_value()
+            }
+            Rule::gui_type => gui_type = true,
             _ => {
-
-                let child = match pair.as_rule() {
-                    Rule::comment => comment(pair),
-                    Rule::property => property(pair),
-                    Rule::list => list(pair),
-                    Rule::value => value( pair ),
-                    Rule::keyless_list => keyless_list( pair ),
-                    _ => {
-                        println!("rule: {:?}", pair.as_rule());
-                        unreachable!()
-                    }
+                let child = match inner.as_rule() {
+                    Rule::comment => comment(ruby, inner),
+                    Rule::property => property(ruby, inner),
+                    Rule::list => list(ruby, inner),
+                    Rule::value => value(ruby, inner),
+                    Rule::keyless_list => keyless_list(ruby, inner),
+                    r => unreachable!("unexpected rule: {:?}", r),
                 };
-                children.push( child );
+                children.push(child).unwrap();
             }
-        };
+        }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("List");
+    let instance = instantiate(ruby.get_inner(&LIST_CLASS), (key, children));
 
-    let arguments = [key.to_any_object(), children.to_any_object()];
+    instance.ivar_set("@kind", kind).unwrap();
+    instance.ivar_set("@whitespace", whitespace).unwrap();
+    instance.ivar_set("@operator", operator).unwrap();
+    instance.ivar_set("@gui_type", gui_type).unwrap();
 
-    let mut instance = class.new_instance(&arguments);
-
-
-    instance.instance_variable_set("@kind", kind);
-    instance.instance_variable_set("@whitespace", whitespace);
-    instance.instance_variable_set("@operator", operator);
-    instance.instance_variable_set("@gui_type", gui_type);
-    
-    return instance
+    instance.as_value()
 }
 
-fn keyless_list( pair:Pair<Rule> ) -> AnyObject {
-    let mut children = Array::new();
-    let mut whitespace = Array::new();
+fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let children = RArray::new();
+    let whitespace = RArray::new();
 
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::ws => { whitespace.push( p( pair ) ); },
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
             _ => {
-                let child = match pair.as_rule() {
-                    Rule::comment => comment(pair),
-                    Rule::property => property(pair),
-                    Rule::list => list(pair),
-                    _ => {
-                        println!("rule: {:?}", pair.as_rule());
-                        unreachable!()
-                    }
+                let child = match inner.as_rule() {
+                    Rule::comment => comment(ruby, inner),
+                    Rule::property => property(ruby, inner),
+                    Rule::list => list(ruby, inner),
+                    r => unreachable!("unexpected rule: {:?}", r),
                 };
-
-                children.push( child );
+                children.push(child).unwrap();
             }
-        };
+        }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_class("List");
-
-    let arguments = [Boolean::new(false).to_any_object(), children.to_any_object()];
-
-    let mut instance = class.new_instance(&arguments);
-
-    instance.instance_variable_set("@whitespace", whitespace);
-
-    return instance
+    let instance = instantiate(ruby.get_inner(&LIST_CLASS), (false, children));
+    instance.ivar_set("@whitespace", whitespace).unwrap();
+    instance.as_value()
 }
 
-fn primitive( pair:Pair<Rule> ) -> AnyObject {
-    let mut class_name = "String";
+fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let mut class: Option<RClass> = None;
+    let mut text: RString = s(ruby, "");
 
-    let mut value = s("");
+    for inner in pair.into_inner() {
+        let rule = inner.as_rule();
+        text = p(ruby, inner);
 
-    for pair in pair.into_inner() {
-        class_name = match pair.as_rule() {
-            Rule::color => "Color",
-            Rule::date => "Date",
-            Rule::float => "Float",
-            Rule::integer => "Integer",
-            Rule::string | Rule::percentage => "String",
-            Rule::boolean => "Boolean",
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
+        let cls: Option<RClass> = match rule {
+            Rule::color => Some(ruby.get_inner(&COLOR_CLASS)),
+            Rule::date => Some(ruby.get_inner(&DATE_CLASS)),
+            Rule::float => Some(ruby.get_inner(&FLOAT_CLASS)),
+            Rule::integer => Some(ruby.get_inner(&INTEGER_CLASS)),
+            Rule::string | Rule::percentage => Some(ruby.get_inner(&STRING_CLASS)),
+            Rule::boolean => None,
+            r => unreachable!("unexpected rule: {:?}", r),
         };
 
-        value = p(pair);
+        if cls.is_none() {
+            return (text.to_string().unwrap() == "yes").into_value_with(ruby);
+        }
+
+        class = cls;
     }
 
-    if class_name == "Boolean"  {
-        let bool_value = if value.to_str() == "yes" { true } else { false };
-
-        return Boolean::new(bool_value).to_any_object();
-    } else {
-        let class = Module::from_existing("Paradoxical").get_nested_module("Elements").get_nested_module("Primitives").get_nested_class(class_name);
-
-        let arguments = [ value.to_any_object() ];
-
-        return class.new_instance(&arguments);
-    }
+    instantiate(class.expect("primitive had no inner rule"), (text,)).as_value()
 }
 
-fn p( pair:Pair<Rule> ) -> RString {
-    RString::new_utf8( pair.as_str() )
+fn p(_ruby: &Ruby, pair: Pair<Rule>) -> RString {
+    RString::new(pair.as_str())
 }
 
-fn s( s:&str ) -> RString {
-    RString::new_utf8( s )
+fn s(_ruby: &Ruby, text: &str) -> RString {
+    RString::new(text)
 }
-    
-#[allow(non_snake_case)]
-#[no_mangle]
-pub extern "C" fn Init_paradoxical() {
-    Module::from_existing("Paradoxical").get_nested_module("Parser").define(|itself| {
-        itself.def_self("parse", parse);
-    });
 
-    Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_module("Parser").define(|itself| {
-        itself.def_self("parse", search::parse);
-    });
+#[magnus::init]
+fn init(ruby: &Ruby) -> Result<(), Error> {
+    let paradoxical: RModule = ruby.class_object().const_get("Paradoxical")?;
+
+    let parser: RModule = paradoxical.const_get("Parser")?;
+    parser.define_singleton_method("parse", function!(parse, 1))?;
+
+    let search_module: RModule = paradoxical.const_get("Search")?;
+    let search_parser: RModule = search_module.const_get("Parser")?;
+    search_parser.define_singleton_method("parse", function!(search::parse, 1))?;
+
+    Ok(())
 }
-    

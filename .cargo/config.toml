@@ -1,0 +1,5 @@
+# bindgen (used by rb-sys via magnus) needs stdbool.h force-included so
+# Ruby 3.2's headers — which reference bool/true/false — parse cleanly under
+# clang on systems where it isn't pulled in by default. Harmless elsewhere.
+[env]
+BINDGEN_EXTRA_CLANG_ARGS = "-include stdbool.h"
