@@ -1,6 +1,5 @@
 require 'active_support/all'
 require 'pathname'
-require 'rutie'
 require 'yaml'
 require 'zip'
 
@@ -64,4 +63,4 @@ end
   require "paradoxical/#{file}"
 end
 
-Rutie.new(:paradoxical).init 'Init_Rust_Parser', File.expand_path( __dir__ )
+require 'paradoxical/paradoxical'
