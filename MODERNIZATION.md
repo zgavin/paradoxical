@@ -27,17 +27,34 @@ Numbering reflects intended ordering; each phase is its own PR (or PR series). P
 
 ### 1. Test harness
 
-Land before any migration so we have a regression net.
+Originally a single phase intended to land entirely before phase 2. Reordered to interleave with phase 2 once we realized that exercising the test suite in CI requires the Rust extension to load, which is exactly what phase 2 fixes. See decision log.
 
-- **Unit tests**, in-repo, against hand-written synthetic fixtures under `spec/fixtures/`. Cover every `script.pest` rule explicitly: each operator, each primitive (color, percentage, date, float, integer, boolean, every string variant), `gui_kind` / `gui_type` / `scripted_kind` branches, mixed/array/keyless lists, BOM, CRLF/LF, and round-trip whitespace preservation.
-- **Integration tests**, off-repo, against a real install. The path is supplied via env var (e.g. `PARADOXICAL_INTEGRATION_ROOT` for game data, `PARADOXICAL_EXAMPLE_MOD` for `~/.pdx/Europa Universalis V/mod/PancakeTaco's Mod`); tests `skip` when unset. CI runs unit tests only.
-- **Parser smoke**, off-repo, env-var-gated (e.g. `PARADOXICAL_PARSE_SMOKE=<game-root>`). Walks every script file under a game install and reports parse success/failure. `.txt` / `.gui` / `.gfx` go through `Paradoxical::Parser`; `.yml` through `Paradoxical::Elements::YAML` (different code path, also prone to drift). No assertions beyond "did it raise" — purely a canary against grammar regressions in our code and patch-day drift in the games. Implementation rules:
+#### 1a. Scaffolding (landed)
+
+RSpec wired up, `.tool-versions` pinning Ruby 3.2.0, GitHub Actions CI, a trivial version spec that sidesteps the rutie load. CI green.
+
+#### 1b. PancakeTaco round-trip harness — local-only baseline before phase 2
+
+- Walks every parseable file under `PARADOXICAL_EXAMPLE_MOD` (`~/.pdx/Europa Universalis V/mod/PancakeTaco's Mod`), skipping `scripts/ruby/`; for each: parse → re-serialize → assert byte-equal with the original. `.txt` / `.gui` / `.gfx` go through `Paradoxical::Parser`; `.yml` through `Paradoxical::Elements::YAML`.
+- Strictest assertion that doesn't require AST-shape correctness — directly exercises the parse/serialize boundary that phase 2 is about to swap.
+- `:integration` tagged, env-var-gated, skipped in default `rspec`. CI never sees it. Run locally before the magnus port to baseline, then again after to confirm parity.
+- Allowlist hook (`spec/fixtures/round_trip_allow.yml`) for files that genuinely don't round-trip today; populate lazily.
+
+#### 1c. Unit fixtures + parser smoke — after phase 2
+
+Both require the Rust extension to be loadable in CI, which phase 2 enables.
+
+- **Unit tests**, in-repo, against hand-written synthetic fixtures under `spec/fixtures/`. Cover every `script.pest` rule explicitly: each operator, each primitive (color, percentage, date, float, integer, boolean, every string variant), `gui_kind` / `gui_type` / `scripted_kind` branches, mixed/array/keyless lists, BOM, CRLF/LF, and round-trip whitespace preservation. CI default suite.
+- **Parser smoke**, off-repo, env-var-gated (e.g. `PARADOXICAL_PARSE_SMOKE=<game-root>`). Walks every script file under a game install and reports parse success/failure. No assertions beyond "did it raise" — purely a canary against grammar regressions in our code and patch-day drift in the games. Implementation rules:
   - Collect-don't-fail-fast: aggregate all failures into a single report (path + first line of error) instead of bailing on the first.
   - Parallelize per-game and per-file; install trees are tens of thousands of files.
   - Filter strictly by extension *and* location — game data ships non-script `.txt` files in places like `music/`.
   - Plumb `encoding:` the same way real callers do, otherwise we'll get false negatives on Latin-1-flavored files.
   - Run as a separate rake task or RSpec tag, never the default suite. CI never sees it.
   - Expect to need a per-game allowlist (`spec/fixtures/parse_smoke_allow_<game>.yml`) for genuinely unparseable files — build it lazily as cases come up. A previously-failing file that *starts* passing is also signal: update the allowlist and note the cause.
+
+#### Caveats (apply to all of the above)
+
 - Treat PancakeTaco as a regression baseline, not a correctness baseline — it was written for gameplay, not to exhaust the grammar.
 - **Never commit Paradox files.** Even snippets risk being derivative. Hand-written synthetic fixtures only.
 
@@ -100,6 +117,7 @@ Restructuring, not just cleanup. Larger and worth its own PR.
 Captured here so we don't re-litigate them.
 
 - **Tests before migration.** Without a regression net, FFI/dep migrations silently break subtle behavior (whitespace preservation, BOM, `single_line!`, encoding round-trips, `method_missing` dispatch).
+- **Phase 1 split, interleaved with phase 2.** The original plan had phase 1 finish before phase 2. After landing the scaffolding (1a) we hit a wall: any further phase-1 work needs the Rust extension loadable in CI, which means reproducing the rutie/Ruby-3 hacks — i.e. fighting exactly what phase 2 deletes. New ordering is 1a → 1b (PancakeTaco round-trip, local-only, run before+after magnus) → phase 2 → 1c (unit fixtures + parse smoke, now CI-capable). Risk acceptance: the magnus port is more likely to break wholesale than to drift subtly on untouched paths, so a round-trip canary against the example mod is sufficient pre-migration coverage. If something breaks beyond what the harness catches, `git revert` to a working commit is the fallback.
 - **magnus over rutie or rolling our own.** rutie is abandoned; rolling our own reinvents what magnus already solved.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
