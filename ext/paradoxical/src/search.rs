@@ -70,7 +70,7 @@ fn rule( pair:Pair<Rule> ) -> AnyObject {
                 } 
             }
             Rule::name | Rule::id  => {
-                let rule = pair.as_rule();
+                let r = pair.as_rule();
 
                 let mut iter = pair.into_inner();
 
@@ -78,7 +78,7 @@ fn rule( pair:Pair<Rule> ) -> AnyObject {
 
                 let string = string( inner ).to_any_object();
 
-                let key = k( if rule == Rule::name { "name" } else { "id"} );
+                let key = k( if r == Rule::name { "name" } else { "id"} );
 
                 options.store( key, string );
             }
