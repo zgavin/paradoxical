@@ -1,14 +1,3 @@
-[package]
-name = "paradoxical"
-version = "0.0.1"
-
-[lib]
-name = "paradoxical"
-crate-type = ["cdylib"]
-
-[dependencies]
-rutie = "0.8.4"
-pest = "*"
-pest_derive = "*"
-regex = "1"
-lazy_static = "1.3.0"
+[workspace]
+members = ["ext/paradoxical"]
+resolver = "1"

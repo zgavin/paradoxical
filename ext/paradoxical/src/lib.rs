@@ -287,7 +287,7 @@ fn s( s:&str ) -> RString {
     
 #[allow(non_snake_case)]
 #[no_mangle]
-pub extern "C" fn Init_Rust_Parser() {
+pub extern "C" fn Init_paradoxical() {
     Module::from_existing("Paradoxical").get_nested_module("Parser").define(|itself| {
         itself.def_self("parse", parse);
     });

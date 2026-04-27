@@ -8,5 +8,7 @@
 /tmp/
 /target/
 
-native.bundle
+# Compiled native extension — built by `rake compile`
+/lib/paradoxical/paradoxical.so
+
 **/*.gem

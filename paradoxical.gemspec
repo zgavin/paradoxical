@@ -34,9 +34,13 @@ Gem::Specification.new do |spec|
   spec.bindir        = "exe"
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
+  spec.extensions    = ["ext/paradoxical/extconf.rb"]
+
+  spec.add_dependency "rb_sys", "~> 0.9"
 
   spec.add_development_dependency "bundler", "~> 2.4.1"
-  spec.add_development_dependency "rake", "~> 10.0"
+  spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "rake-compiler", "~> 1.2"
   spec.add_development_dependency "rspec", "~> 3.13"
   
   spec.add_dependency "activesupport", "~> 5"
