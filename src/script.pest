@@ -12,7 +12,17 @@ property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 
 list                  =  { keyable_list | array_list | mixed_list }
 
-keyable_list          = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+// matches types foo { ... }
+gui_kind              = @{ "types" | "template" | "blockoverride" | "block" | "layer" }
+
+// matches type foo = bar { ... } 
+gui_type              = @{ "type" ~ &whitespace_character } 
+gui_type_kind         = @{ string }
+
+// matches scripted_trigger foo = { ... }
+scripted_kind         =  @{ "scripted_" ~ ("trigger" | "effect") }
+
+keyable_list          = _{ ws ~ ( ( gui_kind ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
@@ -22,7 +32,7 @@ keyless_list          =  { ws ~ "{" ~ expression* ~ ws ~ "}" }
 
 primitive             =  { ( color | percentage | date | float | integer | boolean | string ) }
 
-operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" ) }
+operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
 color                 = @{ ( "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3} ~ ws ~ "}"  }
 
@@ -36,15 +46,17 @@ integer               = @{ ("-" | "+")? ~ numeric ~ &break_character }
 
 boolean               = @{ ( "yes" | "no" ) ~ &break_character }
 
-string                = @{ empty_string | quoted_string | computation_string | unquoted_string }
+string                = @{ empty_string | quoted_string | computation_string | unquoted_string | localization_string }
 
-computation_string    = @{ ( "@\\[" ~ (!"]" ~ ANY)* ~ "]" ) }
-
-unquoted_string       =  { ( ( ( "@" | "_"+ | "$" ) ~ ASCII_ALPHANUMERIC ) |  ASCII_ALPHANUMERIC ) ~ ( !( break_character ) ~ ANY )* }
+empty_string          = @{ "\"\"" }
 
 quoted_string         = @{ ( "\"" ~ ( "\\\"" | ( !"\"" ~ ANY ) )* ~ "\"" ) }
 
-empty_string          = @{ "\"\"" }
+computation_string    = @{ ( ("@\\" | "@") ~ "[" ~ (!"]" ~ ANY)* ~ "]" ) }
+
+localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") } 
+
+unquoted_string       =  { ( ( ( "@" | "_"+ | "$" ) ~ ASCII_ALPHANUMERIC ) |  ASCII_ALPHANUMERIC ) ~ ( !( break_character ) ~ ANY )* }
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 

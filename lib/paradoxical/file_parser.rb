@@ -18,6 +18,7 @@ module Paradoxical::FileParser
 	end
   
   def read relative_path
+		
   	File.read( full_path_for relative_path )
   end
   
@@ -25,7 +26,7 @@ module Paradoxical::FileParser
     path.to_s.start_with?('/') ? path : root.join( path )
   end
   
-  def parse_file path, mutex: nil, ignore_cache: false
+  def parse_file path, mutex: nil, ignore_cache: false, encoding: nil
     document = nil
     
     mutex ||= Object.new.tap do |o| o.define_singleton_method :synchronize do |&block| block.call end end
@@ -37,6 +38,8 @@ module Paradoxical::FileParser
     return document unless ignore_cache or document.nil? 
     
 		data = read path 
+		data.force_encoding( encoding ).encode! Encoding::UTF_8 if encoding			
+		
 		bom = data.start_with? "\xEF\xBB\xBF"
     data.delete_prefix!("\xEF\xBB\xBF") if bom 
     
@@ -44,7 +47,7 @@ module Paradoxical::FileParser
       block.call data
     end
     
-    document = parse data, path: path, bom: bom
+    document = parse data, path: path, bom: bom, encoding: encoding
     
 		mutex.synchronize do
 			@file_cache[path] = document
@@ -53,18 +56,20 @@ module Paradoxical::FileParser
     return document
   end
   
-	def parse data, path: nil, bom: false
+	def parse data, path: nil, bom: false, encoding: nil
 		document = Paradoxical::Parser.parse data
   
     document.instance_variable_set( :@owner, self )
     document.instance_variable_set( :@path, path )
 		document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
 		document.instance_variable_set( :@bom, bom )
+		document.instance_variable_set( :@encoding, encoding )
     
     document
   rescue Paradoxical::Parser::ParseError => error
     puts "Error parsing #{path}#{ self.is_a?(Paradoxical::Mod) ? " ( #{name} )" : '' }" unless path.nil?
     puts error.message
+    puts data
     exit
 	end  
 end

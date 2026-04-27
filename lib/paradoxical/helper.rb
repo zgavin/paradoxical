@@ -1,6 +1,6 @@
 module Paradoxical::Helper
-	def game! name,  executable: nil, root: nil, user_directory: nil
-		Paradoxical.game = Paradoxical::Game.new name, executable: executable, root: root, user_directory: user_directory
+	def game! name,  executable: nil, root: nil, user_directory: nil, jomini_version: nil, steam_id: nil
+		Paradoxical.game = Paradoxical::Game.new name, executable: executable, root: root, user_directory: user_directory, jomini_version: jomini_version, steam_id: steam_id
 	end
 	
 	def game
@@ -15,9 +15,9 @@ module Paradoxical::Helper
 		game.playset = name
 	end
 	
-  def glob s
-    game.glob s
-  end
+	def glob s
+		game.glob s
+	end
 	
 	def mod
 		game.mod
@@ -44,39 +44,39 @@ module Paradoxical::Helper
 		glob "common/#{dir}/*.txt"
 	end
   
-  def build &block
-    Paradoxical::Builder.new.build &block
-  end
+	def build &block
+		Paradoxical::Builder.new.build &block
+	end
   
-  def document whitespace: nil, path: nil, owner: nil, &block
-    children = block.nil? ? [] : build( &block )
-    
-    Paradoxical::Elements::Document.new children, whitespace: whitespace, path: path, owner: ( owner or mod )
-  end
+	def document whitespace: nil, path: nil, owner: nil, &block
+		children = block.nil? ? [] : build( &block )
+		
+		Paradoxical::Elements::Document.new children, whitespace: whitespace, path: path, owner: ( owner or mod )
+	end
   
-  def write file_or_path, &block
-    file = if file_or_path.is_a? Paradoxical::Elements::Document then
-			file_or_path.tap do |doc|
-		    children = doc.instance_variable_get :@children 
-		    children.concat build &block unless block.nil?
+	def write file_or_path, &block
+		file = if file_or_path.is_a? Paradoxical::Elements::Document then
+				file_or_path.tap do |doc|
+					children = doc.instance_variable_get :@children 
+					children.concat build &block unless block.nil?
+				end
+			elsif file_or_path.is_a? Paradoxical::Elements::Yaml then
+				file_or_path.tap do |yaml|
+					values = yaml.instance_variable_get :@values 
+					values.merge! build &block unless block.nil?
+				end
+			elsif %w{.txt .gfx .gui}.include? File.extname file_or_path then
+				children = build &block
+				Paradoxical::Elements::Document.new children, owner: mod, path: file_or_path
+			elsif %w{.yml .yaml}.include? File.extname file_or_path then
+				values = block.call
+				Paradoxical::Elements::Yaml.new values, owner: mod, path: file_or_path
+			else 
+				raise "unhandled file type for #{file_or_path}"
 			end
-		elsif file_or_path.is_a? Paradoxical::Elements::Yaml then
-			file_or_path.tap do |yaml|
-				values = yaml.instance_variable_get :@values 
-				values.merge! build &block unless block.nil?
-			end
-		elsif %w{.txt .gfx .gui}.include? File.extname file_or_path then
-			children = build &block
-			Paradoxical::Elements::Document.new children, owner: mod, path: file_or_path
-		elsif %w{.yml .yaml}.include? File.extname file_or_path then
-			values = block.call
-			Paradoxical::Elements::Yaml.new values, owner: mod, path: file_or_path
-		else 
-			raise "unhandled file type for #{file_or_path}"
-		end
-    
-    mod.write file
-  end
+		
+		mod.write file
+	end
 	
 	def delete path
 		game.mod.delete path
@@ -86,9 +86,9 @@ module Paradoxical::Helper
 		game.parse_files(...)
 	end
   
-  def parse ...
-    game.parse(...)
-  end
+	def parse ...
+		game.parse(...)
+	end
 	
 	def edit path, &block
 		Paradoxical::Editor.edit path, &block

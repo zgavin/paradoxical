@@ -2,12 +2,13 @@ class Paradoxical::Elements::Document
   include Paradoxical::Elements::Concerns::Arrayable
   include Paradoxical::Elements::Concerns::Searchable
 
-  attr_reader :path, :whitespace, :owner
+  attr_reader :path, :whitespace, :owner, :encoding
   
-  def initialize children=[], whitespace: nil, path: nil, owner: nil, bom: false
+  def initialize children=[], whitespace: nil, path: nil, owner: nil, bom: false, encoding: nil
     @children = children
     @whitespace = whitespace
 		@bom = bom
+		@encoding = encoding
       
     @children.each do |obj| obj.send( :parent=, self ) end
       

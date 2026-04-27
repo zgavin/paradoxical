@@ -176,13 +176,21 @@ class Paradoxical::Builder
 		end
 	end
 
-	%w{ set check change subtract multiply divide modulo round_variable_to_closest }.each do |word|
+	%w{ set check change subtract multiply divide modulo round_variable_to_closest export_to_variable }.each do |word|
 		key = word.include?("variable") ? word : "#{word}_variable" 
 	
 		define_method key do |which, operator, value=nil|			
 			value, operator = operator, '=' if value.nil?
-			l( key, p('which', which), p('value', operator, value ) ).single_line!
+			l( key, p('which', which), p((Paradoxical.game.is? "eu4" and not value.is_a? Numeric and word != "export_to_variable") ? 'which' : 'value' , operator, value ) ).single_line!
 		end
+	end
+	
+	def export_to_variable which, value, who=nil
+		l "export_to_variable" do
+			p 'which', which
+			p 'value', value  
+			p 'who', who unless who.nil?
+		end.single_line!
 	end
 	
 	def check_galaxy_setup_value setting, operator, value=nil

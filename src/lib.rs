@@ -163,15 +163,20 @@ fn list( pair:Pair<Rule> ) -> AnyObject {
     let mut children = Array::new();
     let mut whitespace = Array::new();
 
+    let mut kind = Boolean::new(false).to_any_object();
     let mut key = s("").to_any_object();
-    let mut operator = s("");
+    let mut operator = Boolean::new(false).to_any_object();
+    let mut gui_type = Boolean::new(false);
 
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::primitive => { key = primitive( pair ) },
-            Rule::operator => { operator = p( pair ) },
+            Rule::operator => { operator = p( pair ).to_any_object() },
             Rule::ws => { whitespace.push( p( pair ) ); },
+            Rule::gui_kind | Rule::gui_type_kind | Rule::scripted_kind => { kind = p( pair ).to_any_object()  },
+            Rule::gui_type => { gui_type = Boolean::new(true); }
             _ => {
+
                 let child = match pair.as_rule() {
                     Rule::comment => comment(pair),
                     Rule::property => property(pair),
@@ -183,7 +188,6 @@ fn list( pair:Pair<Rule> ) -> AnyObject {
                         unreachable!()
                     }
                 };
-
                 children.push( child );
             }
         };
@@ -195,9 +199,12 @@ fn list( pair:Pair<Rule> ) -> AnyObject {
 
     let mut instance = class.new_instance(&arguments);
 
+
+    instance.instance_variable_set("@kind", kind);
     instance.instance_variable_set("@whitespace", whitespace);
     instance.instance_variable_set("@operator", operator);
-
+    instance.instance_variable_set("@gui_type", gui_type);
+    
     return instance
 }
 

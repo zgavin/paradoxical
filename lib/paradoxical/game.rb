@@ -1,16 +1,20 @@
 require 'sqlite3'
+require 'json'
+require 'os'
 
 class Paradoxical::Game
   include Paradoxical::FileParser
 	
-	attr_accessor :name, :executable, :root, :user_directory
+	attr_accessor :name, :executable, :root, :user_directory, :jomini_version, :steam_id
 	attr_reader :mod, :playset
 	
-	def initialize name, executable: nil, root: nil, user_directory: nil
+	def initialize name, executable: nil, root: nil, user_directory: nil, jomini_version: nil, steam_id: nil
 		@name = name
 		@executable = ( executable or name.downcase )
-		@root = Pathname.new( ( root or File.expand_path("~/Library/Application Support/Steam/steamapps/common/#{name}" ) ) )
+		@root = Pathname.new( ( root or default_root(name) ) )
 		@file_cache = {}
+		@jomini_version = (jomini_version or 1)
+		@steam_id = steam_id
 		
 		userdir_txt_path = @root.join 'userdir.txt'
 		
@@ -21,18 +25,16 @@ class Paradoxical::Game
 		end
 		
 		if @user_directory.blank? then
-			@user_directory = File.expand_path("~/Documents/Paradox Interactive/#{name}")
+			@user_directory = default_user_directory name
 		end
     
     @user_directory = Pathname.new @user_directory
+
+		extend(jomini_version == 1 ? SqliteConfig : JsonConfig )
 	end
 	
 	def mods			
 		_mods.dup
-	end
-	
-	def db
-		@db ||= SQLite3::Database.new user_directory.join("launcher-v2.sqlite")
 	end
 	
 	def enabled_mods
@@ -53,6 +55,10 @@ class Paradoxical::Game
 		@playset = playset
 		@enabled_mods = nil
 		@playset
+	end
+	
+	def is? name
+		name == self.executable
 	end
   
   def exists? relative_path, mod: false
@@ -77,22 +83,22 @@ class Paradoxical::Game
 		mod.read relative_path
 	end
   
-  def parse_file relative_path, mod: nil, mutex: nil, ignore_cache: false
+  def parse_file relative_path, mod: nil, mutex: nil, ignore_cache: false, encoding: nil
     mod ||= mod_for_path relative_path, mod: mod unless mod == false
     
-    return super relative_path, mutex: mutex, ignore_cache: ignore_cache unless mod.present?
+    return super relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: encoding unless mod.present?
     
-    mod.parse_file relative_path, mutex: mutex, ignore_cache: ignore_cache
+    mod.parse_file relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: encoding
   end
   
-	def parse_files *files, mod: nil
+	def parse_files *files, mod: nil, encoding: nil
     mutex = Mutex.new
     
 		results = files.flatten.map do |relative_path|  
       _mod = mod_for_path relative_path, mod: mod
           
 			Thread.new do
-				document = parse_file relative_path, mod: _mod, mutex: mutex
+				document = parse_file relative_path, mod: _mod, mutex: mutex, encoding: encoding
         
         Thread.current[:document] = document
 			end
@@ -102,7 +108,53 @@ class Paradoxical::Game
 	end
   
   private
-	
+
+  def mod_for_path relative_path, mod: nil
+    return mod unless mod.nil?
+    
+    _enabled_mods.reverse_each.find do |mod| mod.exists? relative_path end 
+  end
+end
+
+def default_root name 
+	File.join(
+		steamapps_dir,
+		"common", 
+		name,
+		*(jomini_version == 1 ? [] : ["game"])
+	)
+end
+
+def default_user_directory name
+	File.expand_path(
+		File.join(
+			"~",
+			*(OS.linux? ? [".local", "share" ] : ["Documents"]),
+			"Paradox Interactive",
+			name
+		)
+	)
+end
+
+def steamapps_dir
+	@steamapps_dir ||= File.expand_path( 
+		File.join(
+			*(		
+				OS.linux? ? ["~", ".local", "share"] :
+				OS.mac? ? ["~", "Library", "Application Support"] :
+				["C", "Program Files (x86)"]
+			),  
+			"Steam", 
+			"steamapps", 
+		)
+	)
+end
+
+module SqliteConfig
+	def db
+		@db ||= SQLite3::Database.new user_directory.join("launcher-v2.sqlite")
+	end
+
   def _mods
 		@mods ||= begin
 			db.execute("SELECT id, gameRegistryId  FROM mods;").map do |(id, gameRegistryId)|
@@ -126,10 +178,41 @@ class Paradoxical::Game
 			enabled_mods
 		end
   end
+end
 
-  def mod_for_path relative_path, mod: nil
-    return mod unless mod.nil?
-    
-    _enabled_mods.reverse_each.find do |mod| mod.exists? relative_path end 
+
+module JsonConfig
+  def _mods
+		@mods ||= begin
+			(
+				Dir[File.join(steamapps_dir, "common", "workshop", "content", steam_id.to_s, "*", ".metadata", "metadata.json")] + 
+				Dir[File.join(user_directory, "mod", "*", ".metadata", "metadata.json")]
+			).map do |metadata_path|
+				path = File.expand_path File.join(metadata_path, "..", "..") 
+				steam_id =  File.basename path
+				metadata = JSON.parse File.read(metadata_path, encoding: "bom|utf-8")
+				name = metadata["name"]
+				id = metadata["id"]
+				Paradoxical::Mod.new self, id, path, name: name, steam_id: steam_id
+			end
+		end
+  end
+  
+  def _enabled_mods
+    @enabled_mods ||= begin			
+			enabled_mods = if @playset.present? then
+				playsets = JSON.parse(File.read(File.join(user_directory, "playsets.json"), encoding: "bom|utf-8"))["playsets"]
+				playset = playsets.find do |p| p["name"] === self.playset end
+				_mods.filter do |mod| 
+					playset["orderedListMods"].any? do |entry| entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path) end
+				end
+			else
+				_mods.dup
+			end
+		
+			enabled_mods.delete_if do |other| other.name == @mod.name end if @mod.present?
+			
+			enabled_mods
+		end
   end
 end

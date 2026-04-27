@@ -19,4 +19,8 @@ class Paradoxical::Elements::Primitives::Date
 	def to_s
 		@value.to_s
 	end
+	
+	def to_date
+		Date.new *@value.split(".").map(&:to_i)
+	end
 end

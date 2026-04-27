@@ -2,19 +2,40 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   include Paradoxical::Elements::Concerns::Arrayable
   include Paradoxical::Elements::Concerns::Searchable
   
-  attr_accessor :key, :operator
+  attr_accessor :key, :operator, :kind
 
-  def initialize key, children, operator: "=", whitespace: nil
+  def initialize key, children, operator: "=", whitespace: nil, gui_type: false, kind: nil
     @key = key
     @children = children
 		@operator = operator
     @whitespace = whitespace
+    @kind = kind
+    @gui_type = gui_type
     
     @children.each do |object| 
       raise ArgumentError.new "Must be Paradoxical::Elements::Node: #{object.inspect}" unless object.is_a? Paradoxical::Elements::Node
-      
       object.send( :parent=, self ) 
     end
+  end
+
+  def gui_type?
+    @gui_type
+  end
+
+  def gui_type= value
+    @gui_type = value
+  end
+
+  def operator
+    # Using nil multiple times in rust seems to cause a segfault, so we use false as a placeholder and replace it the first time we see it
+    @operator = nil if @operator == false
+    @operator
+  end
+
+  def kind
+    # Using nil multiple times in rust seems to cause a segfault, so we use false as a placeholder and replace it the first time we see it
+    @kind = nil if @kind == false
+    @kind
   end
 
   def dup children: nil, key: nil
@@ -38,17 +59,20 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
 	end
 	
   def to_pdx indent: 0, buffer: ""
-		whitespace = ( self.whitespace or [] ) 
+    iter = (self.whitespace or []).each
+    next_ws = -> (default=" ") { (iter.next or default) rescue default }
 		
 		current_indent = line_break + ("\t" * indent)
     
-    buffer << ( whitespace[0] or current_indent )
+    buffer << next_ws.call(current_indent)
     
     unless key == false then
-      buffer << key.to_s
-      buffer << ( whitespace[1] or ' ' )
-      buffer << operator
-      buffer << ( whitespace[2] or ' ' )
+      buffer << ( "type" + next_ws.call ) if gui_type?
+      buffer << ( kind + next_ws.call ) unless gui_type? or kind.nil? 
+      buffer << key.to_pdx
+      buffer << next_ws.call
+      buffer << ( operator + next_ws.call ) unless operator.nil?
+      buffer << ( kind + next_ws.call ) if gui_type? 
     end
     
     buffer << '{'
@@ -61,14 +85,22 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
       end
     end 
     
-    buffer << ( whitespace[3] or current_indent )
+    buffer << next_ws.call(current_indent)
     buffer << '}'
     
     buffer
   end
   
   def inspect
-    "#<Paradoxical::Elements::List key=#{key.inspect} children=#{children.inspect} >"
+    parts = []
+    parts << "gui_type" if gui_type?
+    parts << "kind=#{kind.inspect}" unless gui_type? or kind.nil?
+    parts << "key=#{key.inspect}"
+    parts << "operator=#{operator.inspect}" unless operator.nil?
+    parts << "kind=#{kind.inspect}" if gui_type? 
+    parts << "children=#{children.inspect}"
+
+    "#<Paradoxical::Elements::List #{parts.join(" ")}>"
   end
 	
 	def single_line! indent: nil

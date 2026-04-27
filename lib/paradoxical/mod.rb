@@ -1,22 +1,35 @@
+require 'json'
+
 class Paradoxical::Mod
   include Paradoxical::FileParser
   
-	attr_reader :game, :id, :path, :corrections
+	attr_reader :game, :id, :path, :corrections, :name, :steam_id
 	
-	def initialize game, id, path
+	def initialize game, id, path, name: nil, steam_id: nil
 		@game = game
 		@id = id
 		@path = Pathname.new path
+		@name = name
+		@steam_id = steam_id
 
     @file_cache = {}    
     @config = {}
     @corrections = {}
 		
-		result = parse_file path
-			
-		result.properties.each do |p|
-      @config[p.key] = p.value
-    end
+		if game.jomini_version == 1 then
+			result = parse_file path 
+				
+			result.properties.each do |p|
+				@config[p.key] = p.value
+			end
+		else
+			meta = JSON.parse File.read(File.join(path, ".metadata", "metadata.json"), encoding: "bom|utf-8")
+			@config["name"] = meta["name"]
+			@config["path"] = path
+			@config["supported_version"] = meta["supported_game_version"]
+			@config["archive"] = false
+		end
+
 	end
 	
 	%w{name path supported_version remote_file_id archive}.each do |key|
@@ -80,6 +93,8 @@ class Paradoxical::Mod
 		
 		data = file.bom? ? "\xEF\xBB\xBF" : ""
 		data << file.to_pdx
+		
+		data.encode! file.encoding unless file.encoding.nil?
 		
 		File.write full_path, data
 	end
