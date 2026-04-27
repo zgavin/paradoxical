@@ -1,278 +1,232 @@
+use std::sync::LazyLock;
 
-use rutie::{ Object, RString, VM, Array, Hash, Symbol, AnyObject, Class, Module, Boolean, Integer, Float };
+use magnus::{
+    prelude::*,
+    value::{Lazy, ReprValue},
+    Error, ExceptionClass, IntoValue, RArray, RClass, RHash, RModule, RString, Ruby, Symbol, Value,
+};
 
-extern crate pest;
+use pest::iterators::{Pair, Pairs};
 use pest::Parser;
-use pest::iterators::Pairs;
-use pest::iterators::Pair;
+use pest_derive::Parser;
 
-extern crate regex;
-use self::regex::Regex;
-
-
+use regex::Regex;
 
 #[derive(Parser)]
 #[grammar = "search.pest"]
 struct SearchParser;
 
-class!(ParadoxicalParser);
+fn paradoxical(ruby: &Ruby) -> RModule {
+    ruby.class_object().const_get("Paradoxical").unwrap()
+}
 
-methods!(
-    ParadoxicalParser,
-    _itself,
+fn search(ruby: &Ruby) -> RModule {
+    paradoxical(ruby).const_get("Search").unwrap()
+}
 
-    fn parse(data: RString) -> Array {
-        let string = data.map_err(|e| VM::raise_ex(e) ).unwrap().to_string();
+static RULE_CLASS: Lazy<RClass> = Lazy::new(|ruby| search(ruby).const_get("Rule").unwrap());
+static PROPERTY_MATCHER_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| search(ruby).const_get("PropertyMatcher").unwrap());
+static FUNCTION_MATCHER_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| search(ruby).const_get("FunctionMatcher").unwrap());
+static REGEXP_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| ruby.class_object().const_get("Regexp").unwrap());
 
-        let pairs = SearchParser::parse(Rule::ruleset, &string ).map_err(|e|  
-            VM::raise( Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_module("Parser").get_nested_class("ParseError"), &e.to_string()  )  
-        ).unwrap();
+static REGEXP_ESCAPED_SLASH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\/").unwrap());
+static STRING_ESCAPE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\(.)").unwrap());
 
-        return ruleset(pairs)
-    }
-);
+pub fn parse(ruby: &Ruby, data: String) -> Result<RArray, Error> {
+    let pairs = SearchParser::parse(Rule::ruleset, &data).map_err(|e| {
+        let parser_module: RModule = search(ruby).const_get("Parser").unwrap();
+        let parse_error: ExceptionClass = parser_module.const_get("ParseError").unwrap();
+        Error::new(parse_error, e.to_string())
+    })?;
 
-fn ruleset( pairs: Pairs<Rule> ) -> Array {
-    let mut rules = Array::new();
+    Ok(ruleset(ruby, pairs))
+}
+
+fn ruleset(ruby: &Ruby, pairs: Pairs<Rule>) -> RArray {
+    let rules = RArray::new();
 
     for pair in pairs {
         match pair.as_rule() {
-            Rule::rule => {
-                rules.push( rule( pair ) );
-            }
+            Rule::rule => rules.push(rule(ruby, pair)).unwrap(),
             Rule::EOI => {}
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
+            r => unreachable!("unexpected rule: {:?}", r),
         }
     }
 
-    return rules
+    rules
 }
 
-fn rule( pair:Pair<Rule> ) -> AnyObject {
-    let mut options = Hash::new();
+fn rule(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let options = RHash::new();
+    let mut key: Value = s("*").as_value();
+    let property_matchers = RArray::new();
+    let function_matchers = RArray::new();
 
-    let mut key = s("*");
-    let mut property_matchers = Array::new();
-    let mut function_matchers = Array::new();
-
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::key => { 
-                if pair.as_str() != "*" {
-                    let mut iter = pair.into_inner();
-
-                    let inner = iter.next().unwrap();
-
-                    key = string( inner ); 
-                } 
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::key => {
+                if inner.as_str() != "*" {
+                    let next = inner.into_inner().next().unwrap();
+                    key = string(next).as_value();
+                }
             }
-            Rule::name | Rule::id  => {
-                let rule = pair.as_rule();
-
-                let mut iter = pair.into_inner();
-
-                let inner = iter.next().unwrap();
-
-                let string = string( inner ).to_any_object();
-
-                let key = k( if rule == Rule::name { "name" } else { "id"} );
-
-                options.store( key, string );
+            Rule::name | Rule::id => {
+                let r = inner.as_rule();
+                let next = inner.into_inner().next().unwrap();
+                let val = string(next);
+                let key_name = if r == Rule::name { "name" } else { "id" };
+                options.aset(k(key_name), val).unwrap();
             }
-            Rule::property_matcher => { 
-                property_matchers.push( property_matcher( pair ) ); 
+            Rule::property_matcher => {
+                property_matchers
+                    .push(property_matcher(ruby, inner))
+                    .unwrap();
             }
             Rule::function_matcher => {
-                function_matchers.push( function_matcher( pair ) );
+                function_matchers
+                    .push(function_matcher(ruby, inner))
+                    .unwrap();
             }
             Rule::combinator => {
-                options.store( k("combinator"), p( pair ) );
+                options.aset(k("combinator"), p(inner)).unwrap();
             }
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
-        };
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
     }
 
-    options.store( k("property_matchers"), property_matchers.to_any_object() );
-    options.store( k("function_matchers"), function_matchers.to_any_object() );
+    options
+        .aset(k("property_matchers"), property_matchers)
+        .unwrap();
+    options
+        .aset(k("function_matchers"), function_matchers)
+        .unwrap();
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_class("Rule");
-
-    let arguments = [key.to_any_object(), options.to_any_object()];
-
-    return class.new_instance(&arguments);
+    ruby.get_inner(&RULE_CLASS)
+        .new_instance((key, options))
+        .unwrap()
+        .as_value()
 }
 
-fn property_matcher( pair:Pair<Rule> ) -> AnyObject {
-    let mut options = Hash::new();
+fn property_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let options = RHash::new();
+    let mut key: Option<RString> = None;
 
-    let mut key:Option<AnyObject> = None;
-
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::string => {
-                key = Some( string( pair ).to_any_object() );
-            }
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::string => key = Some(string(inner)),
             Rule::pm_operator => {
-                options.store( k("operator"), p( pair ) );
+                options.aset(k("operator"), p(inner)).unwrap();
             }
             Rule::pm_sensitivity => {
-                options.store( k("case_sensitivity"), p( pair ) );
+                options.aset(k("case_sensitivity"), p(inner)).unwrap();
             }
             Rule::value => {
-                options.store( k("value"), value( pair ) );
+                options.aset(k("value"), value(ruby, inner)).unwrap();
             }
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
+            r => unreachable!("unexpected rule: {:?}", r),
         }
     }
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_class("PropertyMatcher");
-
-    let arguments = [ key.unwrap(), options.to_any_object()];
-
-    return class.new_instance(&arguments);
+    ruby.get_inner(&PROPERTY_MATCHER_CLASS)
+        .new_instance((key.unwrap(), options))
+        .unwrap()
+        .as_value()
 }
 
-fn function_matcher( pair:Pair<Rule> ) -> AnyObject {
-    let mut options = Hash::new();
+fn function_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let options = RHash::new();
+    let mut name: Option<RString> = None;
+    let function_arguments = RArray::new();
 
-    let mut name:Option<AnyObject> = None;
-    let mut function_arguments = Array::new();    
-
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::function_name => { 
-                name = Some( p( pair ).to_any_object() );  
-            }
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::function_name => name = Some(p(inner)),
             Rule::value => {
-                function_arguments.push( value( pair ) );
+                function_arguments.push(value(ruby, inner)).unwrap();
             }
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
+            r => unreachable!("unexpected rule: {:?}", r),
         }
     }
 
-    options.store( k("arguments"), function_arguments );
+    options.aset(k("arguments"), function_arguments).unwrap();
 
-    let class = Module::from_existing("Paradoxical").get_nested_module("Search").get_nested_class("FunctionMatcher");
-
-    let arguments = [ name.unwrap(), options.to_any_object()];
-
-    return class.new_instance(&arguments);
+    ruby.get_inner(&FUNCTION_MATCHER_CLASS)
+        .new_instance((name.unwrap(), options))
+        .unwrap()
+        .as_value()
 }
 
-fn value( pair:Pair<Rule> ) -> AnyObject {
-    let mut iter = pair.into_inner();
-
-    let inner = iter.next().unwrap();
+fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
-        Rule::string => { 
-            string( inner ).to_any_object() 
+        Rule::string => string(inner).as_value(),
+        Rule::integer => inner.as_str().parse::<i64>().unwrap().into_value_with(ruby),
+        Rule::float => inner.as_str().parse::<f64>().unwrap().into_value_with(ruby),
+        Rule::boolean => {
+            let text = inner.as_str();
+            (text == "yes" || text == "true").into_value_with(ruby)
         }
-        Rule::integer => { 
-            Integer::new( inner.as_str().parse::<i64>().unwrap() ).to_any_object() 
-        }
-        Rule::float => { 
-            Float::new( inner.as_str().parse::<f64>().unwrap() ).to_any_object() 
-        }
-        Rule::boolean => { 
-            let string = inner.as_str();
-
-            Boolean::new( string == "yes" || string == "true" ).to_any_object()
-        }
-        Rule::regexp => { regexp( inner ) }
-        _ => {
-            println!("rule: {:?}", inner.as_rule());
-            unreachable!()
-        }
+        Rule::regexp => regexp(ruby, inner),
+        r => unreachable!("unexpected rule: {:?}", r),
     }
 }
 
-lazy_static! {
-    static ref REGEXP_REGEX:Regex = Regex::new(r"\\/").unwrap();
-}
+fn regexp(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let mut contents: Option<RString> = None;
+    let mut flag: i64 = 0;
 
-fn regexp ( pair:Pair<Rule> ) -> AnyObject {
-    let class = Class::from_existing("Regexp");
-
-    let mut contents:Option<AnyObject> = None;
-    let mut flag = 0;
-    
-    for pair in pair.into_inner() {
-        match pair.as_rule() {
-            Rule::regexp_content => { 
-                let replaced  = REGEXP_REGEX.replace_all( pair.as_str(), "/" );
-
-                contents = Some( s( &replaced ).to_any_object() );
-            },
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::regexp_content => {
+                let replaced = REGEXP_ESCAPED_SLASH.replace_all(inner.as_str(), "/");
+                contents = Some(s(&replaced));
+            }
             Rule::regexp_flag => {
-                let s = pair.as_str();
-                flag = flag | match s {
+                let text = inner.as_str();
+                flag |= match text {
                     "m" => 4,
                     "i" => 1,
                     "x" => 2,
-                    _ => { unreachable!() }
+                    _ => unreachable!(),
                 };
             }
-            _ => {
-                println!("rule: {:?}", pair.as_rule());
-                unreachable!()
-            }
+            r => unreachable!("unexpected rule: {:?}", r),
         }
     }
 
-    let arguments = [ contents.unwrap(), Integer::new( flag ).to_any_object() ];
-
-    return class.new_instance(&arguments);
+    ruby.get_inner(&REGEXP_CLASS)
+        .new_instance((contents.unwrap(), flag))
+        .unwrap()
+        .as_value()
 }
 
-lazy_static! {
-    static ref STRING_REGEX:Regex = Regex::new(r"\\(.)").unwrap();
-}
-
-fn string( pair:Pair<Rule>) -> RString {
-    let mut iter = pair.into_inner();
-
-    let inner = iter.next().unwrap();
+fn string(pair: Pair<Rule>) -> RString {
+    let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
-        Rule::unquoted_string => p( inner ),
+        Rule::unquoted_string => p(inner),
         Rule::single_quoted_string | Rule::double_quoted_string => {
-            let mut string = inner.as_str();
-
-            string = &string[1..(string.len()-1)];
-            
-            let replaced = STRING_REGEX.replace_all(&string, "$1");
-
-            s( &replaced )
+            let text = inner.as_str();
+            let trimmed = &text[1..(text.len() - 1)];
+            let replaced = STRING_ESCAPE.replace_all(trimmed, "$1");
+            s(&replaced)
         }
-        _ => {
-            println!("rule: {:?}", inner.as_rule());
-            unreachable!()
-        }
+        r => unreachable!("unexpected rule: {:?}", r),
     }
-
 }
 
-fn p( pair:Pair<Rule> ) -> RString {
-    RString::new_utf8( pair.as_str() )
+fn p(pair: Pair<Rule>) -> RString {
+    RString::new(pair.as_str())
 }
 
-fn s( s:&str ) -> RString {
-    RString::new_utf8( s )
+fn s(text: &str) -> RString {
+    RString::new(text)
 }
 
-fn k( s:&str ) -> Symbol {
-    Symbol::new(s)
+fn k(name: &str) -> Symbol {
+    Symbol::new(name)
 }

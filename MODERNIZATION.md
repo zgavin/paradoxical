@@ -60,13 +60,25 @@ Both require the Rust extension to be loadable in CI, which phase 2 enables.
 
 ### 2. rutie → magnus
 
-The single biggest unlock for Ruby 3 compatibility without hacks.
+The single biggest unlock for Ruby 3 compatibility without hacks. Originally split into 2a/2b/2c/2d; 2c absorbed into 2b once we realized Cargo can't carry both `rutie` and `magnus` at the same time without ABI conflicts and `Init_paradoxical` initializes both the script and search parsers in one call. See decision log.
 
-- Replace the `rutie` Rust crate with [`magnus`](https://github.com/matsadler/magnus) (and `rb-sys` for the build glue).
-- Drop the `rutie` Ruby gem dependency from `paradoxical.gemspec`.
-- Pin `pest` and `pest_derive` to a specific 2.x minor in `Cargo.toml`.
-- Delete the `helix_runtime` reference from `Rakefile` and replace the build task with `rb_sys`-driven equivalents.
-- Keep Rust logic identical; this is an FFI swap, not a rewrite. Idiomatic-Rust improvements come along for free (one-time class lookups instead of `Module::from_existing(...).get_nested_module(...).get_nested_class(...)` chains everywhere).
+#### 2a. rb_sys build system, standard native-ext loading (landed)
+
+Build-system-only swap. `helix_runtime` Rakefile and `Rutie.new(:paradoxical).init` loader replaced with `rb_sys` + standard `require 'paradoxical/paradoxical'`. Rust pinned to 1.67.1 via `rust-toolchain.toml`. No FFI changes — `rutie` still the underlying crate.
+
+#### 2b. Port the Rust extension to magnus (absorbs 2c)
+
+- Replace the `rutie` Rust crate with [`magnus`](https://github.com/matsadler/magnus) in `ext/paradoxical/Cargo.toml`. magnus uses `rb-sys` underneath, which is already there via the build system.
+- Bump Rust toolchain to a current stable (rutie's pin was the source-level constraint; magnus has no such issue).
+- Pin `pest` and `pest_derive` to a specific 2.x minor in `Cargo.toml` (Cargo.lock will refresh as part of this PR anyway).
+- Port `ext/paradoxical/src/lib.rs` and `ext/paradoxical/src/search.rs` together — they share the Cargo.toml dep on rutie/magnus, so they have to flip together. Cache class lookups (one-time `const_get` instead of repeated `Module::from_existing(...).get_nested_module(...).get_nested_class(...)` chains).
+- Acceptance: round-trip harness still 16/16.
+
+#### 2d. Drop rutie remnants and tidy
+
+- Drop the `rutie` Ruby gem dependency from `paradoxical.gemspec` (already inert post-2a).
+- Drop any leftover `extern crate rutie` / unused imports.
+- Any other small cleanup the magnus port flushed out.
 
 ### 3. Dependency bumps
 
@@ -119,6 +131,7 @@ Captured here so we don't re-litigate them.
 - **Tests before migration.** Without a regression net, FFI/dep migrations silently break subtle behavior (whitespace preservation, BOM, `single_line!`, encoding round-trips, `method_missing` dispatch).
 - **Phase 1 split, interleaved with phase 2.** The original plan had phase 1 finish before phase 2. After landing the scaffolding (1a) we hit a wall: any further phase-1 work needs the Rust extension loadable in CI, which means reproducing the rutie/Ruby-3 hacks — i.e. fighting exactly what phase 2 deletes. New ordering is 1a → 1b (PancakeTaco round-trip, local-only, run before+after magnus) → phase 2 → 1c (unit fixtures + parse smoke, now CI-capable). Risk acceptance: the magnus port is more likely to break wholesale than to drift subtly on untouched paths, so a round-trip canary against the example mod is sufficient pre-migration coverage. If something breaks beyond what the harness catches, `git revert` to a working commit is the fallback.
 - **magnus over rutie or rolling our own.** rutie is abandoned; rolling our own reinvents what magnus already solved.
+- **2c absorbed into 2b.** Original plan split the magnus port across two PRs (lib.rs in 2b, search.rs in 2c). Cargo can't carry both `rutie` and `magnus` simultaneously without ABI conflicts (they're competing bindings to the same Ruby C API), and `Init_paradoxical` sets up both `Paradoxical::Parser` and `Paradoxical::Search::Parser` in one init call — so a half-ported state isn't really expressible. Cleaner to flip both files in one PR.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
