@@ -31,6 +31,13 @@ Land before any migration so we have a regression net.
 
 - **Unit tests**, in-repo, against hand-written synthetic fixtures under `spec/fixtures/`. Cover every `script.pest` rule explicitly: each operator, each primitive (color, percentage, date, float, integer, boolean, every string variant), `gui_kind` / `gui_type` / `scripted_kind` branches, mixed/array/keyless lists, BOM, CRLF/LF, and round-trip whitespace preservation.
 - **Integration tests**, off-repo, against a real install. The path is supplied via env var (e.g. `PARADOXICAL_INTEGRATION_ROOT` for game data, `PARADOXICAL_EXAMPLE_MOD` for `~/.pdx/Europa Universalis V/mod/PancakeTaco's Mod`); tests `skip` when unset. CI runs unit tests only.
+- **Parser smoke**, off-repo, env-var-gated (e.g. `PARADOXICAL_PARSE_SMOKE=<game-root>`). Walks every script file under a game install and reports parse success/failure. `.txt` / `.gui` / `.gfx` go through `Paradoxical::Parser`; `.yml` through `Paradoxical::Elements::YAML` (different code path, also prone to drift). No assertions beyond "did it raise" — purely a canary against grammar regressions in our code and patch-day drift in the games. Implementation rules:
+  - Collect-don't-fail-fast: aggregate all failures into a single report (path + first line of error) instead of bailing on the first.
+  - Parallelize per-game and per-file; install trees are tens of thousands of files.
+  - Filter strictly by extension *and* location — game data ships non-script `.txt` files in places like `music/`.
+  - Plumb `encoding:` the same way real callers do, otherwise we'll get false negatives on Latin-1-flavored files.
+  - Run as a separate rake task or RSpec tag, never the default suite. CI never sees it.
+  - Expect to need a per-game allowlist (`spec/fixtures/parse_smoke_allow_<game>.yml`) for genuinely unparseable files — build it lazily as cases come up. A previously-failing file that *starts* passing is also signal: update the allowlist and note the cause.
 - Treat PancakeTaco as a regression baseline, not a correctness baseline — it was written for gameplay, not to exhaust the grammar.
 - **Never commit Paradox files.** Even snippets risk being derivative. Hand-written synthetic fixtures only.
 

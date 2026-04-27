@@ -68,6 +68,7 @@ See **MODERNIZATION.md** for the phased plan to address all of the above. Read i
 - **Tests first for non-trivial migrations.** The whitespace/BOM/encoding round-trip behavior is easy to break silently. If MODERNIZATION.md phase 1 isn't done yet, raise it before starting phases 2+.
 - **One concern per PR.** Especially for dependency bumps — they should land individually, low-risk first, so regressions stay bisectable.
 - **Don't type the DSL.** The `method_missing` surface in `builder.rb` resists static typing; the public API classes are where types pay off.
+- **Touching `script.pest`, `search.pest`, or YAML parsing?** Once the parser smoke from MODERNIZATION.md phase 1 lands, run it (`PARADOXICAL_PARSE_SMOKE=<game-root>`) against at least one real install before declaring the change done. Grammar regressions silently affect the long tail of game files we never look at directly.
 
 ## Open bugs worth knowing about
 
