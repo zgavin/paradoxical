@@ -60,7 +60,7 @@ unquoted_string       =  { ( ( ( "@" | "_"+ | "$" ) ~ ASCII_ALPHANUMERIC ) |  AS
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 
-break_character       = _{ whitespace_character | operator | "{" | "}" | "#" }
+break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | EOI }
 
 whitespace_character  = _{ " " | "\t" | "\r" | "\n" }
 

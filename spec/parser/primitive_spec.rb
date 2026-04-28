@@ -1,13 +1,5 @@
 require "paradoxical"
 
-# Trailing "\n" in fixtures is load-bearing, not decorative. The integer
-# and boolean grammar rules require a `&break_character` lookahead
-# (whitespace, operator, brace, or `#`) — and EOI doesn't count — so a
-# fixture like "foo = 42" without trailing whitespace silently falls
-# through to the `string` rule and yields a String primitive instead of
-# an Integer. Tracked as a 5a grammar bug. Removing these would still
-# pass `.to_s` comparisons but silently test the wrong primitive class.
-
 RSpec.describe Paradoxical::Parser do
   def parse(text)
     Paradoxical::Parser.parse(text)
@@ -161,6 +153,24 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
         expect(prop.value.to_s).to eq("@\\[Total]")
       end
+    end
+  end
+
+  describe "primitives at end of input (no trailing whitespace)" do
+    # The integer/boolean rules use `&break_character` lookahead.
+    # `break_character` includes EOI, so primitives at end-of-file
+    # without trailing whitespace match their proper rule rather than
+    # silently falling through to `string`.
+
+    it "parses an integer at EOI" do
+      prop = parse("foo = 42").first
+      expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+      expect(prop.value.to_i).to eq(42)
+    end
+
+    it "parses a boolean at EOI" do
+      prop = parse("foo = yes").first
+      expect(prop.value).to be(true)
     end
   end
 
