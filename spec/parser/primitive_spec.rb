@@ -153,6 +153,55 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
         expect(prop.value.to_s).to eq("@\\[Total]")
       end
+
+      it "parses an unquoted string starting with a non-ASCII letter" do
+        # PDX games (notably EU4 country files) use accented Latin and
+        # other Unicode letters as identifiers.
+        prop = parse("name = Élou").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("Élou")
+      end
+
+      it "parses an unquoted string containing an apostrophe" do
+        # PDX leader/ship name lists include Latin apostrophe-bearing
+        # forms like `d'Ambleteuse` and `O'Brien`. The leading char is
+        # a regular letter; the apostrophe and following characters are
+        # accepted by the tail since `'` isn't a break character.
+        prop = parse("leaders = { d'Ambleteuse }").first
+        expect(prop.first).to be_a(Paradoxical::Elements::Value)
+        expect(prop.first.value.to_s).to eq("d'Ambleteuse")
+      end
+
+      it "parses bare `_` as an unquoted string identifier" do
+        # Stellaris uses single underscore as a placeholder/wildcard
+        # key in interface fonts: `_ = { 255 0 255 }`.
+        prop = parse("_ = magenta").first
+        expect(prop.key.to_s).to eq("_")
+      end
+
+      it "parses `_`-prefixed unquoted strings (not bare)" do
+        # `_foo` and `__bar` are common identifier shapes; the leading
+        # `"_"+ ~ (LETTER|NUMBER)` alternative matches the underscore(s)
+        # then the alphanumeric continuation.
+        prop = parse("name = _foo").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("_foo")
+
+        prop = parse("name = __bar").first
+        expect(prop.value.to_s).to eq("__bar")
+      end
+
+      it "parses a `$NAME$` parameter-substitution string" do
+        # `$NAME$` parameter substitution is supported across all PDX
+        # games — it's the engine's parse-time placeholder syntax.
+        # Matches via `"$" ~ (LETTER|NUMBER)` for the leading; the tail
+        # accepts the closing `$` since `$` isn't a break character.
+        # Stellaris is the only game that uses the negative-prefixed
+        # `-$NAME$` form, which is still a separate issue tracked as B5.
+        prop = parse("food = $AMOUNT$").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("$AMOUNT$")
+      end
     end
   end
 
