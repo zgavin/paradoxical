@@ -176,8 +176,8 @@ RSpec.describe Paradoxical::Parser do
 
       it "raises on conversion / justify of 4-component colors" do
         prop = parse("foo = rgb { 235 0 18 0 }").first
-        expect { prop.value.hsv! }.to raise_error(NotImplementedError, /alpha/)
-        expect { prop.value.justify! }.to raise_error(NotImplementedError, /alpha/)
+        expect { prop.value.hsv! }.to raise_error(NotImplementedError, /4-component/)
+        expect { prop.value.justify! }.to raise_error(NotImplementedError, /4-component/)
       end
 
       it "parses an hsv360 color" do
@@ -195,6 +195,37 @@ RSpec.describe Paradoxical::Parser do
         prop = parse("foo = hsv360 { 49 35 71 }").first
         expect { prop.value.hsv! }.to raise_error(NotImplementedError, /phase 8/)
         expect { prop.value.rgb! }.to raise_error(NotImplementedError, /phase 8/)
+      end
+
+      it "parses a cylindrical coordinate (3 components, may be negative)" do
+        # EU5 portrait_cameras and city_data use cylindrical{ radius
+        # height angle } for camera/coordinate placement. Not strictly
+        # a color but shares the syntax shape; lives under the same
+        # rule. Components can be negative (e.g. negative angles).
+        prop = parse("position = cylindrical{ 260 30 -10 }").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_cylindrical
+        expect(prop.value.colors).to eq(%w[260 30 -10])
+      end
+
+      it "parses a hex literal color" do
+        # EU5 unit_graphics/colors use hex{ 0xRRGGBBAA } as a single-
+        # component literal — different body shape than the multi-
+        # component types.
+        prop = parse("color_leather_whitened = hex{ 0xffffffff }").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_hex
+        expect(prop.value.colors).to eq(["0xffffffff"])
+      end
+
+      it "raises on cylindrical / hex conversions (phase 8 follow-up)" do
+        cylindrical = parse("x = cylindrical{ 210 30 10 }").first.value
+        expect { cylindrical.hsv! }.to raise_error(NotImplementedError, /phase 8/)
+        expect { cylindrical.justify! }.to raise_error(NotImplementedError, /phase 8/)
+
+        hex = parse("x = hex{ 0xffffffff }").first.value
+        expect { hex.rgb! }.to raise_error(NotImplementedError, /phase 8/)
+        expect { hex.justify! }.to raise_error(NotImplementedError, /phase 8/)
       end
     end
 

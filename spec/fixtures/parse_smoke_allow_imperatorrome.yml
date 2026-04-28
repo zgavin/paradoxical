@@ -13,8 +13,6 @@
 - common/genes/00_genes.txt
 - common/script_values/00_mission_syracuse.txt
 - gfx/map/post_effects/posteffect_volumes.txt
-- gfx/portraits/cameras/00_default.txt
-- gfx/portraits/environments/00_default.txt
 - gui/diplomatic_view.gui
 - gui/greatworkwindow.gui
 - gui/jomini/browser/browser_setup.gui
