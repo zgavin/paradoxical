@@ -130,24 +130,28 @@ color = @{ ( "hsv360" | "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~ ( integer | float ) 
 
 **Risk.** Low. The `Primitives::Color#colors` accessor returns an Array with whatever number of components was parsed; downstream `to_pdx` reproduces verbatim.
 
-### B5. `$PARAMETER$` substitution placeholders (~6 Stellaris files)
+### B5. Negative-prefixed `-$PARAMETER$` substitution placeholders (~6 Stellaris files)
 
-**Pattern.** Stellaris's `inline_scripts/` use `$NAME$` for parameter substitution that the game evaluates at load time.
+**Pattern.** `$NAME$` parameter substitution is supported across **all** PDX games — it's the engine's parse-time placeholder syntax — and the bare positive form already works post-B1 (the `$` prefix branch in `unquoted_string` matches the leading, the closing `$` rides in via the tail). Stellaris is the only game that uses the *negative-prefixed* `-$NAME$` form, used in `inline_scripts/` to subtract parameter values, and that's the actual remaining bug.
 
 Example (`common/inline_scripts/jobs/industrial_districts_factory_add.txt:56`):
 ```
 job_artisan_add = -$AMOUNT$
 ```
 
-**Why it fails.** `$AMOUNT$` doesn't match any primitive. The leading `-$` doesn't match integer or float (no numeric); doesn't match `unquoted_string` (the rule allows `$` only when followed by `ASCII_ALPHANUMERIC` immediately, but the *initial* character must be alphanumeric per the alt — `$AMOUNT$` standalone might parse, but `-$AMOUNT$` doesn't because `-` isn't alphanumeric).
+**Why it fails.** The leading `-` doesn't match `unquoted_string`'s leading-character alternatives (none of `(LETTER|NUMBER)`, `("@" | "_"+ | "$") ~ ...`, or bare `"_"+`). It also doesn't match integer or float (no numeric after the sign). Falls through to "expected: primitive."
 
-**Fix.** Two cases:
-- Bare `$NAME$` as a value — should already work via `unquoted_string` if leading-character rule is relaxed (overlaps with B1's fix).
-- `-$NAME$` (negative-prefixed parameter) — needs a more targeted change, possibly a dedicated `parameter` primitive: `parameter = @{ ("-" | "+")? ~ "$" ~ ASCII_ALPHANUMERIC+ ~ "$" }`.
+**Fix.** A dedicated `parameter` primitive that handles the optional sign:
 
-**Estimated reach.** ~6 files. Some may overlap with B1's fix; the dedicated `parameter` primitive likely covers the negative case.
+```
+parameter = @{ ("-" | "+")? ~ "$" ~ (LETTER | NUMBER)+ ~ "$" }
+```
 
-**Risk.** Moderate. The exact pest ordering matters — `$NAME$` must not be misread as part of `unquoted_string`'s greedy tail.
+Ordered before `string` in the `primitive` alternation so the prefixed form gets matched here rather than partially consumed elsewhere.
+
+**Estimated reach.** ~6 Stellaris files (the `-$NAME$` cases). Bare positive `$NAME$` cases without a leading sign should already be unblocked by B1.
+
+**Risk.** Moderate. The new rule's ordering matters — must come before `string`/`unquoted_string` so the negative-prefixed form gets matched as a parameter.
 
 ---
 
