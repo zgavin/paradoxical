@@ -192,11 +192,12 @@ RSpec.describe Paradoxical::Parser do
       end
 
       it "parses a `$NAME$` parameter-substitution string" do
-        # Stellaris inline_scripts use $NAME$ as a parse-time parameter
-        # placeholder. It matches via `"$" ~ (LETTER|NUMBER)` for the
-        # leading; the tail accepts the closing `$` since `$` isn't a
-        # break character. Bare positive form works post-B1; negative
-        # `-$NAME$` is still a separate issue (B5).
+        # `$NAME$` parameter substitution is supported across all PDX
+        # games — it's the engine's parse-time placeholder syntax.
+        # Matches via `"$" ~ (LETTER|NUMBER)` for the leading; the tail
+        # accepts the closing `$` since `$` isn't a break character.
+        # Stellaris is the only game that uses the negative-prefixed
+        # `-$NAME$` form, which is still a separate issue tracked as B5.
         prop = parse("food = $AMOUNT$").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
         expect(prop.value.to_s).to eq("$AMOUNT$")
