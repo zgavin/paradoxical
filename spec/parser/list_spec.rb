@@ -113,6 +113,29 @@ RSpec.describe Paradoxical::Parser do
       end
     end
 
+    describe "load_template variant" do
+      it "parses `load_template foo { ... }`" do
+        # EU5 city_data files use load_template as a top-level
+        # directive that mirrors gui_kind / scripted_kind in shape:
+        # keyword, name, body. No operator.
+        list = parse("load_template player_buildings { x = 1 y = 2 }").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.kind).to eq("load_template")
+        expect(list.key.to_s).to eq("player_buildings")
+        expect(list.operator).to be_nil
+        expect(list.gui_type?).to be(false)
+      end
+
+      it "doesn't shadow identifiers that start with load_template_" do
+        # The &whitespace_character lookahead on load_template_kind
+        # ensures `load_template_foo` is treated as a regular
+        # identifier, not as a load_template directive.
+        prop = parse("load_template_foo = bar").first
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.key.to_s).to eq("load_template_foo")
+      end
+    end
+
     describe "scripted_kind variants" do
       %w[scripted_trigger scripted_effect].each do |kind|
         it "parses `#{kind} foo = { ... }`" do
