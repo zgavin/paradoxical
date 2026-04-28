@@ -167,9 +167,50 @@ Example (`main_menu/gfx/map/city_data/ashanti.txt:316`): `load_template player_b
 
 `position = cylindrical { 210 30 10 }` and `color = hex{ 0xffffffff }` — additional color/coordinate constructor formats. Could be folded into the same rule as `hsv360` (B3) or get their own primitive. Hex notation specifically would need a `0x[0-9a-fA-F]+` integer literal.
 
-### C3. EU5 `[[ ... ]]` blocks (~3 files)
+### C3a. Stellaris `[[NAME] body ]` parameter-conditional blocks (8+ files)
 
-Example (`main_menu/gfx/map/city_data/templates.txt:4`): `code [[`. Looks like an embedded code block (Lua? GDScript?). Whatever's inside is freeform until `]]`. Needs a new top-level construct.
+Stellaris's `inline_scripts/` and shared `scripted_effects/` / `script_values/` / `scripted_triggers/` use a parameter-conditional template syntax:
+
+```
+revolt_situation_low_stability_factor = {
+    base = @stabilitylevel2
+    [[ALTERED_STABILITY]
+        subtract = $ALTERED_STABILITY$
+    ]
+    mult = 0.2
+}
+
+pop_group_transfer_ethic = {
+    [[POP_GROUP]
+        $POP_GROUP$ = { save_event_target_as = source_pop_group }
+    ]
+    [[!POP_GROUP]
+        weighted_random_owned_pop_group = { ... }
+    ]
+}
+```
+
+Body between `[[NAME]` and the matching `]` is emitted only if the parameter `NAME` is set when the script is invoked. The negation form `[[!NAME] body ]` emits when `NAME` is *not* set.
+
+**Why it fails.** The opening `[[` and closing `]` aren't recognized by any rule. The opening looks like a `localization_string` (`[ ... ]`) start but immediately fails on the inner `[`. Falls through; eventually fails when reaching the unmatched `]` deep in the file.
+
+**Fix shape.** A new structural rule, allowed wherever expressions are allowed (lists, keyless_lists):
+
+```
+parameter_block = { "[[" ~ "!"? ~ unquoted_string ~ "]" ~ expression* ~ ws ~ "]" }
+```
+
+Then a new `Paradoxical::Elements::ParameterBlock` Ruby class storing the parameter name, the negation flag, and the inner children. Round-trip preserves the textual form.
+
+**Estimated reach.** 8 confirmed Stellaris files via the smoke + spot-check; pattern is common enough in scripted_effects (8000+ line files use it heavily) that fixing it could also unblock other allowlisted files whose first observed error wasn't `]` but whose later content uses the construct. Worth running smoke after to see secondary unblocks.
+
+**Risk.** Low. New rule, additive, can't shadow existing matches because nothing else starts with `[[`. The body holds expressions which the parser already knows how to handle.
+
+### C3b. EU5 `code [[ ... ]]` opaque code blocks (~3 files)
+
+Example (`main_menu/gfx/map/city_data/templates.txt:4`): `code [[`. EU5 city_data templates embed what looks like an opaque code block (Lua or GDScript-shaped). Content between `[[` and `]]` is freeform — not parsed as Clausewitz script. Different shape from C3a (true double-bracket pairs, opaque body).
+
+Could be handled by a `code_block = { "code" ~ ws ~ "[[" ~ (!"]]" ~ ANY)* ~ "]]" }` rule, stored as a primitive that holds the raw inner text. Lower priority than C3a (fewer files).
 
 ### C4. Negative dates (~2 EU4 files)
 
