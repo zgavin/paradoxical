@@ -198,6 +198,16 @@ PDX calendar landscape (worth recording so future-us doesn't re-derive):
 
 The implementation likely dispatches via the phase-5 game-namespaced modules — per-game calendar rules want to live with the rest of each game's quirks rather than as a switch in `core_extensions.rb`.
 
+#### `hsv360` color conversions (ride along with Color rework)
+
+Phase 4d-B3 added `hsv360` as a new color type the parser recognizes and round-trips byte-identically. But `Primitives::Color`'s conversion methods (`hsv!`, `rgb!`, `justify!`) currently `raise NotImplementedError` when the source type is `hsv360` — degrees-to-fraction (and component padding) conversions need their own arithmetic that didn't fit the simple grammar fix. Phase 8 should land:
+
+- `hsv360 → hsv` and `hsv360 → rgb` conversions (and inverse where useful).
+- `justify!` rules for the hsv360 component shape (integer degrees + integer 0..100 percentages).
+- Maybe `hsv360?` shouldn't be the only predicate — `colors_per_component_max(0..360, 0..100, 0..100)` style accessors might be more useful long-term.
+
+Until then, code that needs hsv↔rgb conversion on hsv360-typed colors will get a clear `NotImplementedError` rather than silent wrong math.
+
 #### Distinct primitive types for string-like patterns
 
 `Primitives::String` is currently the catch-all for any sequence that doesn't match a structured primitive (Color/Date/Float/Integer/Boolean/Percentage). That includes several syntactically- and semantically-distinct PDX concepts the engine itself treats as separate types:

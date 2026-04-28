@@ -144,6 +144,23 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_hsv
         expect(prop.value.colors).to eq(%w[0.5 0.7 0.9])
       end
+
+      it "parses an hsv360 color" do
+        # EU5 introduced hsv360 — hue in degrees (0..360), S/V as
+        # integers (0..100), instead of hsv's 0..1 floats.
+        prop = parse("foo = hsv360 { 49 35 71 }").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_hsv360
+        expect(prop.value).not_to be_hsv
+        expect(prop.value).not_to be_rgb
+        expect(prop.value.colors).to eq(%w[49 35 71])
+      end
+
+      it "raises on hsv360 -> hsv / rgb conversion (phase 8 follow-up)" do
+        prop = parse("foo = hsv360 { 49 35 71 }").first
+        expect { prop.value.hsv! }.to raise_error(NotImplementedError, /phase 8/)
+        expect { prop.value.rgb! }.to raise_error(NotImplementedError, /phase 8/)
+      end
     end
 
     describe "string" do

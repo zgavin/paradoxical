@@ -33,28 +33,38 @@ class Paradoxical::Elements::Primitives::Color
 	def rgb?
 		type == "rgb"
 	end
-	
+
 	def hsv?
 		type == "hsv"
+	end
+
+	def hsv360?
+		type == "hsv360"
 	end
 	
 	def justify!
 		if rgb? then
 			@whitespace = [nil, *colors.map do |c| " " * (4 - c.length) end, nil]
-		else
+		elsif hsv? then
 			@whitespace = []
-			@colors = @colors.map do |v| '%.3f' % v.to_f end 
+			@colors = @colors.map do |v| '%.3f' % v.to_f end
+		else
+			# hsv360 — needs its own justification rule (degrees vs. 0..1
+			# floats produce different padding needs). Phase 8 follow-up.
+			raise NotImplementedError, "justify! is not yet implemented for #{type} (phase 8 follow-up)"
 		end
-		
+
 		@value = nil
-		
+
 		self
 	end
 	
 	# https://en.wikipedia.org/wiki/HSL_and_HSV#From_RGB
 	def hsv!
 		return self if hsv?
-		
+
+		raise NotImplementedError, "hsv360 -> hsv conversion is a phase 8 follow-up" if hsv360?
+
 		r, g, b = @colors.map do |c| c.to_i / 255.0 end
 
 	  x_max = [r, g, b].max
@@ -99,7 +109,9 @@ class Paradoxical::Elements::Primitives::Color
 	# https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
 	def rgb!
 		return self if rgb?
-		
+
+		raise NotImplementedError, "hsv360 -> rgb conversion is a phase 8 follow-up" if hsv360?
+
 	  h, s, v = @colors.map(&:to_f)
 		
 		c = v * s
@@ -157,7 +169,7 @@ class Paradoxical::Elements::Primitives::Color
 	def maybe_parse!
 		return unless @type.nil? or @colors.nil? or @whitespace.nil?
 		
-		matches = @value.match(/^(?<type>rgb|hsv)(?<ws_0>\s*)\{(?<ws_1>\s*)(?<color_0>\d+\.?\d*)(?<ws_2>\s+)(?<color_1>\d+\.?\d*)(?<ws_3>\s+)(?<color_2>\d+\.?\d*)(?<ws_4>\s*)\}$/)
+		matches = @value.match(/^(?<type>hsv360|rgb|hsv)(?<ws_0>\s*)\{(?<ws_1>\s*)(?<color_0>\d+\.?\d*)(?<ws_2>\s+)(?<color_1>\d+\.?\d*)(?<ws_3>\s+)(?<color_2>\d+\.?\d*)(?<ws_4>\s*)\}$/)
 		
 		@type = matches[:type]
 		@colors = 3.times.map do |i| matches["color_#{i}".to_sym] end
