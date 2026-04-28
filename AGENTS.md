@@ -78,7 +78,7 @@ See **MODERNIZATION.md** for the phased plan to address all of the above. Read i
 
 ## Open bugs worth knowing about
 
-Fixed in MODERNIZATION.md phase 5a, but worth flagging if encountered earlier:
+Fixed in MODERNIZATION.md phase 4, but worth flagging if encountered earlier:
 
 - `lib/paradoxical/builder.rb:196` and `:201` both define `check_galaxy_setup_value`; the second silently overrides the first.
 - `lib/paradoxical/builder.rb:221` and `:229` reference a bare `mult` identifier; should be the string `'mult'`.

@@ -107,11 +107,7 @@ One PR per dependency, in roughly increasing order of risk:
 
 Bundler and Ruby itself bump alongside as needed.
 
-### 4. (Reserved — folded into phase 2)
-
-Rust idiom uplift was originally a separate phase; the magnus port subsumes most of it. Don't add work here for its own sake.
-
-### 5a. Bug fixes and dead code
+### 4. Bug fixes and dead code
 
 Cleanup that's safe once we have tests but doesn't change shape:
 
@@ -124,7 +120,7 @@ Cleanup that's safe once we have tests but doesn't change shape:
 - **Grammar bug: `&break_character` lookahead doesn't accept EOI.** `integer` and `boolean` rules require a trailing whitespace/operator/brace/`#` character. A fixture like `foo = 42` (no trailing newline) silently falls through to the `string` rule and yields a String primitive instead of an Integer. The trailing-`\n` fixtures in `spec/parser/primitive_spec.rb` are load-bearing because of this; the spec has an inline note. Fix by adding `EOI` to `break_character`.
 - **`Paradoxical::Elements::Primitives::Float` uses Ruby native Float (binary floating point).** PDX games store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can therefore drift due to binary-float rounding. Real-world DSL usage rarely does decimal math so it hasn't bitten in practice — but the right long-term shape is a fixed-precision wrapper that holds the int and exposes the decimal view.
 
-### 5b. Game-namespaced DSLs
+### 5. Game-namespaced DSLs
 
 Restructuring, not just cleanup. Larger and worth its own PR.
 
@@ -152,6 +148,7 @@ Captured here so we don't re-litigate them.
 - **Phase 1 split, interleaved with phase 2.** The original plan had phase 1 finish before phase 2. After landing the scaffolding (1a) we hit a wall: any further phase-1 work needs the Rust extension loadable in CI, which means reproducing the rutie/Ruby-3 hacks — i.e. fighting exactly what phase 2 deletes. New ordering is 1a → 1b (PancakeTaco round-trip, local-only, run before+after magnus) → phase 2 → 1c (unit fixtures + parse smoke, now CI-capable). Risk acceptance: the magnus port is more likely to break wholesale than to drift subtly on untouched paths, so a round-trip canary against the example mod is sufficient pre-migration coverage. If something breaks beyond what the harness catches, `git revert` to a working commit is the fallback.
 - **magnus over rutie or rolling our own.** rutie is abandoned; rolling our own reinvents what magnus already solved.
 - **2c absorbed into 2b.** Original plan split the magnus port across two PRs (lib.rs in 2b, search.rs in 2c). Cargo can't carry both `rutie` and `magnus` simultaneously without ABI conflicts (they're competing bindings to the same Ruby C API), and `Init_paradoxical` sets up both `Paradoxical::Parser` and `Paradoxical::Search::Parser` in one init call — so a half-ported state isn't really expressible. Cleaner to flip both files in one PR.
+- **Phases renumbered after phase 4 went empty.** The original plan had phase 4 as "Rust idiom uplift" and 5a/5b as bug-fixes / game-namespaced DSLs. The magnus port (phase 2b) subsumed the Rust idiom work, leaving 4 reserved-but-empty next to 5a/5b. After 1a-d and 2a-d landed, 5a was renamed to 4 and 5b to 5 so the remaining work proceeds in clean numerical order. References to "5a"/"5b" in pre-renumber commits/PRs/AGENTS.md are historical.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
