@@ -198,6 +198,41 @@ PDX calendar landscape (worth recording so future-us doesn't re-derive):
 
 The implementation likely dispatches via the phase-5 game-namespaced modules — per-game calendar rules want to live with the rest of each game's quirks rather than as a switch in `core_extensions.rb`.
 
+#### Distinct primitive types for string-like patterns
+
+`Primitives::String` is currently the catch-all for any sequence that doesn't match a structured primitive (Color/Date/Float/Integer/Boolean/Percentage). That includes several syntactically- and semantically-distinct PDX concepts the engine itself treats as separate types:
+
+- **Percentage** (`50%`) — already grammatically constrained but currently lives under `String`; deserves numeric semantics in its own primitive.
+- **Parameter substitution** (`$NAME$`, `-$NAME$`) — engine-level placeholder evaluated at parse time. Supported across all PDX games. Negative-prefixed form is what's still pending in phase 4d-B5.
+- **Localization reference** (`[ROOT.GetName]`) — looks up text from `.yml` localization files at game-load time.
+- **Computation expression** (`@[GetSize + 1]`, `@\[Total]`) — math evaluated at parse time. The escaped form is also distinct.
+- **Variable reference** (`@variable_name`) — references a `@var = value` definition in the same file or scope.
+
+Lumping these as `String` means:
+- The parser silently accepts invalid syntax (e.g. unbalanced `[`, malformed `$NAME$`) that the game would reject. Mod authors find out at game-load time instead of at compile time.
+- DSL helpers can't typed-construct each (e.g. `builder.localization("KEY")` can't return something type-safe).
+- Round-trip preservation works (we store raw text), but semantic information is lost.
+
+See [feedback memory: don't be more lenient than the game's parser](../memory/feedback_match_game_parser_strictness.md) for the underlying principle.
+
+**Proposed shape per type:**
+
+1. New pest rule that validates the specific syntax (e.g. `parameter = @{ ("-" | "+")? ~ "$" ~ (LETTER | NUMBER)+ ~ "$" }`).
+2. New `Paradoxical::Elements::Primitives::*` class storing the parsed-out parts (key, expression, sign, etc.) in addition to the raw text for round-trip.
+3. New DSL helpers in `Builder` for typed construction.
+
+**Trade-off to budget for.** A stricter parser will surface previously-passing files as smoke failures. That's positive signal (real invalid syntax we used to mask) but each fix surfaces its own allowlist churn — and if any `compile.rb`-emitted output trips on stricter validation, the DSL needs a small accompanying fix to use the right typed helper.
+
+Initial scope, in order of likely value-per-effort:
+
+- `Primitives::Percentage` — already grammatically constrained, lift it out of `String`.
+- `Primitives::Parameter` — overlap with phase-4d-B5: tackle the `-$NAME$` form using the typed primitive shape rather than just widening grammar.
+- `Primitives::LocalizationRef` — `[KEY]` and `[KEY|format]` variants.
+- `Primitives::Computation` — `@[expr]` and `@\[expr]`.
+- `Primitives::VariableRef` — `@variable_name` (no brackets).
+
+Existing `String` stays as the catch-all; the change is additive.
+
 ## Decision log
 
 Captured here so we don't re-litigate them.
@@ -208,6 +243,7 @@ Captured here so we don't re-litigate them.
 - **2c absorbed into 2b.** Original plan split the magnus port across two PRs (lib.rs in 2b, search.rs in 2c). Cargo can't carry both `rutie` and `magnus` simultaneously without ABI conflicts (they're competing bindings to the same Ruby C API), and `Init_paradoxical` sets up both `Paradoxical::Parser` and `Paradoxical::Search::Parser` in one init call — so a half-ported state isn't really expressible. Cleaner to flip both files in one PR.
 - **Phases renumbered after phase 4 went empty.** The original plan had phase 4 as "Rust idiom uplift" and 5a/5b as bug-fixes / game-namespaced DSLs. The magnus port (phase 2b) subsumed the Rust idiom work, leaving 4 reserved-but-empty next to 5a/5b. After 1a-d and 2a-d landed, 5a was renamed to 4 and 5b to 5 so the remaining work proceeds in clean numerical order. References to "5a"/"5b" in pre-renumber commits/PRs/AGENTS.md are historical.
 - **Phase 8 added; Float deferral moved out of phase 4.** Phase 4 was originally going to absorb the "Float → fixed-precision" cleanup as a deferred 4f item, but the calendar-support discussion surfaced a parallel concern (game-aware `Date#to_pdx`) with the same shape — a primitive type wanting richer representation. Both moved to a new phase 8 explicitly gated on "concrete need surfaces," and explicitly stdlib-only (no external gems, no custom calendar/decimal abstractions). The reasoning: external gems can be abandoned (lesson from rutie), and downstream mod authors shouldn't have to learn a `Paradoxical::Calendar` abstraction when stdlib `Date` is what they already know.
+- **Phase 8 expanded to cover the "distinct primitive types for string-like patterns" family.** Phase 4d's grammar work surfaced that the parser silently accepts a lot of malformed syntax because the engine treats several syntactically-distinct PDX concepts (percentages, parameter substitutions, localization refs, computation expressions, variable refs) as separate types — paradoxical lumps them all under `Primitives::String`. Phase 8 absorbs that family of "deserves its own typed primitive" items. Each gets validated by a dedicated pest rule (the parser becomes properly strict for the patterns the engine itself recognizes) and a typed DSL helper. Phase 4d-B5 specifically should tackle the `-$NAME$` parameter case via the typed `Primitives::Parameter` shape rather than just widening grammar.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
