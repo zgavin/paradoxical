@@ -2,7 +2,7 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   attr_accessor :value
   
   def self.empty_line
-    empty_line = self.new Paradoxical::Elements::Primitives::String.new '', is_quoted: false
+    empty_line = self.new Paradoxical::Elements::Primitives::String.new '', quoted: false
     
     empty_line.instance_variable_set :@empty_line, true
     

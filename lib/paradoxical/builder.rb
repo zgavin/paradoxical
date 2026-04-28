@@ -193,11 +193,11 @@ class Paradoxical::Builder
 		end.single_line!
 	end
 	
-	def check_galaxy_setup_value setting, operator, value=nil
+	def get_galaxy_setup_value setting, operator, value=nil
 		value, operator = operator, '=' if value.nil?
 		l( "get_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
 	end
-	
+
 	def check_galaxy_setup_value setting, operator, value=nil
 		value, operator = operator, '=' if value.nil?
 		l( "check_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
@@ -218,7 +218,7 @@ class Paradoxical::Builder
   
   def add_resource( resource, value )
     if value.is_a? String then
-      l( 'add_resource', p( resource, 1 ), p( mult, value ) )
+      l( 'add_resource', p( resource, 1 ), p( 'mult', value ) )
     else
       l( 'add_resource', p( resource, value ) ).single_line!
     end
@@ -226,7 +226,7 @@ class Paradoxical::Builder
   
   def remove_resource( resource, value )
     if value.is_a? String then
-      l( 'add_resource', p( resource, -1 ), p( mult, value ) )
+      l( 'add_resource', p( resource, -1 ), p( 'mult', value ) )
     else
       l( 'add_resource', p( resource, -1 * value ) ).single_line!
     end
