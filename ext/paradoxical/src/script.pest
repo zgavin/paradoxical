@@ -22,7 +22,10 @@ gui_type_kind         = @{ string }
 // matches scripted_trigger foo = { ... }
 scripted_kind         =  @{ "scripted_" ~ ("trigger" | "effect") }
 
-keyable_list          = _{ ws ~ ( ( gui_kind ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+// matches load_template foo { ... }  (EU5 city_data and similar)
+load_template_kind    = @{ "load_template" ~ &whitespace_character }
+
+keyable_list          = _{ ws ~ ( ( gui_kind ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( load_template_kind ~ ws ~ primitive ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
