@@ -66,19 +66,20 @@ The single biggest unlock for Ruby 3 compatibility without hacks. Originally spl
 
 Build-system-only swap. `helix_runtime` Rakefile and `Rutie.new(:paradoxical).init` loader replaced with `rb_sys` + standard `require 'paradoxical/paradoxical'`. Rust pinned to 1.67.1 via `rust-toolchain.toml`. No FFI changes — `rutie` still the underlying crate.
 
-#### 2b. Port the Rust extension to magnus (absorbs 2c)
+#### 2b. Port the Rust extension to magnus, absorbs 2c (landed)
 
-- Replace the `rutie` Rust crate with [`magnus`](https://github.com/matsadler/magnus) in `ext/paradoxical/Cargo.toml`. magnus uses `rb-sys` underneath, which is already there via the build system.
-- Bump Rust toolchain to a current stable (rutie's pin was the source-level constraint; magnus has no such issue).
-- Pin `pest` and `pest_derive` to a specific 2.x minor in `Cargo.toml` (Cargo.lock will refresh as part of this PR anyway).
-- Port `ext/paradoxical/src/lib.rs` and `ext/paradoxical/src/search.rs` together — they share the Cargo.toml dep on rutie/magnus, so they have to flip together. Cache class lookups (one-time `const_get` instead of repeated `Module::from_existing(...).get_nested_module(...).get_nested_class(...)` chains).
-- Acceptance: round-trip harness still 16/16.
+`rutie` Rust crate → `magnus` 0.7. Rust bumped 1.67.1 → 1.95.0 (rutie's source-level pin was the only thing holding us back). `pest`/`pest_derive` pinned to 2.7. `lazy_static` dropped in favor of `std::sync::LazyLock`. Class lookups go through cached `Lazy<RClass>` statics resolved via `ruby.get_inner(&LAZY)`. `.cargo/config.toml` sets `BINDGEN_EXTRA_CLANG_ARGS=-include stdbool.h` so rb-sys's bindgen step parses Ruby 3.2 headers cleanly. Round-trip harness 16/16 byte-equal post-port.
 
-#### 2d. Drop rutie remnants and tidy
+#### 2d. Drop rutie remnants and migrate to kwargs
 
-- Drop the `rutie` Ruby gem dependency from `paradoxical.gemspec` (already inert post-2a).
-- Drop any leftover `extern crate rutie` / unused imports.
-- Any other small cleanup the magnus port flushed out.
+- Migrate the `ivar_set` chains in `ext/paradoxical/src/lib.rs` to `magnus::kwargs!()` calls in `new_instance` so element constructors thread their data through Ruby's proper `initialize` signatures. This was rutie cruft — rutie had no kwargs support, so the original code worked around it by mutating ivars from outside. Net: Ruby `ArgumentError: unknown keyword` now fires loudly at construction time if anyone changes a Ruby class's signature without updating the Rust caller.
+- Drop the `rutie` Ruby gem dependency from `paradoxical.gemspec` (inert since 2a).
+- Refresh stale rutie-era comments in `spec/spec_helper.rb`.
+
+#### Out of scope for 2d, deferred
+
+- Search submodule kwargs migration. `ext/paradoxical/src/search.rs` still passes a positional `RHash` to `Paradoxical::Search::{Rule,PropertyMatcher,FunctionMatcher}` — the same rutie-era pattern. Migrating it requires changes on both Rust and Ruby sides, and there's no regression test for the search DSL today (PancakeTaco round-trip doesn't exercise `Paradoxical::Search`). Defer until phase 1c lands unit tests, then migrate with confidence.
+- The "false-as-no-operator/no-kind" placeholder in `List`. The `operator`/`kind` getters on `Paradoxical::Elements::List` translate `false` to `nil` per a comment that blames rutie segfaults on nil. magnus handles nil fine, so the workaround is vestigial — but flipping it touches the Ruby side and warrants its own PR.
 
 ### 3. Dependency bumps
 
