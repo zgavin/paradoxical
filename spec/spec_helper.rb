@@ -10,8 +10,8 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 
-  # `:integration` specs require the Rust extension and an off-repo fixture
-  # path. They are gated on PARADOXICAL_EXAMPLE_MOD and skipped in CI until
-  # MODERNIZATION.md phase 2 (rutie -> magnus) lands a sane FFI build.
+  # `:integration` specs need both the compiled Rust extension and an
+  # off-repo fixture path. Skipped when PARADOXICAL_EXAMPLE_MOD is unset;
+  # CI doesn't build the extension yet (lands with MODERNIZATION.md phase 1c).
   config.filter_run_excluding :integration unless ENV["PARADOXICAL_EXAMPLE_MOD"]
 end
