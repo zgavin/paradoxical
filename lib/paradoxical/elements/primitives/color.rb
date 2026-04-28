@@ -41,19 +41,25 @@ class Paradoxical::Elements::Primitives::Color
 	def hsv360?
 		type == "hsv360"
 	end
+
+	def cylindrical?
+		type == "cylindrical"
+	end
+
+	def hex?
+		type == "hex"
+	end
 	
 	def justify!
-		raise NotImplementedError, "justify! for #{colors.length}-component (alpha) colors is a phase 8 follow-up" if colors.length != 3
-
-		if rgb? then
+		if rgb? && colors.length == 3 then
 			@whitespace = [nil, *colors.map do |c| " " * (4 - c.length) end, nil]
-		elsif hsv? then
+		elsif hsv? && colors.length == 3 then
 			@whitespace = []
 			@colors = @colors.map do |v| '%.3f' % v.to_f end
 		else
-			# hsv360 — needs its own justification rule (degrees vs. 0..1
-			# floats produce different padding needs). Phase 8 follow-up.
-			raise NotImplementedError, "justify! is not yet implemented for #{type} (phase 8 follow-up)"
+			# hsv360 / cylindrical / hex / 4-component (alpha) — each
+			# would need its own justification rule. Phase 8 follow-up.
+			raise NotImplementedError, "justify! for #{type} (#{colors.length}-component) is a phase 8 follow-up"
 		end
 
 		@value = nil
@@ -65,8 +71,9 @@ class Paradoxical::Elements::Primitives::Color
 	def hsv!
 		return self if hsv?
 
-		raise NotImplementedError, "hsv360 -> hsv conversion is a phase 8 follow-up" if hsv360?
-		raise NotImplementedError, "#{colors.length}-component (alpha) -> hsv conversion is a phase 8 follow-up" if colors.length != 3
+		unless rgb? && colors.length == 3
+			raise NotImplementedError, "#{type} (#{colors.length}-component) -> hsv conversion is a phase 8 follow-up"
+		end
 
 		r, g, b = @colors.map do |c| c.to_i / 255.0 end
 
@@ -113,8 +120,9 @@ class Paradoxical::Elements::Primitives::Color
 	def rgb!
 		return self if rgb?
 
-		raise NotImplementedError, "hsv360 -> rgb conversion is a phase 8 follow-up" if hsv360?
-		raise NotImplementedError, "#{colors.length}-component (alpha) -> rgb conversion is a phase 8 follow-up" if colors.length != 3
+		unless hsv? && colors.length == 3
+			raise NotImplementedError, "#{type} (#{colors.length}-component) -> rgb conversion is a phase 8 follow-up"
+		end
 
 	  h, s, v = @colors.map(&:to_f)
 		
@@ -173,14 +181,22 @@ class Paradoxical::Elements::Primitives::Color
 	def maybe_parse!
 		return unless @type.nil? or @colors.nil? or @whitespace.nil?
 
-		# Captures 3 or 4 components. The optional fourth-component group
-		# (ws_pre_alpha, color_3) is nil when only three values are present.
-		m = @value.match(/^(?<type>hsv360|rgb|hsv)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>\d+\.?\d*)(?<ws_2>\s+)(?<color_1>\d+\.?\d*)(?<ws_3>\s+)(?<color_2>\d+\.?\d*)(?:(?<ws_pre_alpha>\s+)(?<color_3>\d+\.?\d*))?(?<ws_close>\s*)\}$/)
-
-		@type = m[:type]
-		@colors = [m[:color_0], m[:color_1], m[:color_2], m[:color_3]].compact
-		@whitespace = [m[:ws_open], m[:ws_1], m[:ws_2], m[:ws_3]]
-		@whitespace << m[:ws_pre_alpha] if m[:color_3]
-		@whitespace << m[:ws_close]
+		# Two body shapes:
+		#   - 3-or-4-component:  rgb | hsv | hsv360 | cylindrical
+		#   - 1-component hex literal:  hex { 0x...... }
+		# Components allow optional leading `-` (cylindrical uses it for
+		# angles/heights; rgb/hsv don't but the regex is shared).
+		if (m = @value.match(/^(?<type>hex)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>0x[0-9a-fA-F]+)(?<ws_close>\s*)\}$/))
+			@type = m[:type]
+			@colors = [m[:color_0]]
+			@whitespace = [m[:ws_open], m[:ws_1], m[:ws_close]]
+		else
+			m = @value.match(/^(?<type>hsv360|rgb|hsv|cylindrical)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>-?\d+\.?\d*)(?<ws_2>\s+)(?<color_1>-?\d+\.?\d*)(?<ws_3>\s+)(?<color_2>-?\d+\.?\d*)(?:(?<ws_pre_alpha>\s+)(?<color_3>-?\d+\.?\d*))?(?<ws_close>\s*)\}$/)
+			@type = m[:type]
+			@colors = [m[:color_0], m[:color_1], m[:color_2], m[:color_3]].compact
+			@whitespace = [m[:ws_open], m[:ws_1], m[:ws_2], m[:ws_3]]
+			@whitespace << m[:ws_pre_alpha] if m[:color_3]
+			@whitespace << m[:ws_close]
+		end
 	end
 end
