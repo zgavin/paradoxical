@@ -84,6 +84,38 @@ RSpec.describe Paradoxical::Parser do
       end
     end
 
+    describe "placeholder (---)" do
+      # PDX history files use literal `---` as a "no value" sentinel
+      # (e.g. `emperor = ---` for "no emperor"). Currently stored as a
+      # raw String primitive; phase 8 may give it a typed Null shape
+      # but for now the simple fix preserves round-trip without
+      # introducing new semantics.
+
+      it "parses --- as a String primitive" do
+        prop = parse("emperor = ---").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("---")
+      end
+
+      it "parses --- inside a list" do
+        list = parse("1806.7.12 = { emperor = --- }").first
+        inner = list.first
+        expect(inner.value.to_s).to eq("---")
+      end
+
+      it "doesn't shadow negative integer parsing" do
+        prop = parse("x = -42").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+        expect(prop.value.to_i).to eq(-42)
+      end
+
+      it "doesn't shadow negative float parsing" do
+        prop = parse("x = -3.14").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
+        expect(prop.value.to_f).to eq(-3.14)
+      end
+    end
+
     describe "percentage" do
       it "parses a percentage as a String primitive" do
         prop = parse("foo = 50%").first

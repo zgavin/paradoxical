@@ -30,7 +30,7 @@ array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( value |
 
 keyless_list          =  { ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
-primitive             =  { ( color | percentage | date | float | integer | boolean | string ) }
+primitive             =  { ( color | percentage | date | float | integer | boolean | placeholder | string ) }
 
 operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
@@ -45,6 +45,8 @@ float                 = @{ ( ( ( ("-" | "+")? ~ numeric )? ~ "." ~ numeric ) | (
 integer               = @{ ("-" | "+")? ~ numeric ~ &break_character }
 
 boolean               = @{ ( "yes" | "no" ) ~ &break_character }
+
+placeholder           = @{ "-"+ ~ &break_character }
 
 string                = @{ empty_string | quoted_string | computation_string | unquoted_string | localization_string }
 

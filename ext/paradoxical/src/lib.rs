@@ -228,7 +228,7 @@ fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
             Rule::date => Some(ruby.get_inner(&DATE_CLASS)),
             Rule::float => Some(ruby.get_inner(&FLOAT_CLASS)),
             Rule::integer => Some(ruby.get_inner(&INTEGER_CLASS)),
-            Rule::string | Rule::percentage => Some(ruby.get_inner(&STRING_CLASS)),
+            Rule::string | Rule::percentage | Rule::placeholder => Some(ruby.get_inner(&STRING_CLASS)),
             Rule::boolean => None,
             r => unreachable!("unexpected rule: {:?}", r),
         };
