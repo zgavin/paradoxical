@@ -74,9 +74,8 @@ RSpec.describe Paradoxical::Parser do
     end
 
     it "parses keyless lists with bare value children" do
-      # Pattern used by PDX city_data files for coordinate pairs etc.
-      # Pre-4b this didn't parse — keyless_list grammar accepted only
-      # `expression*`, missing `value`.
+      # Pattern used by PDX games for coordinate pairs in city_data
+      # files and similar tabular data.
       list = parse("points = { { 1 2 } { 3 4 } }\n").first
       expect(list.size).to eq(2)
       list.each do |child|
