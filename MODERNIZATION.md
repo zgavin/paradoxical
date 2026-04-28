@@ -145,10 +145,6 @@ Driven by 4c. Each fix is its own PR with smoke re-run. Continue while the effor
 
 Independent of grammar work; can land any time. Replace the boilerplate gem template with a real README covering installation, supported games, a small worked example, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`).
 
-#### 4f. Deferred (probably won't tackle in 4)
-
-- `Paradoxical::Elements::Primitives::Float` uses Ruby native Float (binary floating point). PDX games store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can drift due to binary-float rounding. Real-world DSL math is rare so it hasn't bitten in practice — fix would be a wrapper class with arithmetic operators preserving precision, which is more surface than fits a "cleanup" phase.
-
 #### Exit condition
 
 Phase 4 ends when remaining allowlist entries are either categorized as won't-fix or qualify as a new dedicated phase. The smoke baseline at exit becomes the new normal — anything that fails after isn't a phase-4 concern.
@@ -173,6 +169,26 @@ Restructuring, not just cleanup. Larger and worth its own PR.
 - YARD `@example` blocks throughout the public API and the DSL. Where practical, run them as tests (yard-doctest or a small custom runner) so docs and tests can't drift.
 - A real README (replace boilerplate) covering installation, supported games, a small worked example, and pointers to deeper docs.
 
+### 8. Richer primitive types
+
+Open-ended and explicitly gated on "concrete need surfaces" — none of these are urgent. Stdlib-only by design: no third-party calendar/decimal/etc. gems, and no custom abstractions that downstream mod authors have to learn. See memory.
+
+#### Float → fixed-precision (moved from former 4f)
+
+`Paradoxical::Elements::Primitives::Float` stores Ruby `Float` (binary floating point). PDX games actually store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can drift due to binary-FP rounding. Real-world DSL math is rare so it hasn't bitten in practice. The right shape if/when this is tackled is a wrapper using stdlib `BigDecimal` (or just `Integer` × scale), with arithmetic operators preserving precision.
+
+#### Game-aware `Date#to_pdx`
+
+Add `Date#to_pdx` to `core_extensions.rb` so users can write a Ruby `Date` straight into a property and get a PDX-formatted string. Game-aware: validates per the current `Paradoxical.game`'s calendar rules and raises clearly on representable-but-invalid dates.
+
+PDX calendar landscape (worth recording so future-us doesn't re-derive):
+
+- **EU4 / EU5 / CK3 / HOI4 / Imperator: Rome** all use *Gregorian without leap years*. Stdlib `Date.new(1444, 2, 29)` succeeds but represents an in-game-invalid date; `Date#to_pdx` should `raise` for `month == 2 && day == 29`. Imperator additionally uses BC-shifted years (`-50`-style negatives), which `Date` represents fine.
+- **Stellaris** uses 12 × 30 = 360 days. `Date` can't represent Feb 30, so `Date#to_pdx` for Stellaris dates beyond the stdlib-valid subset has to either: (a) raise with a clear "use `Primitives::Date` raw string" message, or (b) be served by a `Stellaris::Date` helper that lives in the game-namespaced module from phase 5. Honest asymmetry rather than a custom calendar abstraction.
+- HOI4 and EU5 have hour-level granularity in-game but the script language doesn't expose it (per the maintainer), so date primitives stay day-resolution.
+
+The implementation likely dispatches via the phase-5 game-namespaced modules — per-game calendar rules want to live with the rest of each game's quirks rather than as a switch in `core_extensions.rb`.
+
 ## Decision log
 
 Captured here so we don't re-litigate them.
@@ -182,6 +198,7 @@ Captured here so we don't re-litigate them.
 - **magnus over rutie or rolling our own.** rutie is abandoned; rolling our own reinvents what magnus already solved.
 - **2c absorbed into 2b.** Original plan split the magnus port across two PRs (lib.rs in 2b, search.rs in 2c). Cargo can't carry both `rutie` and `magnus` simultaneously without ABI conflicts (they're competing bindings to the same Ruby C API), and `Init_paradoxical` sets up both `Paradoxical::Parser` and `Paradoxical::Search::Parser` in one init call — so a half-ported state isn't really expressible. Cleaner to flip both files in one PR.
 - **Phases renumbered after phase 4 went empty.** The original plan had phase 4 as "Rust idiom uplift" and 5a/5b as bug-fixes / game-namespaced DSLs. The magnus port (phase 2b) subsumed the Rust idiom work, leaving 4 reserved-but-empty next to 5a/5b. After 1a-d and 2a-d landed, 5a was renamed to 4 and 5b to 5 so the remaining work proceeds in clean numerical order. References to "5a"/"5b" in pre-renumber commits/PRs/AGENTS.md are historical.
+- **Phase 8 added; Float deferral moved out of phase 4.** Phase 4 was originally going to absorb the "Float → fixed-precision" cleanup as a deferred 4f item, but the calendar-support discussion surfaced a parallel concern (game-aware `Date#to_pdx`) with the same shape — a primitive type wanting richer representation. Both moved to a new phase 8 explicitly gated on "concrete need surfaces," and explicitly stdlib-only (no external gems, no custom calendar/decimal abstractions). The reasoning: external gems can be abandoned (lesson from rutie), and downstream mod authors shouldn't have to learn a `Paradoxical::Calendar` abstraction when stdlib `Date` is what they already know.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
