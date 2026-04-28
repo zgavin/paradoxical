@@ -254,6 +254,28 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.to_s).to eq("__bar")
       end
 
+      it "parses a negative-prefixed `-$NAME$` parameter-substitution string" do
+        # Stellaris's inline_scripts use this to subtract a parameter
+        # value, e.g. `job_artisan_add = -$AMOUNT$`. Adds `-$` as a
+        # leading-prefix alternative in unquoted_string. The phase-8
+        # typed Primitives::Parameter shape will replace this when the
+        # broader string-types work lands.
+        prop = parse("job_artisan_add = -$AMOUNT$").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("-$AMOUNT$")
+      end
+
+      it "doesn't shadow negative number parsing" do
+        # Adding `-$` to unquoted_string's prefixes shouldn't disturb
+        # the integer/float matches for negative numbers — `-` followed
+        # by a digit still hits integer/float first since they come
+        # earlier in the primitive alternation.
+        prop = parse("x = -42").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+        prop = parse("x = -3.14").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
+      end
+
       it "parses a `$NAME$` parameter-substitution string" do
         # `$NAME$` parameter substitution is supported across all PDX
         # games — it's the engine's parse-time placeholder syntax.
