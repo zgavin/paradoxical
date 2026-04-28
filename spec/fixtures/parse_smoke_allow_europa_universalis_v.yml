@@ -11,8 +11,6 @@
 - dlc/D017_sacred_sites_pack/in_game/gfx/map/city_data/D017_holy_sites.txt
 - in_game/common/climates/00_default.txt
 - in_game/common/genes/01_genes_morph.txt
-- in_game/common/genes/08_genes_special_visual_traits.txt
-- in_game/common/genes/09_genes_special_expressions.txt
 - in_game/common/script_values/_____debug_stuf.txt
 - in_game/common/topography/00_default.txt
 - in_game/content_source/map_objects/generators/vegetation_generators.txt
@@ -50,7 +48,6 @@
 - main_menu/common/named_colors/02_units.txt
 - main_menu/gfx/map/city_data/ashanti.txt
 - main_menu/gfx/map/city_data/chinese.txt
-- main_menu/gfx/map/city_data/curves.txt
 - main_menu/gfx/map/city_data/indian.txt
 - main_menu/gfx/map/city_data/iroquois.txt
 - main_menu/gfx/map/city_data/mesoamerican.txt
