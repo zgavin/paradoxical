@@ -1,5 +1,13 @@
 require "paradoxical"
 
+# Trailing "\n" in fixtures is load-bearing, not decorative. The integer
+# and boolean grammar rules require a `&break_character` lookahead
+# (whitespace, operator, brace, or `#`) — and EOI doesn't count — so a
+# fixture like "foo = 42" without trailing whitespace silently falls
+# through to the `string` rule and yields a String primitive instead of
+# an Integer. Tracked as a 5a grammar bug. Removing these would still
+# pass `.to_s` comparisons but silently test the wrong primitive class.
+
 RSpec.describe Paradoxical::Parser do
   def parse(text)
     Paradoxical::Parser.parse(text)
@@ -10,25 +18,25 @@ RSpec.describe Paradoxical::Parser do
       it "parses a positive integer" do
         prop = parse("foo = 42\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
-        expect(prop.value.to_s).to eq("42")
+        expect(prop.value.to_i).to eq(42)
       end
 
       it "parses a negative integer" do
         prop = parse("foo = -42\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
-        expect(prop.value.to_s).to eq("-42")
+        expect(prop.value.to_i).to eq(-42)
       end
 
       it "parses a positive-prefixed integer" do
         prop = parse("foo = +42\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
-        expect(prop.value.to_s).to eq("+42")
+        expect(prop.value.to_i).to eq(42)
       end
 
       it "parses zero" do
         prop = parse("foo = 0\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
-        expect(prop.value.to_s).to eq("0")
+        expect(prop.value.to_i).to eq(0)
       end
     end
 
@@ -36,25 +44,25 @@ RSpec.describe Paradoxical::Parser do
       it "parses a positive float" do
         prop = parse("foo = 3.14\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
-        expect(prop.value.to_s).to eq("3.14")
+        expect(prop.value.to_f).to eq(3.14)
       end
 
       it "parses a negative float" do
         prop = parse("foo = -3.14\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
-        expect(prop.value.to_s).to eq("-3.14")
+        expect(prop.value.to_f).to eq(-3.14)
       end
 
       it "parses a leading-dot float" do
         prop = parse("foo = .5\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
-        expect(prop.value.to_s).to eq(".5")
+        expect(prop.value.to_f).to eq(0.5)
       end
 
       it "parses a trailing-dot float" do
         prop = parse("foo = 5.\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
-        expect(prop.value.to_s).to eq("5.")
+        expect(prop.value.to_f).to eq(5.0)
       end
     end
 
@@ -74,18 +82,13 @@ RSpec.describe Paradoxical::Parser do
       it "parses a four-digit-year date" do
         prop = parse("foo = 1444.11.11\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_s).to eq("1444.11.11")
+        expect(prop.value.to_date).to eq(::Date.new(1444, 11, 11))
       end
 
       it "parses a single-digit-year date" do
         prop = parse("foo = 9.1.1\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_s).to eq("9.1.1")
-      end
-
-      it "round-trips into Ruby Date via #to_date" do
-        prop = parse("foo = 1444.11.11\n").first
-        expect(prop.value.to_date).to eq(::Date.new(1444, 11, 11))
+        expect(prop.value.to_date).to eq(::Date.new(9, 1, 1))
       end
     end
 
@@ -166,7 +169,7 @@ RSpec.describe Paradoxical::Parser do
       it "parses the #{op.inspect} operator" do
         prop = parse("foo #{op} 5\n").first
         expect(prop.operator).to eq(op)
-        expect(prop.value.to_s).to eq("5")
+        expect(prop.value.to_i).to eq(5)
       end
     end
   end
