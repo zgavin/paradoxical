@@ -119,6 +119,10 @@ Cleanup that's safe once we have tests but doesn't change shape:
 - `lib/paradoxical/builder.rb:221` and `:229` reference a bare `mult` identifier in `add_resource` / `remove_resource`; almost certainly meant to be the string `'mult'`.
 - `Rakefile`'s `helix_runtime` import (handled in phase 2 if not earlier).
 - Boilerplate `README.md` content.
+- `Paradoxical::Elements::Primitives::String#is_quoted` is an `attr_reader` named like a flag rather than a predicate. Rename to `quoted?` for Ruby-idiomatic style; update callers and `RSpec.matcher`-friendly `be_quoted` assertions.
+- **Grammar bug: keyless lists with bare values used to parse and don't anymore.** `points = { { 1 2 } { 3 4 } }` — bare-values inside keyless braces inside an array_list — currently fails because `keyless_list` only accepts `expression*` (properties/lists/comments), not values. PDX city_data files use this pattern; the smoke allowlist captures the affected files. Likely a regression from the EU5 grammar updates. Fix by widening `keyless_list` to also accept values, or by introducing a separate "value-only keyless list" rule.
+- **Grammar bug: `&break_character` lookahead doesn't accept EOI.** `integer` and `boolean` rules require a trailing whitespace/operator/brace/`#` character. A fixture like `foo = 42` (no trailing newline) silently falls through to the `string` rule and yields a String primitive instead of an Integer. The trailing-`\n` fixtures in `spec/parser/primitive_spec.rb` are load-bearing because of this; the spec has an inline note. Fix by adding `EOI` to `break_character`.
+- **`Paradoxical::Elements::Primitives::Float` uses Ruby native Float (binary floating point).** PDX games store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can therefore drift due to binary-float rounding. Real-world DSL usage rarely does decimal math so it hasn't bitten in practice — but the right long-term shape is a fixed-precision wrapper that holds the int and exposes the decimal view.
 
 ### 5b. Game-namespaced DSLs
 
