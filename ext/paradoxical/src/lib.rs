@@ -1,14 +1,9 @@
 use magnus::{
-    function,
+    function, kwargs,
     prelude::*,
     value::{Lazy, ReprValue},
-    ArgList, Error, ExceptionClass, IntoValue, RArray, RClass, RModule, RObject, RString, Ruby,
-    Value,
+    Error, ExceptionClass, IntoValue, RArray, RClass, RModule, RString, Ruby, Value,
 };
-
-fn instantiate(cls: RClass, args: impl ArgList) -> RObject {
-    RObject::try_convert(cls.new_instance(args).unwrap()).unwrap()
-}
 
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -79,9 +74,9 @@ fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
         }
     }
 
-    let instance = instantiate(ruby.get_inner(&DOCUMENT_CLASS), (children,));
-    instance.ivar_set("@whitespace", whitespace).unwrap();
-    instance.as_value()
+    ruby.get_inner(&DOCUMENT_CLASS)
+        .new_instance((children, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
 }
 
 fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
@@ -96,9 +91,9 @@ fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         }
     }
 
-    let instance = instantiate(ruby.get_inner(&COMMENT_CLASS), (key,));
-    instance.ivar_set("@whitespace", whitespace).unwrap();
-    instance.as_value()
+    ruby.get_inner(&COMMENT_CLASS)
+        .new_instance((key, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
 }
 
 fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
@@ -113,9 +108,9 @@ fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         }
     }
 
-    let instance = instantiate(ruby.get_inner(&VALUE_CLASS), (val,));
-    instance.ivar_set("@whitespace", whitespace).unwrap();
-    instance.as_value()
+    ruby.get_inner(&VALUE_CLASS)
+        .new_instance((val, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
 }
 
 fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
@@ -143,9 +138,9 @@ fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         }
     }
 
-    let instance = instantiate(ruby.get_inner(&PROPERTY_CLASS), (key, operator, val));
-    instance.ivar_set("@whitespace", whitespace).unwrap();
-    instance.as_value()
+    ruby.get_inner(&PROPERTY_CLASS)
+        .new_instance((key, operator, val, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
 }
 
 fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
@@ -180,14 +175,19 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         }
     }
 
-    let instance = instantiate(ruby.get_inner(&LIST_CLASS), (key, children));
-
-    instance.ivar_set("@kind", kind).unwrap();
-    instance.ivar_set("@whitespace", whitespace).unwrap();
-    instance.ivar_set("@operator", operator).unwrap();
-    instance.ivar_set("@gui_type", gui_type).unwrap();
-
-    instance.as_value()
+    ruby.get_inner(&LIST_CLASS)
+        .new_instance((
+            key,
+            children,
+            kwargs!(
+                ruby,
+                "kind" => kind,
+                "whitespace" => whitespace,
+                "operator" => operator,
+                "gui_type" => gui_type
+            ),
+        ))
+        .unwrap()
 }
 
 fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
@@ -209,9 +209,9 @@ fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         }
     }
 
-    let instance = instantiate(ruby.get_inner(&LIST_CLASS), (false, children));
-    instance.ivar_set("@whitespace", whitespace).unwrap();
-    instance.as_value()
+    ruby.get_inner(&LIST_CLASS)
+        .new_instance((false, children, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
 }
 
 fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
@@ -239,7 +239,10 @@ fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         class = cls;
     }
 
-    instantiate(class.expect("primitive had no inner rule"), (text,)).as_value()
+    class
+        .expect("primitive had no inner rule")
+        .new_instance((text,))
+        .unwrap()
 }
 
 fn p(_ruby: &Ruby, pair: Pair<Rule>) -> RString {
