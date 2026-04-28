@@ -40,7 +40,7 @@ date                  = @{ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASC
 
 numeric               = @{ ASCII_DIGIT+ }
 
-float                 = @{ ( ( ( ("-" | "+")? ~ numeric )? ~ "." ~ numeric ) | ( "-"? ~ numeric ~ "." ~ numeric? ) ) ~ &whitespace_character }
+float                 = @{ ( ( ( ("-" | "+")? ~ numeric )? ~ "." ~ numeric ) | ( "-"? ~ numeric ~ "." ~ numeric? ) ) ~ &break_character }
 
 integer               = @{ ("-" | "+")? ~ numeric ~ &break_character }
 
