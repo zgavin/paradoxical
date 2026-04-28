@@ -131,16 +131,20 @@ One PR each. Smoke re-run after landing; per-game allowlists shrink for files th
 - **Keyless lists with bare values** — `points = { { 1 2 } { 3 4 } }` currently fails because `keyless_list` only accepts `expression*`. PDX city_data files (and likely several other patterns) use the bare-value form. Fix by widening `keyless_list` to accept values, or introducing a separate value-only keyless rule. Used to parse, likely regressed during EU5 grammar updates.
 - **`&break_character` lookahead doesn't accept EOI** — `integer`/`boolean` rules silently fall through to `string` for fixtures without trailing whitespace. The trailing-`\n` fixtures in `spec/parser/primitive_spec.rb` are load-bearing for this reason. Fix by adding `EOI` to `break_character`.
 
-#### 4c. Triage pass on remaining allowlists
+#### 4c. Triage pass on remaining allowlists (landed)
 
-After 4b lands, group the remaining failing files by first-line-of-error and path patterns. Categorize each cluster:
+Output: [MODERNIZATION_4C_TRIAGE.md](MODERNIZATION_4C_TRIAGE.md) — full per-cluster breakdown across all 222 remaining allowlist entries.
 
-- **Likely shared root cause** — one fix unblocks multiple files; queue for 4d.
-- **Game-specific quirk** — affects only one game; assess effort vs reach.
-- **Not actually script** — file slipped through the basename/path-substring exclusions; move to those filters instead of the allowlist.
-- **Requires substantial grammar rewrite** — defer to a dedicated phase. Document the cluster and the scope of work.
+Categories used: (A) mis-categorized non-script (move to filters), (B) high-value grammar fixes that unblock many files at once, (C) game-specific grammar additions, (D) tricky / probably-won't-fix.
 
-Output: a short summary either inline here or in a `MODERNIZATION_PHASE_4_TRIAGE.md` if it gets long.
+Top of the suggested 4d sequence:
+1. Filter cleanup (~10 files). One small PR.
+2. Non-ASCII identifiers in `unquoted_string` (~68 EU4 files; biggest single win).
+3. `---` placeholder primitive (~37 EU4 files).
+4. `hsv360` color format (22 EU5 files).
+5. 4-component RGB / alpha channel (9 Stellaris files).
+
+If items 1–5 land, total drops 222 → ~80. Diminishing returns thereafter. Triage doc has the full sequence and per-cluster reasoning.
 
 #### 4d. Continue fixing root causes
 
