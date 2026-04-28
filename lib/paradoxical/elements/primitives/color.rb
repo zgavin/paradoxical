@@ -43,6 +43,8 @@ class Paradoxical::Elements::Primitives::Color
 	end
 	
 	def justify!
+		raise NotImplementedError, "justify! for #{colors.length}-component (alpha) colors is a phase 8 follow-up" if colors.length != 3
+
 		if rgb? then
 			@whitespace = [nil, *colors.map do |c| " " * (4 - c.length) end, nil]
 		elsif hsv? then
@@ -64,6 +66,7 @@ class Paradoxical::Elements::Primitives::Color
 		return self if hsv?
 
 		raise NotImplementedError, "hsv360 -> hsv conversion is a phase 8 follow-up" if hsv360?
+		raise NotImplementedError, "#{colors.length}-component (alpha) -> hsv conversion is a phase 8 follow-up" if colors.length != 3
 
 		r, g, b = @colors.map do |c| c.to_i / 255.0 end
 
@@ -111,6 +114,7 @@ class Paradoxical::Elements::Primitives::Color
 		return self if rgb?
 
 		raise NotImplementedError, "hsv360 -> rgb conversion is a phase 8 follow-up" if hsv360?
+		raise NotImplementedError, "#{colors.length}-component (alpha) -> rgb conversion is a phase 8 follow-up" if colors.length != 3
 
 	  h, s, v = @colors.map(&:to_f)
 		
@@ -150,29 +154,33 @@ class Paradoxical::Elements::Primitives::Color
 	def value
 		@value ||= begin
 			value = type.dup
-			
+
 			value << (whitespace[0] or " ")
 			value << "{"
-			
-			3.times do |i|
+
+			colors.each_with_index do |c, i|
 				value << (whitespace[1 + i] or " ")
-				value << colors[i].to_s
+				value << c.to_s
 			end
-			
-			value << (whitespace[4] or " ")
+
+			value << (whitespace[colors.length + 1] or " ")
 			value << "}"
-			
+
 			value
 		end
 	end
-	
+
 	def maybe_parse!
 		return unless @type.nil? or @colors.nil? or @whitespace.nil?
-		
-		matches = @value.match(/^(?<type>hsv360|rgb|hsv)(?<ws_0>\s*)\{(?<ws_1>\s*)(?<color_0>\d+\.?\d*)(?<ws_2>\s+)(?<color_1>\d+\.?\d*)(?<ws_3>\s+)(?<color_2>\d+\.?\d*)(?<ws_4>\s*)\}$/)
-		
-		@type = matches[:type]
-		@colors = 3.times.map do |i| matches["color_#{i}".to_sym] end
-		@whitespace = 5.times.map do |i| matches["ws_#{i}".to_sym] end
+
+		# Captures 3 or 4 components. The optional fourth-component group
+		# (ws_pre_alpha, color_3) is nil when only three values are present.
+		m = @value.match(/^(?<type>hsv360|rgb|hsv)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>\d+\.?\d*)(?<ws_2>\s+)(?<color_1>\d+\.?\d*)(?<ws_3>\s+)(?<color_2>\d+\.?\d*)(?:(?<ws_pre_alpha>\s+)(?<color_3>\d+\.?\d*))?(?<ws_close>\s*)\}$/)
+
+		@type = m[:type]
+		@colors = [m[:color_0], m[:color_1], m[:color_2], m[:color_3]].compact
+		@whitespace = [m[:ws_open], m[:ws_1], m[:ws_2], m[:ws_3]]
+		@whitespace << m[:ws_pre_alpha] if m[:color_3]
+		@whitespace << m[:ws_close]
 	end
 end
