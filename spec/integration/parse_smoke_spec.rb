@@ -26,9 +26,14 @@ RSpec.describe "parse smoke", :parse_smoke do
       console_history.txt
       credits.txt
       license-fi.txt
+      LICENSE.txt
       OFL.txt
       steam_appid.txt
       ThirdPartyLicenses.txt
+      HOW_TO_MAKE_NEW_SHIPS.txt
+      99_README_GRAMMAR.txt
+      TODO.txt
+      trigger_profile.txt
     ].to_set
 
     # Whole directories of non-script content. Path substrings since the

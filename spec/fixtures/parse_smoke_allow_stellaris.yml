@@ -8,7 +8,6 @@
 #
 # Generated baseline 2026-04 (game build at time of phase 1c).
 
-- common/HOW_TO_MAKE_NEW_SHIPS.txt
 - common/component_tags/00_tags.txt
 - common/edicts/99_README_EDICTS.txt
 - common/gamesetup_settings/gamesetup_settings.txt
@@ -34,7 +33,6 @@
 - common/scripted_loc/scripted_loc_ruloc.txt
 - common/scripted_triggers/05_scripted_triggers_biogenesis.txt
 - common/trait_tags/00_tags.txt
-- gfx/fonts/arimo/LICENSE.txt
 - interface/agreement_negotiation_view.gui
 - interface/credits_l_simp_chinese.txt
 - interface/dlc_icons.gfx
@@ -42,4 +40,3 @@
 - interface/galaxy_view.gui
 - interface/reference.txt
 - interface/startup_info.txt
-- localisation/99_README_GRAMMAR.txt

@@ -12,7 +12,6 @@
 - common/defines/audio/00_audio.txt
 - common/genes/00_genes.txt
 - common/script_values/00_mission_syracuse.txt
-- content_source/TODO.txt
 - gfx/map/post_effects/posteffect_volumes.txt
 - gfx/portraits/cameras/00_default.txt
 - gfx/portraits/environments/00_default.txt
