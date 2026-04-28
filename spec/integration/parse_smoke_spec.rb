@@ -21,19 +21,39 @@ RSpec.describe "parse smoke", :parse_smoke do
       caesar_rev.txt
       clausewitz_branch.txt
       clausewitz_rev.txt
+      eu4_branch.txt
+      eu4_rev.txt
+      console_history.txt
       credits.txt
       license-fi.txt
       OFL.txt
+      steam_appid.txt
+      ThirdPartyLicenses.txt
     ].to_set
 
     # Whole directories of non-script content. Path substrings since the
-    # same dirs recur across games.
+    # same dirs recur across games. /licenses/ vs /licences/ — Imperator
+    # uses British spelling.
     excluded_path_substrings = %w[
       /sound/banks/
+      /licenses/
+      /licences/
+      /patchnotes/
+      /previewer_assets/
+      /pdx_launcher/
     ].freeze
 
     game_label = ENV["PARADOXICAL_PARSE_SMOKE_GAME"] ||
       File.basename(game_root.chomp("/").sub(/\/game\z/, "")).downcase.gsub(/\s+/, "_")
+
+    # PDX games predating broad UTF-8 adoption ship script files in
+    # Windows-1252. Without this, the smoke surfaces ~1500 spurious
+    # EncodingError failures for EU4 that drown out the real grammar
+    # gaps. Newer games (Stellaris, Imperator, EU5) are UTF-8.
+    encoding_per_game = {
+      "europa_universalis_iv" => "Windows-1252",
+    }.freeze
+    encoding = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"] || encoding_per_game[game_label]
 
     allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{game_label}.yml", __dir__)
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
@@ -71,9 +91,9 @@ RSpec.describe "parse smoke", :parse_smoke do
         on_allowlist = allowlist_set.include?(relative)
 
         begin
-          wrapper.parse_file(relative)
+          wrapper.parse_file(relative, encoding: encoding)
           on_allowlist ? allowlisted_pass << relative : ok += 1
-        rescue Paradoxical::Parser::ParseError, Encoding::UndefinedConversionError, Encoding::InvalidByteSequenceError, ArgumentError => e
+        rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
           if on_allowlist
             allowlisted_fail += 1
           else
@@ -91,6 +111,16 @@ RSpec.describe "parse smoke", :parse_smoke do
         puts "  Files in allowlist that now parse — consider removing:"
         allowlisted_pass.first(20).each { |p| puts "    + #{p}" }
         puts "    ... and #{allowlisted_pass.size - 20} more" if allowlisted_pass.size > 20
+      end
+
+      # Optional dump of all failures for analysis. Set
+      # PARADOXICAL_PARSE_SMOKE_DUMP to a file path to write a YAML-shaped
+      # list of every failing path (suitable for piping into an allowlist).
+      if (dump = ENV["PARADOXICAL_PARSE_SMOKE_DUMP"]) && !failures.empty?
+        File.open(dump, "w") do |f|
+          failures.each { |fail| f.puts "- #{fail[:path]}" }
+        end
+        puts "  Wrote #{failures.size} failing paths to #{dump}"
       end
 
       if failures.empty?
