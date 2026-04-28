@@ -58,18 +58,16 @@ module Paradoxical::FileParser
   
 	def parse data, path: nil, bom: false, encoding: nil
 		document = Paradoxical::Parser.parse data
-  
+
     document.instance_variable_set( :@owner, self )
     document.instance_variable_set( :@path, path )
 		document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
 		document.instance_variable_set( :@bom, bom )
 		document.instance_variable_set( :@encoding, encoding )
-    
+
     document
   rescue Paradoxical::Parser::ParseError => error
-    puts "Error parsing #{path}#{ self.is_a?(Paradoxical::Mod) ? " ( #{name} )" : '' }" unless path.nil?
-    puts error.message
-    puts data
-    exit
-	end  
+    prefix = path ? "#{path}#{ self.is_a?(Paradoxical::Mod) ? " (#{name})" : '' }: " : ""
+    raise Paradoxical::Parser::ParseError, "#{prefix}#{error.message}"
+	end
 end

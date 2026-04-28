@@ -10,8 +10,9 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 
-  # `:integration` specs need both the compiled Rust extension and an
-  # off-repo fixture path. Skipped when PARADOXICAL_EXAMPLE_MOD is unset;
-  # CI doesn't build the extension yet (lands with MODERNIZATION.md phase 1c).
+  # Off-repo specs that need both the compiled Rust extension and a real
+  # filesystem fixture. CI doesn't build the extension yet — that lands
+  # with MODERNIZATION.md phase 1d.
   config.filter_run_excluding :integration unless ENV["PARADOXICAL_EXAMPLE_MOD"]
+  config.filter_run_excluding :parse_smoke unless ENV["PARADOXICAL_PARSE_SMOKE"]
 end

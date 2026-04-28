@@ -1,0 +1,69 @@
+# Files in this allowlist are real .txt/.gui/.gfx script files in EU5
+# whose parsing currently fails — known parser/grammar gaps to revisit.
+# spec/integration/parse_smoke_spec.rb treats entries here as expected
+# failures; the smoke fails only on UNexpected failures (regressions).
+# A previously-failing file that now passes is positive signal — remove
+# it from this list.
+#
+# Generated from EU5 baseline 2026-04 (game build at time of phase 1c).
+
+- dlc/D015_ancient_monuments_pack/in_game/gfx/map/city_data/D015_ancient_monuments.txt
+- dlc/D017_sacred_sites_pack/in_game/gfx/map/city_data/D017_holy_sites.txt
+- in_game/common/climates/00_default.txt
+- in_game/common/genes/01_genes_morph.txt
+- in_game/common/genes/08_genes_special_visual_traits.txt
+- in_game/common/genes/09_genes_special_expressions.txt
+- in_game/common/script_values/_____debug_stuf.txt
+- in_game/common/topography/00_default.txt
+- in_game/content_source/map_objects/generators/vegetation_generators.txt
+- in_game/gfx/terrain2/decals/decal_definitions.txt
+- in_game/gui/hud_topbar.gui
+- in_game/gui/panels/left_panel/left_panel.gui
+- in_game/gui/panels/organization/coalition.gui
+- in_game/gui/panels/organization/crusade.gui
+- in_game/gui/shared/city_tooltips.gui
+- in_game/gui/shared/unit_tooltips.gui
+- in_game/gui/unit_viewer.gui
+- in_game/map_data/location_templates.txt
+- in_game/setup/countries/_scandinavia.txt
+- in_game/setup/countries/balkans.txt
+- in_game/setup/countries/british_isles.txt
+- in_game/setup/countries/carpathia.txt
+- in_game/setup/countries/italy.txt
+- in_game/setup/countries/maghreb.txt
+- in_game/setup/countries/polynesia.txt
+- in_game/setup/countries/russia.txt
+- in_game/setup/countries/south_germany.txt
+- loading_screen/common/defines/00_defines.txt
+- loading_screen/common/defines/graphic/00_graphics.txt
+- loading_screen/compound_settings.txt
+- loading_screen/gfx/defines/00_gfx.txt
+- main_menu/common/coat_of_arms/coat_of_arms/00_random_countries.txt
+- main_menu/common/coat_of_arms/coat_of_arms/00_subs.txt
+- main_menu/common/coat_of_arms/coat_of_arms/pre_scripted_countries.txt
+- main_menu/common/coat_of_arms/coat_of_arms/pre_scripted_countries_formable.txt
+- main_menu/common/coat_of_arms/coat_of_arms/pre_scripted_countries_japanese_clans.txt
+- main_menu/common/coat_of_arms/coat_of_arms/pre_scripted_dynasties.txt
+- main_menu/common/coat_of_arms/template_lists/color_lists.txt
+- main_menu/common/named_colors/01_coa.txt
+- main_menu/common/named_colors/02_map.txt
+- main_menu/common/named_colors/02_units.txt
+- main_menu/gfx/map/city_data/ashanti.txt
+- main_menu/gfx/map/city_data/chinese.txt
+- main_menu/gfx/map/city_data/curves.txt
+- main_menu/gfx/map/city_data/indian.txt
+- main_menu/gfx/map/city_data/iroquois.txt
+- main_menu/gfx/map/city_data/mesoamerican.txt
+- main_menu/gfx/map/city_data/northgerman.txt
+- main_menu/gfx/map/city_data/syrian.txt
+- main_menu/gfx/map/city_data/templates.txt
+- main_menu/gfx/portraits/cameras/portrait_cameras.txt
+- main_menu/gfx/portraits/environments/portrait_environments.txt
+- main_menu/gfx/unit_graphics/colors/00_colors.txt
+- main_menu/gfx/unit_graphics/texture_variations/cloth_and_leather.txt
+- main_menu/gfx/unit_graphics/texture_variations/weapons.txt
+- main_menu/gui/achievements/jomini_achievements_window.gui
+- main_menu/gui/shared/backgrounds.gui
+- main_menu/setup/start/07_cities_and_buildings.txt
+- main_menu/setup/start/11_art.txt
+- main_menu/setup/start/15_international_organizations.txt

@@ -1,0 +1,128 @@
+# Files in this allowlist are real .txt/.gui/.gfx script files in
+# Europa Universalis IV whose parsing currently fails — known parser/grammar gaps
+# (or, for EU4, files that fail even after Windows-1252 transcoding).
+# spec/integration/parse_smoke_spec.rb treats entries here as expected
+# failures; the smoke fails only on UNexpected failures (regressions).
+# A previously-failing file that now passes is positive signal — remove
+# it from this list.
+#
+# Generated baseline 2026-04 (game build at time of phase 1c).
+
+- common/countries/Air.txt
+- common/countries/Albania.txt
+- common/countries/Astrakhan.txt
+- common/countries/Austriahungary.txt
+- common/countries/Aydin.txt
+- common/countries/Brazil.txt
+- common/countries/Buryats.txt
+- common/countries/California.txt
+- common/countries/Canada.txt
+- common/countries/Candar.txt
+- common/countries/Cascadia.txt
+- common/countries/Castille.txt
+- common/countries/Chahar.txt
+- common/countries/Chile.txt
+- common/countries/Cuba.txt
+- common/countries/Denmark.txt
+- common/countries/Dulkadir.txt
+- common/countries/Eretna.txt
+- common/countries/Estonia.txt
+- common/countries/Finland.txt
+- common/countries/France.txt
+- common/countries/Germany.txt
+- common/countries/Germiyan.txt
+- common/countries/Gotland.txt
+- common/countries/GreatYuan.txt
+- common/countries/Greatmoravia.txt
+- common/countries/HolyRomanEmpire.txt
+- common/countries/Hungary.txt
+- common/countries/Ilkhanate.txt
+- common/countries/Illinois.txt
+- common/countries/Jan Mayen.txt
+- common/countries/Karaman.txt
+- common/countries/Khalkha.txt
+- common/countries/Khorchin.txt
+- common/countries/LaPlata.txt
+- common/countries/Louisiana.txt
+- common/countries/Mentese.txt
+- common/countries/Mexico.txt
+- common/countries/MongolEmpire.txt
+- common/countries/MongolKhanate.txt
+- common/countries/Montfort-Bregenz.txt
+- common/countries/Moravia.txt
+- common/countries/Norway.txt
+- common/countries/Ottomans.txt
+- common/countries/Paraguay.txt
+- common/countries/Portugal.txt
+- common/countries/Ramazan.txt
+- common/countries/Rum.txt
+- common/countries/Saruhan.txt
+- common/countries/Scandinavia.txt
+- common/countries/Slovakia.txt
+- common/countries/Sonora.txt
+- common/countries/Spain.txt
+- common/countries/Sweden.txt
+- common/countries/Timbuktu.txt
+- common/countries/Tirol.txt
+- common/cultures/00_cultures.txt
+- common/federation_advancements/00_default.txt
+- common/graphicalculturetype.txt
+- common/great_projects/01_monuments.txt
+- common/province_names/castillian.txt
+- common/rebel_types/parliamentarians.txt
+- common/rebel_types/pretender.txt
+- common/rebel_types/renegade_sultan_son.txt
+- common/scripted_effects/00_scripted_effects.txt
+- common/scripted_effects/01_scripted_effects_for_advisors.txt
+- common/scripted_effects/01_scripted_effects_for_estates.txt
+- common/scripted_effects/01_scripted_effects_for_on_actions.txt
+- common/scripted_effects/01_scripted_effects_for_simple_bonuses_penalties.txt
+- common/scripted_effects/02_scripted_effects_unlocks.txt
+- common/scripted_effects/03_scripted_effects_for_mission_rewards.txt
+- common/scripted_triggers/00_scripted_triggers.txt
+- events/center_of_revolution_events.txt
+- events/disaster_Revolution.txt
+- gfx/combat_result/combat_result_environment.txt
+- history/diplomacy/hre.txt
+- history/provinces/1007 - Ojibwa.txt
+- history/provinces/1102 - Mauritius.txt
+- history/provinces/1111 - Arguin.txt
+- history/provinces/1809 - Cheyenne.txt
+- history/provinces/2006 - Apsaalooke.txt
+- history/provinces/2007 - Arikara.txt
+- history/provinces/2015 - Nipigon.txt
+- history/provinces/2016 - Bungi.txt
+- history/provinces/2502 - Haaninin.txt
+- history/provinces/2503 - Ashshipite.txt
+- history/provinces/2514 - Michigamea.txt
+- history/provinces/2524 - Wabash.txt
+- history/provinces/2542 - Cusabo.txt
+- history/provinces/2553 - Potomac.txt
+- history/provinces/2562 - Pennacook.txt
+- history/provinces/2565 - Kennebec.txt
+- history/provinces/2585 - Kichesipi.txt
+- history/provinces/2586 - Tionontate.txt
+- history/provinces/2670 - Tkaronto.txt
+- history/provinces/4901 - Saone.txt
+- history/provinces/4903 - Chinko.txt
+- history/provinces/574 - The Andamans.txt
+- history/provinces/633 - Flores.txt
+- history/provinces/866 - Guaycura.txt
+- history/provinces/895 - Arkansas.txt
+- history/provinces/897 - Quapaw.txt
+- history/provinces/915 - Illinois.txt
+- history/provinces/941 - Cumberland.txt
+- history/provinces/947 - Erie.txt
+- history/provinces/987 - Niagara.txt
+- history/provinces/988 - Huron.txt
+- history/provinces/989 - Ontario.txt
+- interface/contentview.gui
+- interface/messagetypes.txt
+- interface/traderoutes.gfx
+- interface/tutorial.gui
+- missions/zzz_WoC_Shared_Horde_Missions.txt
+- tests/ai_test_1444.txt
+- tests/ai_test_1444_2.txt
+- tests/ai_test_naval_distribution.txt
+- tests/ai_test_naval_distribution_2.txt
+- trigger_profile.txt
