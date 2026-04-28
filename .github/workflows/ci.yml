@@ -14,4 +14,9 @@ jobs:
         with:
           ruby-version: .tool-versions
           bundler-cache: true
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - run: bundle exec rake compile
       - run: bundle exec rspec
