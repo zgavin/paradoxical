@@ -59,11 +59,10 @@ RSpec.describe Paradoxical::Parser do
       expect(list[2].key.to_s).to eq("baz")
     end
 
-    it "parses keyless lists nested in an array list" do
+    it "parses keyless lists with property children" do
       # Keyless lists (no key/operator before `{`) are only legal as
-      # children of array_list, which itself accepts only values, comments,
-      # and other keyless_lists. Each inner keyless list contains
-      # expressions (properties, in this case).
+      # children of array_list, which accepts values, comments, and
+      # other keyless_lists.
       list = parse("points = { { x = 1 y = 2 } { x = 3 y = 4 } }\n").first
       expect(list.size).to eq(2)
       list.each do |child|
@@ -72,6 +71,22 @@ RSpec.describe Paradoxical::Parser do
         expect(child.size).to eq(2)
         expect(child.properties.map { |p| p.key.to_s }).to eq(%w[x y])
       end
+    end
+
+    it "parses keyless lists with bare value children" do
+      # Pattern used by PDX city_data files for coordinate pairs etc.
+      # Pre-4b this didn't parse — keyless_list grammar accepted only
+      # `expression*`, missing `value`.
+      list = parse("points = { { 1 2 } { 3 4 } }\n").first
+      expect(list.size).to eq(2)
+      list.each do |child|
+        expect(child).to be_a(Paradoxical::Elements::List)
+        expect(child.key).to be(false)
+        expect(child.size).to eq(2)
+        child.each { |v| expect(v).to be_a(Paradoxical::Elements::Value) }
+      end
+      expect(list[0].values.map { |v| v.value.to_s }).to eq(%w[1 2])
+      expect(list[1].values.map { |v| v.value.to_s }).to eq(%w[3 4])
     end
 
     describe "gui_kind variants" do

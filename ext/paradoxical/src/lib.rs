@@ -202,6 +202,7 @@ fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                     Rule::comment => comment(ruby, inner),
                     Rule::property => property(ruby, inner),
                     Rule::list => list(ruby, inner),
+                    Rule::value => value(ruby, inner),
                     r => unreachable!("unexpected rule: {:?}", r),
                 };
                 children.push(child).unwrap();
