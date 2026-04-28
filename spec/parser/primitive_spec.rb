@@ -82,6 +82,27 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
         expect(prop.value.to_date).to eq(::Date.new(9, 1, 1))
       end
+
+      it "parses a BC (negative-year) date" do
+        # EU4's great_projects use BC dates for ancient pyramids etc.;
+        # Imperator: Rome uses them throughout. The grammar's date rule
+        # accepts an optional leading `-` sign.
+        prop = parse("date = -2500.01.01").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
+        expect(prop.value.to_date).to eq(::Date.new(-2500, 1, 1))
+      end
+
+      it "BC date doesn't shadow negative integer parsing" do
+        prop = parse("x = -42").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+        expect(prop.value.to_i).to eq(-42)
+      end
+
+      it "BC date doesn't shadow negative float parsing" do
+        prop = parse("x = -3.14").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
+        expect(prop.value.to_f).to eq(-3.14)
+      end
     end
 
     describe "placeholder (---)" do
