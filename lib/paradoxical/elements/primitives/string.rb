@@ -1,32 +1,34 @@
 class Paradoxical::Elements::Primitives::String
   include Paradoxical::Elements::Concerns::Impersonator
-  
+
   impersonate ::String
-  
+
   impersonate_infix_methods %i{ !~ % * + =~ << }
-  
-  attr_reader :is_quoted
-  
-  def initialize string, is_quoted: nil
-    if is_quoted.nil? then
-      @is_quoted = ( string.start_with? '"' and string.end_with? '"' ) 
-      
-      super @is_quoted ? string[1..-2] : string
+
+  def initialize string, quoted: nil
+    if quoted.nil? then
+      @quoted = ( string.start_with? '"' and string.end_with? '"' )
+
+      super @quoted ? string[1..-2] : string
     else
-      @is_quoted = is_quoted
-      
+      @quoted = quoted
+
       super string
     end
   end
 
+  def quoted?
+    @quoted
+  end
+
   def dup
-    self.class.new @value, is_quoted: @is_quoted
+    self.class.new @value, quoted: @quoted
   end
-  
+
   def to_pdx
-    @is_quoted ? %{"#{self}"} : self
+    @quoted ? %{"#{self}"} : self
   end
-  
+
   def coerce something
     case something
     when String

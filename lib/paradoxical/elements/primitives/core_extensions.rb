@@ -28,11 +28,11 @@ class String
   end
   
   def quote
-    Paradoxical::Elements::Primitives::String.new self, is_quoted: true
+    Paradoxical::Elements::Primitives::String.new self, quoted: true
   end
-  
+
   def literal
-    Paradoxical::Elements::Primitives::String.new self, is_quoted: false
+    Paradoxical::Elements::Primitives::String.new self, quoted: false
   end
 end
 

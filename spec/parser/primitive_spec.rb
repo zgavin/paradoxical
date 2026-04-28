@@ -126,21 +126,21 @@ RSpec.describe Paradoxical::Parser do
       it "parses an unquoted string" do
         prop = parse("foo = bar\n").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
-        expect(prop.value.is_quoted).to be(false)
+        expect(prop.value).not_to be_quoted
         expect(prop.value.to_s).to eq("bar")
       end
 
       it "parses a quoted string" do
         prop = parse(%(foo = "hello world"\n)).first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
-        expect(prop.value.is_quoted).to be(true)
+        expect(prop.value).to be_quoted
         expect(prop.value.to_s).to eq("hello world")
       end
 
       it "parses an empty quoted string" do
         prop = parse(%(foo = ""\n)).first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
-        expect(prop.value.is_quoted).to be(true)
+        expect(prop.value).to be_quoted
         expect(prop.value.to_s).to eq("")
       end
 
