@@ -28,7 +28,7 @@ mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( express
 
 array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
 
-keyless_list          =  { ws ~ "{" ~ expression* ~ ws ~ "}" }
+keyless_list          =  { ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
 primitive             =  { ( color | percentage | date | float | integer | boolean | string ) }
 
