@@ -193,11 +193,11 @@ class Paradoxical::Builder
 		end.single_line!
 	end
 	
-	def check_galaxy_setup_value setting, operator, value=nil
+	def get_galaxy_setup_value setting, operator, value=nil
 		value, operator = operator, '=' if value.nil?
 		l( "get_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
 	end
-	
+
 	def check_galaxy_setup_value setting, operator, value=nil
 		value, operator = operator, '=' if value.nil?
 		l( "check_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
