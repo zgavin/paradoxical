@@ -40,18 +40,25 @@ RSpec wired up, `.tool-versions` pinning Ruby 3.2.0, GitHub Actions CI, a trivia
 - `:integration` tagged, env-var-gated, skipped in default `rspec`. CI never sees it. Run locally before the magnus port to baseline, then again after to confirm parity.
 - Allowlist hook (`spec/fixtures/round_trip_allow.yml`) for files that genuinely don't round-trip today; populate lazily.
 
-#### 1c. Unit fixtures + parser smoke — after phase 2
+#### 1c. Parser smoke — after phase 2
 
-Both require the Rust extension to be loadable in CI, which phase 2 enables.
+Off-repo, env-var-gated (`PARADOXICAL_PARSE_SMOKE=<game-root>`). Walks every parseable file under a game install and reports parse success/failure — no assertions beyond "did it raise." Acts as a regression canary against grammar drift in our code and patch-day drift in the games.
 
-- **Unit tests**, in-repo, against hand-written synthetic fixtures under `spec/fixtures/`. Cover every `script.pest` rule explicitly: each operator, each primitive (color, percentage, date, float, integer, boolean, every string variant), `gui_kind` / `gui_type` / `scripted_kind` branches, mixed/array/keyless lists, BOM, CRLF/LF, and round-trip whitespace preservation. CI default suite.
-- **Parser smoke**, off-repo, env-var-gated (e.g. `PARADOXICAL_PARSE_SMOKE=<game-root>`). Walks every script file under a game install and reports parse success/failure. No assertions beyond "did it raise" — purely a canary against grammar regressions in our code and patch-day drift in the games. Implementation rules:
-  - Collect-don't-fail-fast: aggregate all failures into a single report (path + first line of error) instead of bailing on the first.
-  - Parallelize per-game and per-file; install trees are tens of thousands of files.
-  - Filter strictly by extension *and* location — game data ships non-script `.txt` files in places like `music/`.
-  - Plumb `encoding:` the same way real callers do, otherwise we'll get false negatives on Latin-1-flavored files.
-  - Run as a separate rake task or RSpec tag, never the default suite. CI never sees it.
-  - Expect to need a per-game allowlist (`spec/fixtures/parse_smoke_allow_<game>.yml`) for genuinely unparseable files — build it lazily as cases come up. A previously-failing file that *starts* passing is also signal: update the allowlist and note the cause.
+Implementation choices:
+
+- RSpec spec tagged `:parse_smoke`, gated in `spec/spec_helper.rb` so the default suite never runs it. One aggregated example walks all files; output is a summary line plus per-failure path + first-line-of-error.
+- Builds on `Paradoxical::FileParser#parse_file` via a small wrapper class — same code path real callers use. (`FileParser#parse` previously rescued `ParseError` and called `exit`; the same PR fixed that to re-raise instead, since the rescue was development-time scaffolding from before the test suite existed.)
+- **Basename exclusions** for non-script files that share an extension: `OFL.txt` (font licenses), `caesar_branch.txt`/`caesar_rev.txt`/`clausewitz_branch.txt`/`clausewitz_rev.txt` (engine version metadata), `credits.txt`, `license-fi.txt`, `checksum_manifest.txt`. The same basenames recur across PDX games.
+- **Path-substring exclusions** for whole non-script directories: `/sound/banks/` (FMOD bank files: `Init.txt`, `MasteringSuite.txt`, `sb_*.txt`).
+- **Per-game allowlist** at `spec/fixtures/parse_smoke_allow_<game>.yml` for real script files we don't parse yet. Different category from the basename/path exclusions: those are "not script"; allowlist is "script we don't handle." Initial EU5 baseline at landing: 60 entries (parser/grammar gaps to revisit).
+- Sequential walk; ~10s for EU5's 3000+ files. Parallelism deferred — the bottleneck is the parser itself which holds the GVL.
+
+Future per-game work: add allowlists for EU4 (jomini v1, may need encoding handling), Stellaris, and Imperator: Rome as the maintainer runs the smoke against each.
+
+#### 1d. Unit fixtures + CI Rust build — after 1c
+
+- CI workflow gains a Rust install + `bundle exec rake compile` step, so `paradoxical/paradoxical.so` builds in CI and gets `require`d for the first time.
+- **Unit tests**, in-repo, against hand-written synthetic fixtures under `spec/fixtures/`. Cover every `script.pest` rule explicitly: each operator, each primitive (color, percentage, date, float, integer, boolean, every string variant), `gui_kind` / `gui_type` / `scripted_kind` branches, mixed/array/keyless lists, BOM, CRLF/LF, and round-trip whitespace preservation. CI default suite. Edge cases discovered by 1c's allowlist inform what fixtures need to cover.
 
 #### Caveats (apply to all of the above)
 
