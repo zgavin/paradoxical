@@ -107,18 +107,51 @@ One PR per dependency, in roughly increasing order of risk:
 
 Bundler and Ruby itself bump alongside as needed.
 
-### 4. Bug fixes and dead code
+### 4. Bug fixes, dead code, and parser-gap triage
 
-Cleanup that's safe once we have tests but doesn't change shape:
+Phase 1c's smoke captured 247 known parser failures across the four PDX games. Phase 4 attempts to shrink that baseline iteratively — fix a grammar issue, re-run the smoke, watch the per-game allowlists shrink, repeat — alongside the small Ruby/doc cleanups already on the list. Each grammar fix is its own PR with smoke re-run before merge.
+
+#### 4a. Small Ruby cleanups
+
+One small PR, mechanical edits:
 
 - `lib/paradoxical/builder.rb:196` and `:201` both define `check_galaxy_setup_value`; the second silently overrides the first.
 - `lib/paradoxical/builder.rb:221` and `:229` reference a bare `mult` identifier in `add_resource` / `remove_resource`; almost certainly meant to be the string `'mult'`.
-- `Rakefile`'s `helix_runtime` import (handled in phase 2 if not earlier).
-- Boilerplate `README.md` content.
 - `Paradoxical::Elements::Primitives::String#is_quoted` is an `attr_reader` named like a flag rather than a predicate. Rename to `quoted?` for Ruby-idiomatic style; update callers and `RSpec.matcher`-friendly `be_quoted` assertions.
-- **Grammar bug: keyless lists with bare values used to parse and don't anymore.** `points = { { 1 2 } { 3 4 } }` — bare-values inside keyless braces inside an array_list — currently fails because `keyless_list` only accepts `expression*` (properties/lists/comments), not values. PDX city_data files use this pattern; the smoke allowlist captures the affected files. Likely a regression from the EU5 grammar updates. Fix by widening `keyless_list` to also accept values, or by introducing a separate "value-only keyless list" rule.
-- **Grammar bug: `&break_character` lookahead doesn't accept EOI.** `integer` and `boolean` rules require a trailing whitespace/operator/brace/`#` character. A fixture like `foo = 42` (no trailing newline) silently falls through to the `string` rule and yields a String primitive instead of an Integer. The trailing-`\n` fixtures in `spec/parser/primitive_spec.rb` are load-bearing because of this; the spec has an inline note. Fix by adding `EOI` to `break_character`.
-- **`Paradoxical::Elements::Primitives::Float` uses Ruby native Float (binary floating point).** PDX games store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can therefore drift due to binary-float rounding. Real-world DSL usage rarely does decimal math so it hasn't bitten in practice — but the right long-term shape is a fixed-precision wrapper that holds the int and exposes the decimal view.
+
+#### 4b. Grammar bugs already identified
+
+One PR each. Smoke re-run after landing; per-game allowlists shrink for files that newly pass.
+
+- **Keyless lists with bare values** — `points = { { 1 2 } { 3 4 } }` currently fails because `keyless_list` only accepts `expression*`. PDX city_data files (and likely several other patterns) use the bare-value form. Fix by widening `keyless_list` to accept values, or introducing a separate value-only keyless rule. Used to parse, likely regressed during EU5 grammar updates.
+- **`&break_character` lookahead doesn't accept EOI** — `integer`/`boolean` rules silently fall through to `string` for fixtures without trailing whitespace. The trailing-`\n` fixtures in `spec/parser/primitive_spec.rb` are load-bearing for this reason. Fix by adding `EOI` to `break_character`.
+
+#### 4c. Triage pass on remaining allowlists
+
+After 4b lands, group the remaining failing files by first-line-of-error and path patterns. Categorize each cluster:
+
+- **Likely shared root cause** — one fix unblocks multiple files; queue for 4d.
+- **Game-specific quirk** — affects only one game; assess effort vs reach.
+- **Not actually script** — file slipped through the basename/path-substring exclusions; move to those filters instead of the allowlist.
+- **Requires substantial grammar rewrite** — defer to a dedicated phase. Document the cluster and the scope of work.
+
+Output: a short summary either inline here or in a `MODERNIZATION_PHASE_4_TRIAGE.md` if it gets long.
+
+#### 4d. Continue fixing root causes
+
+Driven by 4c. Each fix is its own PR with smoke re-run. Continue while the effort/impact ratio stays good — typically "one PR unblocks 5+ files across 2+ games."
+
+#### 4e. README rewrite
+
+Independent of grammar work; can land any time. Replace the boilerplate gem template with a real README covering installation, supported games, a small worked example, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`).
+
+#### 4f. Deferred (probably won't tackle in 4)
+
+- `Paradoxical::Elements::Primitives::Float` uses Ruby native Float (binary floating point). PDX games store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can drift due to binary-float rounding. Real-world DSL math is rare so it hasn't bitten in practice — fix would be a wrapper class with arithmetic operators preserving precision, which is more surface than fits a "cleanup" phase.
+
+#### Exit condition
+
+Phase 4 ends when remaining allowlist entries are either categorized as won't-fix or qualify as a new dedicated phase. The smoke baseline at exit becomes the new normal — anything that fails after isn't a phase-4 concern.
 
 ### 5. Game-namespaced DSLs
 
