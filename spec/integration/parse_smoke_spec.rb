@@ -46,14 +46,23 @@ RSpec.describe "parse smoke", :parse_smoke do
     game_label = ENV["PARADOXICAL_PARSE_SMOKE_GAME"] ||
       File.basename(game_root.chomp("/").sub(/\/game\z/, "")).downcase.gsub(/\s+/, "_")
 
-    # PDX games predating broad UTF-8 adoption ship script files in
-    # Windows-1252. Without this, the smoke surfaces ~1500 spurious
-    # EncodingError failures for EU4 that drown out the real grammar
-    # gaps. Newer games (Stellaris, Imperator, EU5) are UTF-8.
-    encoding_per_game = {
-      "europa_universalis_iv" => "Windows-1252",
+    # Encodings to try, in order. Most games ship pure UTF-8 so the list
+    # is just [nil] (no hint, read raw). EU4 (jomini v1, 2013) is mostly
+    # Windows-1252 but a handful of files with non-Latin characters
+    # (Korean province names, the Tengri events, the Mamluk missions)
+    # are actually UTF-8 — so we try UTF-8 first and fall back. The
+    # parse_file cache populates only on success, so the retry path is
+    # cheap.
+    # PARADOXICAL_PARSE_SMOKE_ENCODING overrides to a single forced
+    # encoding (useful for diagnostic runs).
+    encoding_fallbacks_per_game = {
+      "europa_universalis_iv" => ["Windows-1252"],
     }.freeze
-    encoding = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"] || encoding_per_game[game_label]
+    encodings = if (override = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"])
+      [override]
+    else
+      [nil] + (encoding_fallbacks_per_game[game_label] || [])
+    end
 
     allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{game_label}.yml", __dir__)
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
@@ -90,17 +99,26 @@ RSpec.describe "parse smoke", :parse_smoke do
         relative = full_path.sub(/\A#{Regexp.escape(root_prefix)}/, "")
         on_allowlist = allowlist_set.include?(relative)
 
-        begin
-          wrapper.parse_file(relative, encoding: encoding)
-          on_allowlist ? allowlisted_pass << relative : ok += 1
-        rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
-          if on_allowlist
-            allowlisted_fail += 1
-          else
-            label = e.is_a?(Paradoxical::Parser::ParseError) ? "" : "[#{e.class}] "
-            first_line = e.message.lines.first&.chomp.to_s
-            failures << { path: relative, error: "#{label}#{first_line}" }
+        parsed = false
+        last_error = nil
+        encodings.each do |enc|
+          begin
+            wrapper.parse_file(relative, encoding: enc)
+            parsed = true
+            break
+          rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
+            last_error = e
           end
+        end
+
+        if parsed
+          on_allowlist ? allowlisted_pass << relative : ok += 1
+        elsif on_allowlist
+          allowlisted_fail += 1
+        else
+          label = last_error.is_a?(Paradoxical::Parser::ParseError) ? "" : "[#{last_error.class}] "
+          first_line = last_error.message.lines.first&.chomp.to_s
+          failures << { path: relative, error: "#{label}#{first_line}" }
         end
       end
 

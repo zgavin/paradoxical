@@ -69,8 +69,6 @@
 - common/graphicalculturetype.txt
 - common/great_projects/01_monuments.txt
 - common/province_names/castillian.txt
-- common/province_names/korean.txt
-- common/province_names/korean_new.txt
 - common/rebel_types/parliamentarians.txt
 - common/rebel_types/pretender.txt
 - common/rebel_types/renegade_sultan_son.txt
@@ -82,7 +80,6 @@
 - common/scripted_effects/02_scripted_effects_unlocks.txt
 - common/scripted_effects/03_scripted_effects_for_mission_rewards.txt
 - common/scripted_triggers/00_scripted_triggers.txt
-- events/Tengri.txt
 - events/center_of_revolution_events.txt
 - events/disaster_Revolution.txt
 - gfx/combat_result/combat_result_environment.txt
@@ -123,7 +120,6 @@
 - interface/messagetypes.txt
 - interface/traderoutes.gfx
 - interface/tutorial.gui
-- missions/KoK_Mamluks_Missions.txt
 - missions/zzz_WoC_Shared_Horde_Missions.txt
 - tests/ai_test_1444.txt
 - tests/ai_test_1444_2.txt
