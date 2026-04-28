@@ -59,10 +59,14 @@ Implementation choices:
 - Sequential walk; ~10s for EU5's 3000+ files, ~30s for EU4's 8000+. Parallelism deferred — the bottleneck is the parser itself which holds the GVL.
 - `PARADOXICAL_PARSE_SMOKE_DUMP=<path>` writes every failing path to a YAML-shaped list. Useful for refreshing allowlist baselines without scraping truncated rspec output.
 
-#### 1d. Unit fixtures + CI Rust build — after 1c
+#### 1d. Unit fixtures + CI Rust build (landed)
 
-- CI workflow gains a Rust install + `bundle exec rake compile` step, so `paradoxical/paradoxical.so` builds in CI and gets `require`d for the first time.
-- **Unit tests**, in-repo, against hand-written synthetic fixtures under `spec/fixtures/`. Cover every `script.pest` rule explicitly: each operator, each primitive (color, percentage, date, float, integer, boolean, every string variant), `gui_kind` / `gui_type` / `scripted_kind` branches, mixed/array/keyless lists, BOM, CRLF/LF, and round-trip whitespace preservation. CI default suite. Edge cases discovered by 1c's allowlist inform what fixtures need to cover.
+- CI workflow now installs Rust 1.95.0 (`dtolnay/rust-toolchain` reads `rust-toolchain.toml`), uses `Swatinem/rust-cache@v2` for incremental cargo, and runs `bundle exec rake compile` before specs. ~50s per run after caching warms up. The `BINDGEN_EXTRA_CLANG_ARGS=-include stdbool.h` from `.cargo/config.toml` is still applied but is a no-op on `ubuntu-latest`'s default clang.
+- Per-rule unit tests live in `spec/parser/` (not `spec/fixtures/` — fixtures are inline strings; small enough that source-of-truth is more readable next to the assertion). 71 examples across four files:
+  - `primitive_spec.rb` (30): every primitive type — integer (positive, negative, +-prefixed, zero), float (positive, negative, leading-dot, trailing-dot), boolean, date (4-digit and 1-digit years, `to_date` round-trip), percentage, color (rgb + hsv with type/colors assertions), all string variants (unquoted, quoted, empty, localization, computation, escaped-computation). Plus all 7 operators.
+  - `list_spec.rb` (15): empty, single-property, multi-property, nested, array (values only), mixed, keyless, all `gui_kind` keywords (types/template/blockoverride/block/layer), `gui_type`, `scripted_trigger`/`scripted_effect`.
+  - `document_spec.rb` (19): top-level shape (empty, comment-only, mixed), accessor methods (`[]` by key, `value_for`, `keys`), comment text capture, byte-identical round-trip for ten well-formed inputs covering operators / nested lists / quoted strings / dates / irregular whitespace, plus a CRLF case.
+  - `file_parser_spec.rb` (7): BOM stamping, CRLF/LF detection, path/encoding pass-through, re-raise-with-path-prefix on `ParseError` (covering the phase-1c FileParser fix).
 
 #### Caveats (apply to all of the above)
 
