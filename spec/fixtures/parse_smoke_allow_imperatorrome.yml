@@ -1,0 +1,26 @@
+# Files in this allowlist are real .txt/.gui/.gfx script files in
+# Imperator: Rome whose parsing currently fails — known parser/grammar gaps
+# (or, for EU4, files that fail even after Windows-1252 transcoding).
+# spec/integration/parse_smoke_spec.rb treats entries here as expected
+# failures; the smoke fails only on UNexpected failures (regressions).
+# A previously-failing file that now passes is positive signal — remove
+# it from this list.
+#
+# Generated baseline 2026-04 (game build at time of phase 1c).
+
+- common/customizable_localization/00_syr_mission.txt
+- common/defines/audio/00_audio.txt
+- common/genes/00_genes.txt
+- common/script_values/00_great_works_values.txt
+- common/script_values/00_mission_syracuse.txt
+- content_source/TODO.txt
+- gfx/map/post_effects/posteffect_volumes.txt
+- gfx/portraits/cameras/00_default.txt
+- gfx/portraits/environments/00_default.txt
+- gui/diplomatic_view.gui
+- gui/greatworkwindow.gui
+- gui/jomini/browser/browser_setup.gui
+- gui/messages.gui
+- gui/reorg_window.gui
+- gui/shared/gui_base.gui
+- map_data/climate.txt

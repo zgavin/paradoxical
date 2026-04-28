@@ -1,0 +1,63 @@
+# Files in this allowlist are real .txt/.gui/.gfx script files in
+# Stellaris whose parsing currently fails — known parser/grammar gaps
+# (or, for EU4, files that fail even after Windows-1252 transcoding).
+# spec/integration/parse_smoke_spec.rb treats entries here as expected
+# failures; the smoke fails only on UNexpected failures (regressions).
+# A previously-failing file that now passes is positive signal — remove
+# it from this list.
+#
+# Generated baseline 2026-04 (game build at time of phase 1c).
+
+- common/HOW_TO_MAKE_NEW_SHIPS.txt
+- common/component_tags/00_tags.txt
+- common/edicts/99_README_EDICTS.txt
+- common/gamesetup_settings/gamesetup_settings.txt
+- common/inline_scripts/jobs/industrial_districts_factory_add.txt
+- common/inline_scripts/jobs/industrial_districts_foundry_add.txt
+- common/inline_scripts/jobs/industrial_prison_districts_factory_add.txt
+- common/inline_scripts/jobs/industrial_prison_districts_foundry_add.txt
+- common/inline_scripts/ship_components/bio_lm_ship_armor.txt
+- common/inline_scripts/ship_components/bio_ship_armor.txt
+- common/job_tags/00_tags.txt
+- common/map_modes/00_map_modes.txt
+- common/named_colors/01_trait_colors.txt
+- common/script_values/00_script_values.txt
+- common/script_values/06_script_values_biogenesis.txt
+- common/scripted_effects/00_scripted_effects.txt
+- common/scripted_effects/02_machine_age_effects.txt
+- common/scripted_effects/biogenesis_effects.txt
+- common/scripted_effects/fallen_empire_scripted_effects.txt
+- common/scripted_effects/first_contact_dlc_effects.txt
+- common/scripted_effects/psionic_auras_scripted_effects.txt
+- common/scripted_effects/shroud_shadows_scripted_effects.txt
+- common/scripted_effects/situation_effects.txt
+- common/scripted_loc/scripted_loc_ruloc.txt
+- common/scripted_triggers/05_scripted_triggers_biogenesis.txt
+- common/trait_tags/00_tags.txt
+- gfx/advisorwindow/advisorwindow_environment.txt
+- gfx/fonts/arimo/LICENSE.txt
+- gfx/worldgfx/pirate_class.txt
+- gfx/worldgfx/ship_design_icon.txt
+- gfx/worldgfx/ship_designer.txt
+- gfx/worldgfx/ship_details_view.txt
+- gfx/worldgfx/star_a_class.txt
+- gfx/worldgfx/star_b_class.txt
+- gfx/worldgfx/star_black_hole.txt
+- gfx/worldgfx/star_ed_class.txt
+- gfx/worldgfx/star_f_class.txt
+- gfx/worldgfx/star_g_class.txt
+- gfx/worldgfx/star_k_class.txt
+- gfx/worldgfx/star_m_class.txt
+- gfx/worldgfx/star_neutron.txt
+- gfx/worldgfx/star_pulsar.txt
+- gfx/worldgfx/star_rift_class.txt
+- gfx/worldgfx/star_t_class.txt
+- gfx/worldgfx/star_tox_class.txt
+- interface/agreement_negotiation_view.gui
+- interface/credits_l_simp_chinese.txt
+- interface/dlc_icons.gfx
+- interface/fonts.gfx
+- interface/galaxy_view.gui
+- interface/reference.txt
+- interface/startup_info.txt
+- localisation/99_README_GRAMMAR.txt
