@@ -56,7 +56,7 @@ computation_string    = @{ ( ("@\\" | "@") ~ "[" ~ (!"]" ~ ANY)* ~ "]" ) }
 
 localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") } 
 
-unquoted_string       =  { ( ( ( "@" | "_"+ | "$" ) ~ ASCII_ALPHANUMERIC ) |  ASCII_ALPHANUMERIC ) ~ ( !( break_character ) ~ ANY )* }
+unquoted_string       =  { ( ( ( "@" | "_"+ | "$" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 

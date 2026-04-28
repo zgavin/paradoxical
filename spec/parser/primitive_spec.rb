@@ -153,6 +153,21 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
         expect(prop.value.to_s).to eq("@\\[Total]")
       end
+
+      it "parses an unquoted string starting with a non-ASCII letter" do
+        # PDX games (notably EU4 country files) use accented Latin and
+        # other Unicode letters as identifiers.
+        prop = parse("name = Élou").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("Élou")
+      end
+
+      it "parses bare `_` as an unquoted string identifier" do
+        # Stellaris uses single underscore as a placeholder/wildcard
+        # key in interface fonts: `_ = { 255 0 255 }`.
+        prop = parse("_ = magenta").first
+        expect(prop.key.to_s).to eq("_")
+      end
     end
   end
 
