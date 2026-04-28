@@ -6,7 +6,6 @@ PATH
       os (~> 0.9.6)
       rb_sys (~> 0.9)
       rubyzip (~> 1.2)
-      rutie (= 0.0.4)
       sqlite3 (~> 1.3)
 
 GEM
@@ -43,7 +42,6 @@ GEM
       rspec-support (~> 3.13.0)
     rspec-support (3.13.7)
     rubyzip (1.3.0)
-    rutie (0.0.4)
     sqlite3 (1.7.3-x86_64-linux)
     thread_safe (0.3.6)
     tzinfo (1.2.11)
