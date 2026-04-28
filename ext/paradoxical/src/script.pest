@@ -34,7 +34,7 @@ primitive             =  { ( color | percentage | date | float | integer | boole
 
 operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
-color                 = @{ ( "hsv360" | "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3} ~ ws ~ "}"  }
+color                 = @{ ( "hsv360" | "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3,4} ~ ws ~ "}"  }
 
 date                  = @{ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASCII_DIGIT{1,2}  }
 

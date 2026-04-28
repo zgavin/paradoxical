@@ -145,6 +145,20 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.colors).to eq(%w[0.5 0.7 0.9])
       end
 
+      it "parses a 4-component (alpha) rgb color" do
+        # Stellaris uses rgb { r g b a } in some color values.
+        prop = parse("foo = rgb { 235 0 18 0 }").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_rgb
+        expect(prop.value.colors).to eq(%w[235 0 18 0])
+      end
+
+      it "raises on conversion / justify of 4-component colors" do
+        prop = parse("foo = rgb { 235 0 18 0 }").first
+        expect { prop.value.hsv! }.to raise_error(NotImplementedError, /alpha/)
+        expect { prop.value.justify! }.to raise_error(NotImplementedError, /alpha/)
+      end
+
       it "parses an hsv360 color" do
         # EU5 introduced hsv360 — hue in degrees (0..360), S/V as
         # integers (0..100), instead of hsv's 0..1 floats.

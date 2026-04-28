@@ -18,7 +18,6 @@
 - common/inline_scripts/ship_components/bio_lm_ship_armor.txt
 - common/inline_scripts/ship_components/bio_ship_armor.txt
 - common/job_tags/00_tags.txt
-- common/map_modes/00_map_modes.txt
 - common/named_colors/01_trait_colors.txt
 - common/script_values/00_script_values.txt
 - common/script_values/06_script_values_biogenesis.txt
