@@ -11,7 +11,6 @@
 - dlc/D017_sacred_sites_pack/in_game/gfx/map/city_data/D017_holy_sites.txt
 - in_game/common/climates/00_default.txt
 - in_game/common/genes/01_genes_morph.txt
-- in_game/common/script_values/_____debug_stuf.txt
 - in_game/common/topography/00_default.txt
 - in_game/content_source/map_objects/generators/vegetation_generators.txt
 - in_game/gfx/terrain2/decals/decal_definitions.txt
@@ -22,7 +21,6 @@
 - in_game/gui/shared/city_tooltips.gui
 - in_game/gui/shared/unit_tooltips.gui
 - in_game/gui/unit_viewer.gui
-- in_game/map_data/location_templates.txt
 - in_game/setup/countries/_scandinavia.txt
 - in_game/setup/countries/balkans.txt
 - in_game/setup/countries/british_isles.txt
@@ -61,6 +59,5 @@
 - main_menu/gfx/unit_graphics/texture_variations/weapons.txt
 - main_menu/gui/achievements/jomini_achievements_window.gui
 - main_menu/gui/shared/backgrounds.gui
-- main_menu/setup/start/07_cities_and_buildings.txt
 - main_menu/setup/start/11_art.txt
 - main_menu/setup/start/15_international_organizations.txt

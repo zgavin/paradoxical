@@ -59,6 +59,11 @@ Implementation choices:
 - Sequential walk; ~10s for EU5's 3000+ files, ~30s for EU4's 8000+. Parallelism deferred — the bottleneck is the parser itself which holds the GVL.
 - `PARADOXICAL_PARSE_SMOKE_DUMP=<path>` writes every failing path to a YAML-shaped list. Useful for refreshing allowlist baselines without scraping truncated rspec output.
 
+##### Known coverage gaps (future smoke enhancements)
+
+- **Parse-only, no round-trip.** The smoke just calls `parse_file` and catches exceptions — it doesn't verify that parse → serialize → bytes-on-disk is byte-identical the way the PancakeTaco round-trip harness does for one mod. So a grammar change that turns out to alter serialization for some untouched file would slip past the smoke until someone hits that file in their actual workflow. Cost of fixing is roughly 2x runtime per file plus a separate "round-trip allowlist" for files that genuinely don't round-trip. Worth doing when grammar work surfaces a serialization-divergence regression we wish we'd caught.
+- **YAML smoke not implemented.** Original phase-1c plan had `.yml` files going through `Paradoxical::Elements::Yaml` as a parallel smoke target. Deferred because the YAML path is pure Ruby (no Rust extension; no rutie→magnus risk surface), so the regression-canary motivation was weaker. Worth revisiting if the YAML serializer surface gets touched.
+
 #### 1d. Unit fixtures + CI Rust build (landed)
 
 - CI workflow now installs Rust 1.95.0 (`dtolnay/rust-toolchain` reads `rust-toolchain.toml`), uses `Swatinem/rust-cache@v2` for incremental cargo, and runs `bundle exec rake compile` before specs. ~50s per run after caching warms up. The `BINDGEN_EXTRA_CLANG_ARGS=-include stdbool.h` from `.cargo/config.toml` is still applied but is a no-op on `ubuntu-latest`'s default clang.
