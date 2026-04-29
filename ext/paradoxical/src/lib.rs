@@ -74,6 +74,7 @@ fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
             Rule::list => children.push(list(ruby, pair)).unwrap(),
             Rule::parameter_block => children.push(parameter_block(ruby, pair)).unwrap(),
             Rule::code_block => children.push(code_block(ruby, pair)).unwrap(),
+            Rule::value => children.push(value(ruby, pair)).unwrap(),
             Rule::ws => whitespace.push(p(ruby, pair)).unwrap(),
             Rule::EOI => {}
             r => unreachable!("unexpected rule: {:?}", r),

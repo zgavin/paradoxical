@@ -1,4 +1,4 @@
-document              = _{ SOI ~ expression* ~ ws ~ EOI }
+document              = _{ SOI ~ ( expression | value )* ~ ws ~ EOI }
 
 expression            = _{ comment | color | parameter_block | code_block | list | property }
 
