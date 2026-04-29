@@ -41,7 +41,10 @@ module Paradoxical::FileParser
 		data.force_encoding( encoding ).encode! Encoding::UTF_8 if encoding			
 		
 		bom = data.start_with? "\xEF\xBB\xBF"
-    data.delete_prefix!("\xEF\xBB\xBF") if bom 
+		# Strip BOMs anywhere in the file. Imperator ships at least two
+		# files (concatenation artifacts) with a second BOM mid-content;
+		# only the leading one carries author intent, the rest are garbage.
+		data.gsub!("\xEF\xBB\xBF", "")
     
     ( corrections[ path ] or [] ).each do |block|
       block.call data
