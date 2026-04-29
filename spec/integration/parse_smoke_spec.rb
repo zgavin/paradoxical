@@ -25,6 +25,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       eu4_rev.txt
       console_history.txt
       credits.txt
+      credits_l_simp_chinese.txt
       license-fi.txt
       LICENSE.txt
       OFL.txt
@@ -46,6 +47,15 @@ RSpec.describe "parse smoke", :parse_smoke do
       /patchnotes/
       /previewer_assets/
       /pdx_launcher/
+    ].freeze
+
+    # Directories at the root of the game install that aren't script.
+    # Anchored (vs. excluded_path_substrings) because some games nest
+    # legitimately-named directories deeper — e.g. EU5 ships real test
+    # scripts at in_game/common/tests/ while EU4's root tests/ is
+    # console-command transcripts.
+    excluded_root_dirs = %w[
+      tests/
     ].freeze
 
     game_label = ENV["PARADOXICAL_PARSE_SMOKE_GAME"] ||
@@ -73,10 +83,12 @@ RSpec.describe "parse smoke", :parse_smoke do
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
     allowlist_set = allowlist.to_set
 
+    root_prefix_for_filter = "#{game_root.chomp('/')}/"
     files = Dir.glob(File.join(game_root, "**/*"))
       .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
       .reject { |f| excluded_basenames.include?(File.basename(f)) }
       .reject { |f| excluded_path_substrings.any? { |s| f.include?(s) } }
+      .reject { |f| excluded_root_dirs.any? { |d| f.sub(root_prefix_for_filter, "").start_with?(d) } }
       .sort
 
     wrapper_class = Class.new do

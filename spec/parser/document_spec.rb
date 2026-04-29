@@ -12,6 +12,26 @@ RSpec.describe Paradoxical::Parser do
       expect(doc.size).to eq(0)
     end
 
+    it "parses bare identifiers at top level (Stellaris tag-list shape)" do
+      # Stellaris common/component_tags/00_tags.txt and similar are
+      # documents that hold an array of bare identifiers — no operator,
+      # no enclosing braces. PDX games accept these as tag declarations.
+      doc = parse("weapon_type_kinetic\nweapon_type_explosive\n")
+      expect(doc.size).to eq(2)
+      doc.each { |c| expect(c).to be_a(Paradoxical::Elements::Value) }
+      expect(doc.values.map { |v| v.value.to_s }).to eq(%w[weapon_type_kinetic weapon_type_explosive])
+    end
+
+    it "parses bare identifiers mixed with properties at top level" do
+      input = "foo = 1\nbare_value\nbar = 2\n"
+      doc = parse(input)
+      expect(doc.size).to eq(3)
+      expect(doc[0]).to be_a(Paradoxical::Elements::Property)
+      expect(doc[1]).to be_a(Paradoxical::Elements::Value)
+      expect(doc[2]).to be_a(Paradoxical::Elements::Property)
+      expect(doc.to_pdx).to eq(input)
+    end
+
     it "parses a document with only a comment" do
       doc = parse("# just a comment\n")
       expect(doc.size).to eq(1)

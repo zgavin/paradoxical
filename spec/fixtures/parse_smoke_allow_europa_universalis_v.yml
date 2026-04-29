@@ -8,7 +8,6 @@
 # Generated from EU5 baseline 2026-04 (game build at time of phase 1c).
 
 - in_game/common/genes/01_genes_morph.txt
-- in_game/content_source/map_objects/generators/vegetation_generators.txt
 - in_game/gfx/terrain2/decals/decal_definitions.txt
 - in_game/gui/hud_topbar.gui
 - in_game/gui/panels/left_panel/left_panel.gui
