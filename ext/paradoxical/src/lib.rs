@@ -37,6 +37,10 @@ static PROPERTY_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| elements(ruby).const_get("Property").unwrap());
 static LIST_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| elements(ruby).const_get("List").unwrap());
+static PARAMETER_BLOCK_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("ParameterBlock").unwrap());
+static CODE_BLOCK_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| elements(ruby).const_get("CodeBlock").unwrap());
 
 static COLOR_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("Color").unwrap());
@@ -68,6 +72,8 @@ fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
             Rule::comment => children.push(comment(ruby, pair)).unwrap(),
             Rule::property => children.push(property(ruby, pair)).unwrap(),
             Rule::list => children.push(list(ruby, pair)).unwrap(),
+            Rule::parameter_block => children.push(parameter_block(ruby, pair)).unwrap(),
+            Rule::code_block => children.push(code_block(ruby, pair)).unwrap(),
             Rule::ws => whitespace.push(p(ruby, pair)).unwrap(),
             Rule::EOI => {}
             r => unreachable!("unexpected rule: {:?}", r),
@@ -168,6 +174,8 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                     Rule::list => list(ruby, inner),
                     Rule::value => value(ruby, inner),
                     Rule::keyless_list => keyless_list(ruby, inner),
+                    Rule::parameter_block => parameter_block(ruby, inner),
+                    Rule::code_block => code_block(ruby, inner),
                     r => unreachable!("unexpected rule: {:?}", r),
                 };
                 children.push(child).unwrap();
@@ -203,6 +211,8 @@ fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                     Rule::property => property(ruby, inner),
                     Rule::list => list(ruby, inner),
                     Rule::value => value(ruby, inner),
+                    Rule::parameter_block => parameter_block(ruby, inner),
+                    Rule::code_block => code_block(ruby, inner),
                     r => unreachable!("unexpected rule: {:?}", r),
                 };
                 children.push(child).unwrap();
@@ -212,6 +222,63 @@ fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 
     ruby.get_inner(&LIST_CLASS)
         .new_instance((false, children, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
+}
+
+fn parameter_block(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let children = RArray::new();
+    let whitespace = RArray::new();
+
+    let mut name: RString = s(ruby, "");
+    let mut negated = false;
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::negated => negated = true,
+            Rule::parameter_name => name = p(ruby, inner),
+            Rule::comment => children.push(comment(ruby, inner)).unwrap(),
+            Rule::property => children.push(property(ruby, inner)).unwrap(),
+            Rule::list => children.push(list(ruby, inner)).unwrap(),
+            Rule::parameter_block => children.push(parameter_block(ruby, inner)).unwrap(),
+            Rule::code_block => children.push(code_block(ruby, inner)).unwrap(),
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
+    }
+
+    ruby.get_inner(&PARAMETER_BLOCK_CLASS)
+        .new_instance((
+            name,
+            children,
+            kwargs!(ruby, "negated" => negated, "whitespace" => whitespace),
+        ))
+        .unwrap()
+}
+
+fn code_block(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let children = RArray::new();
+    let whitespace = RArray::new();
+    let mut prefix: RString = s(ruby, "");
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::code_block_prefix => prefix = p(ruby, inner),
+            Rule::comment => children.push(comment(ruby, inner)).unwrap(),
+            Rule::property => children.push(property(ruby, inner)).unwrap(),
+            Rule::list => children.push(list(ruby, inner)).unwrap(),
+            Rule::parameter_block => children.push(parameter_block(ruby, inner)).unwrap(),
+            Rule::code_block => children.push(code_block(ruby, inner)).unwrap(),
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
+    }
+
+    ruby.get_inner(&CODE_BLOCK_CLASS)
+        .new_instance((
+            prefix,
+            children,
+            kwargs!(ruby, "whitespace" => whitespace),
+        ))
         .unwrap()
 }
 
