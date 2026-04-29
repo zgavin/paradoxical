@@ -1,6 +1,6 @@
 document              = _{ SOI ~ expression* ~ ws ~ EOI }
 
-expression            = _{ comment | color | property | list }
+expression            = _{ comment | color | list | property }
 
 comment               =  { ws ~ "#" ~ comment_text }
 
@@ -25,11 +25,14 @@ scripted_kind         =  @{ "scripted_" ~ ("trigger" | "effect") }
 // matches load_template foo { ... }  (EU5 city_data and similar)
 load_template_kind    = @{ "load_template" ~ &whitespace_character }
 
+// matches key = LIST { ... }  (Imperator climate, etc.)
+list_kind             = @{ "LIST" ~ &whitespace_character }
+
 keyable_list          = _{ ws ~ ( ( ( gui_kind | load_template_kind ) ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
-array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
+array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ ( list_kind ~ ws )? ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
 
 keyless_list          =  { ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 

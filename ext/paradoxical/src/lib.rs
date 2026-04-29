@@ -157,7 +157,7 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
             Rule::primitive => key = primitive(ruby, inner),
             Rule::operator => operator = p(ruby, inner).as_value(),
             Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
-            Rule::gui_kind | Rule::gui_type_kind | Rule::scripted_kind | Rule::load_template_kind => {
+            Rule::gui_kind | Rule::gui_type_kind | Rule::scripted_kind | Rule::load_template_kind | Rule::list_kind => {
                 kind = p(ruby, inner).as_value()
             }
             Rule::gui_type => gui_type = true,

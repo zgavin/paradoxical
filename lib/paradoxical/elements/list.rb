@@ -67,12 +67,13 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     buffer << next_ws.call(current_indent)
     
     unless key == false then
+      kind_after_op = gui_type? || kind == "LIST"
       buffer << ( "type" + next_ws.call ) if gui_type?
-      buffer << ( kind + next_ws.call ) unless gui_type? or kind.nil? 
+      buffer << ( kind + next_ws.call ) unless kind_after_op or kind.nil?
       buffer << key.to_pdx
       buffer << next_ws.call
       buffer << ( operator + next_ws.call ) unless operator.nil?
-      buffer << ( kind + next_ws.call ) if gui_type? 
+      buffer << ( kind + next_ws.call ) if kind_after_op
     end
     
     buffer << '{'
@@ -92,12 +93,13 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   end
   
   def inspect
+    kind_after_op = gui_type? || kind == "LIST"
     parts = []
     parts << "gui_type" if gui_type?
-    parts << "kind=#{kind.inspect}" unless gui_type? or kind.nil?
+    parts << "kind=#{kind.inspect}" unless kind_after_op or kind.nil?
     parts << "key=#{key.inspect}"
     parts << "operator=#{operator.inspect}" unless operator.nil?
-    parts << "kind=#{kind.inspect}" if gui_type? 
+    parts << "kind=#{kind.inspect}" if kind_after_op
     parts << "children=#{children.inspect}"
 
     "#<Paradoxical::Elements::List #{parts.join(" ")}>"

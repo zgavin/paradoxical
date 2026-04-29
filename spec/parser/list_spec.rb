@@ -136,6 +136,32 @@ RSpec.describe Paradoxical::Parser do
       end
     end
 
+    describe "list_kind (LIST keyword)" do
+      it "parses `key = LIST { values }`" do
+        # Imperator climate files use `key = LIST { ... }` to declare an
+        # array-of-values list. The LIST token sits between the operator
+        # and the opening brace.
+        list = parse("mild_winter = LIST { 3700 3701 3056 }\n").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.kind).to eq("LIST")
+        expect(list.key.to_s).to eq("mild_winter")
+        expect(list.operator).to eq("=")
+        expect(list.gui_type?).to be(false)
+        expect(list.size).to eq(3)
+        list.each { |v| expect(v).to be_a(Paradoxical::Elements::Value) }
+        expect(list.values.map { |v| v.value.to_s }).to eq(%w[3700 3701 3056])
+      end
+
+      it "doesn't shadow identifiers that start with LIST" do
+        # The &whitespace_character lookahead on list_kind ensures
+        # `LISTED` (or any token that starts with LIST and continues)
+        # is treated as a regular identifier.
+        prop = parse("LISTED = foo\n").first
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.key.to_s).to eq("LISTED")
+      end
+    end
+
     describe "scripted_kind variants" do
       %w[scripted_trigger scripted_effect].each do |kind|
         it "parses `#{kind} foo = { ... }`" do
