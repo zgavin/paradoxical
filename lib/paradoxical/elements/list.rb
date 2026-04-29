@@ -77,20 +77,28 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     end
     
     buffer << '{'
-    
-    @children.each do |object| 
-      if object.is_a? Paradoxical::Elements::List then
-        object.to_pdx indent: indent + 1, buffer: buffer 
-      else
-        object.to_pdx indent: "#{current_indent}\t", buffer: buffer 
-      end
-    end 
-    
+
+    render_children indent: indent, current_indent: current_indent, buffer: buffer
+
     buffer << next_ws.call(current_indent)
     buffer << '}'
-    
+
     buffer
   end
+
+  protected
+
+  def render_children indent:, current_indent:, buffer:
+    @children.each do |object|
+      if object.is_a? Paradoxical::Elements::List then
+        object.to_pdx indent: indent + 1, buffer: buffer
+      else
+        object.to_pdx indent: "#{current_indent}\t", buffer: buffer
+      end
+    end
+  end
+
+  public
   
   def inspect
     kind_after_op = gui_type? || kind == "LIST"

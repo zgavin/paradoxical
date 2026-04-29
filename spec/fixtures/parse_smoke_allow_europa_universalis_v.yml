@@ -7,8 +7,6 @@
 #
 # Generated from EU5 baseline 2026-04 (game build at time of phase 1c).
 
-- dlc/D015_ancient_monuments_pack/in_game/gfx/map/city_data/D015_ancient_monuments.txt
-- dlc/D017_sacred_sites_pack/in_game/gfx/map/city_data/D017_holy_sites.txt
 - in_game/common/genes/01_genes_morph.txt
 - in_game/content_source/map_objects/generators/vegetation_generators.txt
 - in_game/gfx/terrain2/decals/decal_definitions.txt

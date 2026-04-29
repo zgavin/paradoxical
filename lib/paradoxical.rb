@@ -44,6 +44,8 @@ end
   elements/comment
   elements/document
   elements/list
+  elements/code_block
+  elements/parameter_block
   elements/property
   elements/value
 	elements/yaml
