@@ -8,10 +8,8 @@
 #
 # Generated baseline 2026-04 (game build at time of phase 1c).
 
-- common/customizable_localization/00_syr_mission.txt
 - common/defines/audio/00_audio.txt
 - common/genes/00_genes.txt
-- common/script_values/00_mission_syracuse.txt
 - gfx/map/post_effects/posteffect_volumes.txt
 - gui/diplomatic_view.gui
 - gui/greatworkwindow.gui
