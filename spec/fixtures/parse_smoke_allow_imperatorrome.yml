@@ -12,8 +12,6 @@
 - common/genes/00_genes.txt
 - gfx/map/post_effects/posteffect_volumes.txt
 - gui/diplomatic_view.gui
-- gui/greatworkwindow.gui
 - gui/jomini/browser/browser_setup.gui
 - gui/messages.gui
-- gui/reorg_window.gui
 - gui/shared/gui_base.gui
