@@ -99,6 +99,18 @@ RSpec.describe Paradoxical::Parser do
           expect(list.gui_type?).to be(false)
         end
       end
+
+      it "accepts capitalized gui_kind keywords (PDX is case-insensitive)" do
+        # EU5 ships gui files using `Types HUD_TopbarTypes { ... }` with
+        # a capital T. PDX accepts this; we should too. Round-trip
+        # preserves the original casing.
+        input = "Types HUD_TopbarTypes\n{\n\tx = 1\n}\n"
+        list = parse(input).first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.kind).to eq("Types")
+        expect(list.key.to_s).to eq("HUD_TopbarTypes")
+        expect(parse(input).to_pdx).to eq(input)
+      end
     end
 
     describe "gui_type variant" do
@@ -133,6 +145,25 @@ RSpec.describe Paradoxical::Parser do
         prop = parse("load_template_foo = bar").first
         expect(prop).to be_a(Paradoxical::Elements::Property)
         expect(prop.key.to_s).to eq("load_template_foo")
+      end
+    end
+
+    describe "local_template variant" do
+      it "parses `local_template foo { ... }`" do
+        # Imperator gui files (greatworkwindow.gui, reorg_window.gui)
+        # use local_template — same shape as load_template, different
+        # keyword. PDX games support both.
+        list = parse("local_template great_work_view {\n\tlayoutpolicy_horizontal = expanding\n}\n").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.kind).to eq("local_template")
+        expect(list.key.to_s).to eq("great_work_view")
+        expect(list.operator).to be_nil
+      end
+
+      it "doesn't shadow identifiers that start with local_template_" do
+        prop = parse("local_template_foo = bar").first
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.key.to_s).to eq("local_template_foo")
       end
     end
 

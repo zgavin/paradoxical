@@ -26,11 +26,14 @@ property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 
 list                  =  { keyable_list | array_list | mixed_list }
 
-// matches types foo { ... }
-gui_kind              = @{ "types" | "template" | "blockoverride" | "block" | "layer" }
+// matches types foo { ... } / Types Foo { ... } — case-insensitive
+// because PDX itself is. EU5 ships gui files with capitalized `Types`.
+gui_kind              = @{ ^"types" | ^"template" | ^"blockoverride" | ^"block" | ^"layer" }
 
-// matches type foo = bar { ... } 
-gui_type              = @{ "type" ~ &whitespace_character } 
+// matches type foo = bar { ... }. Lowercase-only because round-tripping
+// emits the literal "type" (gui_type? is stored as a boolean, not a
+// captured string); revisit if a real file ships capitalized `Type`.
+gui_type              = @{ "type" ~ &whitespace_character }
 gui_type_kind         = @{ string }
 
 // matches scripted_trigger foo = { ... }
@@ -39,10 +42,13 @@ scripted_kind         =  @{ "scripted_" ~ ("trigger" | "effect") }
 // matches load_template foo { ... }  (EU5 city_data and similar)
 load_template_kind    = @{ "load_template" ~ &whitespace_character }
 
+// matches local_template foo { ... }  (Imperator gui files)
+local_template_kind   = @{ "local_template" ~ &whitespace_character }
+
 // matches key = LIST { ... }  (Imperator climate, etc.)
 list_kind             = @{ "LIST" ~ &whitespace_character }
 
-keyable_list          = _{ ws ~ ( ( ( gui_kind | load_template_kind ) ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+keyable_list          = _{ ws ~ ( ( ( gui_kind | load_template_kind | local_template_kind ) ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 

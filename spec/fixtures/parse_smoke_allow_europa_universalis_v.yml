@@ -9,12 +9,9 @@
 
 - in_game/common/genes/01_genes_morph.txt
 - in_game/gfx/terrain2/decals/decal_definitions.txt
-- in_game/gui/hud_topbar.gui
-- in_game/gui/panels/left_panel/left_panel.gui
 - in_game/gui/panels/organization/coalition.gui
 - in_game/gui/panels/organization/crusade.gui
 - in_game/gui/shared/city_tooltips.gui
-- in_game/gui/shared/unit_tooltips.gui
 - in_game/gui/unit_viewer.gui
 - loading_screen/common/defines/00_defines.txt
 - loading_screen/common/defines/graphic/00_graphics.txt
@@ -23,5 +20,4 @@
 - main_menu/gfx/map/city_data/northgerman.txt
 - main_menu/gfx/map/city_data/templates.txt
 - main_menu/gfx/portraits/environments/portrait_environments.txt
-- main_menu/gui/achievements/jomini_achievements_window.gui
 - main_menu/gui/shared/backgrounds.gui
