@@ -243,6 +243,7 @@ fn parameter_block(ruby: &Ruby, pair: Pair<Rule>) -> Value {
             Rule::comment => children.push(comment(ruby, inner)).unwrap(),
             Rule::property => children.push(property(ruby, inner)).unwrap(),
             Rule::list => children.push(list(ruby, inner)).unwrap(),
+            Rule::value => children.push(value(ruby, inner)).unwrap(),
             Rule::parameter_block => children.push(parameter_block(ruby, inner)).unwrap(),
             Rule::code_block => children.push(code_block(ruby, inner)).unwrap(),
             r => unreachable!("unexpected rule: {:?}", r),

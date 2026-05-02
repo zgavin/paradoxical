@@ -6,7 +6,7 @@ expression            = _{ comment | color | parameter_block | code_block | list
 // Body emitted only when the parameter is set (or unset, with `!`).
 // Must precede `list`/`property` in `expression` because primitive's
 // `localization_string` rule would otherwise greedily match `[[NAME]`.
-parameter_block       =  { ws ~ "[[" ~ negated? ~ parameter_name ~ "]" ~ expression* ~ ws ~ "]" }
+parameter_block       =  { ws ~ "[[" ~ negated? ~ parameter_name ~ "]" ~ ( expression | value )* ~ ws ~ "]" }
 negated               = @{ "!" }
 parameter_name        = @{ (LETTER | NUMBER | "_")+ }
 
