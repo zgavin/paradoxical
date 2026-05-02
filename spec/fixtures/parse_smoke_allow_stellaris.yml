@@ -9,13 +9,8 @@
 # Generated baseline 2026-04 (game build at time of phase 1c).
 
 - common/edicts/99_README_EDICTS.txt
-- common/gamesetup_settings/gamesetup_settings.txt
 - common/inline_scripts/ship_components/bio_lm_ship_armor.txt
 - common/inline_scripts/ship_components/bio_ship_armor.txt
-- common/named_colors/01_trait_colors.txt
 - common/scripted_effects/psionic_auras_scripted_effects.txt
 - common/scripted_loc/scripted_loc_ruloc.txt
-- interface/agreement_negotiation_view.gui
-- interface/dlc_icons.gfx
-- interface/galaxy_view.gui
 - interface/startup_info.txt

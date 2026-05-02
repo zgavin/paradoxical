@@ -193,6 +193,35 @@ RSpec.describe Paradoxical::Parser do
       end
     end
 
+    describe "bare-keyword variant" do
+      it "parses `name { ... }` with no operator" do
+        # Pattern used by gui files (`position { x = 0 y = 0 }`),
+        # gfx files (`spriteType { ... }`), and defines
+        # (`NAdvanceTreeSettings\n{ ... }`). Stored as a regular
+        # keyed list with no operator and no kind.
+        list = parse("position { x = 0 y = 0 }\n").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.key.to_s).to eq("position")
+        expect(list.operator).to be_nil
+        expect(list.kind).to be_nil
+        expect(list.gui_type?).to be(false)
+        expect(list.size).to eq(2)
+      end
+
+      it "round-trips byte-identically with key on a separate line" do
+        input = "NAdvanceTreeSettings\n{\n\tx = 1\n}\n"
+        expect(parse(input).to_pdx).to eq(input)
+      end
+
+      it "still parses `key = { ... }` as a keyed list" do
+        # Operator-form alt is tried first; the bare-keyword alt only
+        # kicks in after that fails. Confirm `=` doesn't accidentally
+        # get absorbed.
+        list = parse("foo = { x = 1 }\n").first
+        expect(list.operator).to eq("=")
+      end
+    end
+
     describe "scripted_kind variants" do
       %w[scripted_trigger scripted_effect].each do |kind|
         it "parses `#{kind} foo = { ... }`" do

@@ -1,4 +1,4 @@
-document              = _{ SOI ~ ( expression | value )* ~ ws ~ EOI }
+document              = _{ SOI ~ ( expression | value | keyless_list )* ~ ws ~ EOI }
 
 expression            = _{ comment | color | parameter_block | code_block | list | property }
 
@@ -48,13 +48,20 @@ local_template_kind   = @{ "local_template" ~ &whitespace_character }
 // matches key = LIST { ... }  (Imperator climate, etc.)
 list_kind             = @{ "LIST" ~ &whitespace_character }
 
-keyable_list          = _{ ws ~ ( ( ( gui_kind | load_template_kind | local_template_kind ) ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+// Last alternative `( primitive )` is the bare-keyword form
+// `name { body }` (no operator). Used in gui files for `position { … }`
+// shapes and in defines for `NAdvanceTreeSettings { … }`. Pest's PEG
+// ordering means the operator-form alt is tried first, so `key = …`
+// continues to parse as a keyed list.
+keyable_list          = _{ ws ~ ( ( ( gui_kind | load_template_kind | local_template_kind ) ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) | ( primitive ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
 array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ ( list_kind ~ ws )? ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
 
-keyless_list          =  { ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
+// Allow nested keyless_list children for shapes like
+// `{ 0.0 { 0.0 -0.4 0.1 } }` (EU5/Imperator gene curve data).
+keyless_list          =  { ws ~ "{" ~ ( expression | value | keyless_list )* ~ ws ~ "}" }
 
 primitive             =  { ( color | percentage | date | float | integer | boolean | placeholder | string ) }
 

@@ -7,17 +7,12 @@
 #
 # Generated from EU5 baseline 2026-04 (game build at time of phase 1c).
 
-- in_game/common/genes/01_genes_morph.txt
-- in_game/gfx/terrain2/decals/decal_definitions.txt
 - in_game/gui/panels/organization/coalition.gui
 - in_game/gui/panels/organization/crusade.gui
 - in_game/gui/shared/city_tooltips.gui
-- in_game/gui/unit_viewer.gui
 - loading_screen/common/defines/00_defines.txt
 - loading_screen/common/defines/graphic/00_graphics.txt
 - loading_screen/compound_settings.txt
-- loading_screen/gfx/defines/00_gfx.txt
 - main_menu/gfx/map/city_data/northgerman.txt
 - main_menu/gfx/map/city_data/templates.txt
 - main_menu/gfx/portraits/environments/portrait_environments.txt
-- main_menu/gui/shared/backgrounds.gui
