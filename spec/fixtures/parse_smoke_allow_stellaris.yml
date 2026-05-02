@@ -11,6 +11,5 @@
 - common/edicts/99_README_EDICTS.txt
 - common/inline_scripts/ship_components/bio_lm_ship_armor.txt
 - common/inline_scripts/ship_components/bio_ship_armor.txt
-- common/scripted_effects/psionic_auras_scripted_effects.txt
 - common/scripted_loc/scripted_loc_ruloc.txt
 - interface/startup_info.txt

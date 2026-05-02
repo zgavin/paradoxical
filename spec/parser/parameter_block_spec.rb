@@ -65,5 +65,20 @@ RSpec.describe Paradoxical::Parser do
       expect(block.name).to eq("X")
       expect(block.size).to eq(0)
     end
+
+    it "accepts bare values in the body (parameter substitutions)" do
+      # EU4 scripted_effects use `[[X] $X$ ]` to splat a parameter as a
+      # bare value. The body must accept values, not just expressions —
+      # a bare `$X$` is grammatically a value, since there's no operator.
+      input = "limit = {\n\t[[global_trigger] $global_trigger$ ]\n}\n"
+      list = parse(input).first
+      block = list.first
+      expect(block).to be_a(Paradoxical::Elements::ParameterBlock)
+      expect(block.name).to eq("global_trigger")
+      expect(block.size).to eq(1)
+      expect(block.first).to be_a(Paradoxical::Elements::Value)
+      expect(block.first.value.to_s).to eq("$global_trigger$")
+      expect(parse(input).to_pdx).to eq(input)
+    end
   end
 end
