@@ -33,6 +33,8 @@ RSpec.describe "parse smoke", :parse_smoke do
       ThirdPartyLicenses.txt
       HOW_TO_MAKE_NEW_SHIPS.txt
       99_README_GRAMMAR.txt
+      99_README_EDICTS.txt
+      startup_info.txt
       TODO.txt
       trigger_profile.txt
     ].to_set

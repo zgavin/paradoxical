@@ -96,7 +96,14 @@ date                  = @{ "-"? ~ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ ".
 
 numeric               = @{ ASCII_DIGIT+ }
 
-float                 = @{ ( ( ( ("-" | "+")? ~ numeric )? ~ "." ~ numeric ) | ( "-"? ~ numeric ~ "." ~ numeric? ) ) ~ &break_character }
+// Trailing `f`/`F` is a C-style suffix that some PDX gfx files use
+// (e.g. EU4 combat_result_environment.txt: `{ 0.0f -5.5f 0.0f }`).
+// The `&break_character` after `f`? makes sure `0.5fix` doesn't get
+// the suffix consumed greedily — pest backtracks the `?` if the
+// lookahead fails, then the bare `0.5` fails its own `&break_character`
+// (since `f` isn't break) and the whole rule falls through to string,
+// which is the correct path for identifier-shaped tokens.
+float                 = @{ ( ( ( ("-" | "+")? ~ numeric )? ~ "." ~ numeric ) | ( "-"? ~ numeric ~ "." ~ numeric? ) ) ~ ("f" | "F")? ~ &break_character }
 
 integer               = @{ ("-" | "+")? ~ numeric ~ &break_character }
 
