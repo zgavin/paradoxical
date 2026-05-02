@@ -30,14 +30,14 @@ list                  =  { keyable_list | array_list | mixed_list }
 // rolled into one rule so prefixed_kind_head reads the same shape as
 // gui_type_head/scripted_kind_head (head + single named kind).
 //
-// - gui kinds (types/template/etc.) are case-insensitive because PDX
-//   itself is — EU5 ships files with capitalized `Types`.
-// - load_template / local_template require &whitespace_character to
-//   avoid shadowing `load_template_foo`-style identifiers.
+// Trailing &whitespace_character prevents shadowing identifiers that
+// share a keyword's prefix — e.g. `template_foo { x = 1 }` would
+// otherwise misparse as kind=`template` + key=`_foo`. gui kinds
+// (types/template/etc.) are case-insensitive because PDX itself is —
+// EU5 ships files with capitalized `Types`.
 prefixed_kind         = @{
-    ^"types" | ^"template" | ^"blockoverride" | ^"block" | ^"layer"
-  | ( "load_template"  ~ &whitespace_character )
-  | ( "local_template" ~ &whitespace_character )
+    ( ^"types" | ^"template" | ^"blockoverride" | ^"block" | ^"layer" | "load_template" | "local_template" )
+    ~ &whitespace_character
 }
 
 // matches type foo = bar { ... }. Lowercase-only because round-tripping
