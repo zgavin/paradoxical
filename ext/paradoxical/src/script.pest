@@ -118,8 +118,14 @@ unquoted_string       =  { ( ( ( "@" | "_"+ | "$" | "-$" ) ~ ( LETTER | NUMBER )
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 
-break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | EOI }
+break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | ";" | EOI }
 
 whitespace_character  = _{ " " | "\t" | "\r" | "\n" }
 
-ws                    =  { whitespace_character* ~ !whitespace_character }
+// Some PDX files leave a stray C-style `;` after property values
+// (`key = "value";`). It's not whitespace per se, but `ws` consumes it
+// like whitespace so the surrounding token captures it for round-trip
+// without complicating any consumer rule. `whitespace_character` stays
+// strict so `&whitespace_character` lookaheads (e.g. on `template`)
+// don't accidentally accept `;`.
+ws                    =  { ( whitespace_character | ";" )* ~ !( whitespace_character | ";" ) }

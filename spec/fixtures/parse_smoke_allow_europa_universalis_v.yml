@@ -11,7 +11,6 @@
 - in_game/gui/panels/organization/crusade.gui
 - in_game/gui/shared/city_tooltips.gui
 - loading_screen/common/defines/00_defines.txt
-- loading_screen/common/defines/graphic/00_graphics.txt
 - loading_screen/compound_settings.txt
 - main_menu/gfx/map/city_data/northgerman.txt
 - main_menu/gfx/map/city_data/templates.txt
