@@ -75,6 +75,7 @@ fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
             Rule::parameter_block => children.push(parameter_block(ruby, pair)).unwrap(),
             Rule::code_block => children.push(code_block(ruby, pair)).unwrap(),
             Rule::value => children.push(value(ruby, pair)).unwrap(),
+            Rule::keyless_list => children.push(keyless_list(ruby, pair)).unwrap(),
             Rule::ws => whitespace.push(p(ruby, pair)).unwrap(),
             Rule::EOI => {}
             r => unreachable!("unexpected rule: {:?}", r),
@@ -212,6 +213,7 @@ fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                     Rule::property => property(ruby, inner),
                     Rule::list => list(ruby, inner),
                     Rule::value => value(ruby, inner),
+                    Rule::keyless_list => keyless_list(ruby, inner),
                     Rule::parameter_block => parameter_block(ruby, inner),
                     Rule::code_block => code_block(ruby, inner),
                     r => unreachable!("unexpected rule: {:?}", r),

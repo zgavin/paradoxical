@@ -22,6 +22,35 @@ RSpec.describe Paradoxical::Parser do
       expect(doc.values.map { |v| v.value.to_s }).to eq(%w[weapon_type_kinetic weapon_type_explosive])
     end
 
+    it "parses top-level keyless lists" do
+      # EU5 decal_definitions.txt and Stellaris gamesetup_settings.txt
+      # ship a sequence of unkeyed `{ ... }` blocks at the top of the
+      # file. Each becomes a keyless List child with no key.
+      doc = parse("{\n\tname = first\n}\n{\n\tname = second\n}\n")
+      expect(doc.size).to eq(2)
+      doc.each do |child|
+        expect(child).to be_a(Paradoxical::Elements::List)
+        expect(child.key).to be(false)
+      end
+      expect(doc[0][0].value.to_s).to eq("first")
+      expect(doc[1][0].value.to_s).to eq("second")
+    end
+
+    it "parses nested keyless lists" do
+      # EU5/Imperator gene curve data: `curve = { { 0.0 { 0.0 -0.4 0.1 } } }`.
+      # Outer is array_list; first child is a keyless_list whose body
+      # holds a value followed by another keyless_list.
+      doc = parse("curve = {\n\t{ 0.0 { 0.0 -0.4 0.1 } }\n}\n")
+      curve = doc.first
+      keyless = curve.first
+      expect(keyless).to be_a(Paradoxical::Elements::List)
+      expect(keyless.key).to be(false)
+      inner = keyless[1]
+      expect(inner).to be_a(Paradoxical::Elements::List)
+      expect(inner.key).to be(false)
+      expect(inner.values.map { |v| v.value.to_s }).to eq(%w[0.0 -0.4 0.1])
+    end
+
     it "parses bare identifiers mixed with properties at top level" do
       input = "foo = 1\nbare_value\nbar = 2\n"
       doc = parse(input)
@@ -100,6 +129,9 @@ RSpec.describe Paradoxical::Parser do
       ["dates", "start_date = 1444.11.11\n"],
       ["various operators", "a = 1\nb >= 2\nc < 3\nd != 4\n"],
       ["irregular indentation", "  foo  =  1\n   bar    =    2\n"],
+      ["top-level keyless list", "{\n\tname = first\n}\n"],
+      ["nested keyless list", "curve = {\n\t{ 0.0 { 0.0 -0.4 0.1 } }\n}\n"],
+      ["bare-keyword list", "position { x = 0 y = 0 }\n"],
     ].each do |label, input|
       it "round-trips #{label}" do
         doc = parse(input)
