@@ -100,6 +100,17 @@ RSpec.describe Paradoxical::Parser do
         end
       end
 
+      it "doesn't shadow identifiers that start with a gui_kind keyword" do
+        # Without the &whitespace_character lookahead in `prefixed_kind`,
+        # `template_foo { x = 1 }` would silently misparse as
+        # kind=`template` + key=`_foo`. The lookahead forces it to fall
+        # through to bare_head where the whole `template_foo` is the key.
+        list = parse("template_foo { x = 1 }").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.kind).to be_nil
+        expect(list.key.to_s).to eq("template_foo")
+      end
+
       it "accepts capitalized gui_kind keywords (PDX is case-insensitive)" do
         # EU5 ships gui files using `Types HUD_TopbarTypes { ... }` with
         # a capital T. PDX accepts this; we should too. Round-trip
@@ -139,9 +150,9 @@ RSpec.describe Paradoxical::Parser do
       end
 
       it "doesn't shadow identifiers that start with load_template_" do
-        # The &whitespace_character lookahead on load_template_kind
-        # ensures `load_template_foo` is treated as a regular
-        # identifier, not as a load_template directive.
+        # `load_template` carries a &whitespace_character lookahead in
+        # `prefixed_kind` so `load_template_foo` parses as a regular
+        # identifier rather than `load_template` + `_foo`.
         prop = parse("load_template_foo = bar").first
         expect(prop).to be_a(Paradoxical::Elements::Property)
         expect(prop.key.to_s).to eq("load_template_foo")

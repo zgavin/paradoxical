@@ -26,9 +26,19 @@ property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 
 list                  =  { keyable_list | array_list | mixed_list }
 
-// matches types foo { ... } / Types Foo { ... } — case-insensitive
-// because PDX itself is. EU5 ships gui files with capitalized `Types`.
-gui_kind              = @{ ^"types" | ^"template" | ^"blockoverride" | ^"block" | ^"layer" }
+// All "kind keyword that prefixes a key without an operator" forms,
+// rolled into one rule so prefixed_kind_head reads the same shape as
+// gui_type_head/scripted_kind_head (head + single named kind).
+//
+// Trailing &whitespace_character prevents shadowing identifiers that
+// share a keyword's prefix — e.g. `template_foo { x = 1 }` would
+// otherwise misparse as kind=`template` + key=`_foo`. gui kinds
+// (types/template/etc.) are case-insensitive because PDX itself is —
+// EU5 ships files with capitalized `Types`.
+prefixed_kind         = @{
+    ( ^"types" | ^"template" | ^"blockoverride" | ^"block" | ^"layer" | "load_template" | "local_template" )
+    ~ &whitespace_character
+}
 
 // matches type foo = bar { ... }. Lowercase-only because round-tripping
 // emits the literal "type" (gui_type? is stored as a boolean, not a
@@ -39,21 +49,34 @@ gui_type_kind         = @{ string }
 // matches scripted_trigger foo = { ... }
 scripted_kind         =  @{ "scripted_" ~ ("trigger" | "effect") }
 
-// matches load_template foo { ... }  (EU5 city_data and similar)
-load_template_kind    = @{ "load_template" ~ &whitespace_character }
-
-// matches local_template foo { ... }  (Imperator gui files)
-local_template_kind   = @{ "local_template" ~ &whitespace_character }
-
 // matches key = LIST { ... }  (Imperator climate, etc.)
 list_kind             = @{ "LIST" ~ &whitespace_character }
 
-// Last alternative `( primitive )` is the bare-keyword form
-// `name { body }` (no operator). Used in gui files for `position { … }`
-// shapes and in defines for `NAdvanceTreeSettings { … }`. Pest's PEG
-// ordering means the operator-form alt is tried first, so `key = …`
-// continues to parse as a keyed list.
-keyable_list          = _{ ws ~ ( ( ( gui_kind | load_template_kind | local_template_kind ) ~ ws ~ primitive ) | ( gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind ) | ( scripted_kind ~ ws ~ primitive ~ ws ~ operator ) | ( primitive ~ ws ~ operator ) | ( primitive ) ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+// One head shape per real-world list construct, ordered most→least
+// specific so PEG picks the right one. Each is silent so the parser
+// emits the same flat token stream regardless of which head matched
+// (the AST is built from the inner ws/primitive/operator/kind tokens,
+// not from the head rule itself).
+keyable_list          = _{ ws ~ ( prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_head | bare_head ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+
+// `types foo` / `template foo` / `load_template foo` / `local_template foo`
+// — keyword-prefixed, no operator.
+prefixed_kind_head    = _{ prefixed_kind ~ ws ~ primitive }
+
+// `type foo = vbox` — the gui_type form.
+gui_type_head         = _{ gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_type_kind }
+
+// `scripted_trigger foo =` / `scripted_effect foo =`.
+scripted_kind_head    = _{ scripted_kind ~ ws ~ primitive ~ ws ~ operator }
+
+// Regular keyed list `foo =`.
+keyed_head            = _{ primitive ~ ws ~ operator }
+
+// Bare-keyword form `foo` (no operator). Used by gui files for
+// `position { x = 0 y = 0 }` shapes and by defines for
+// `NAdvanceTreeSettings { … }`. Tried last so `keyed_head` wins
+// whenever an operator is present.
+bare_head             = _{ primitive }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
