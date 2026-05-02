@@ -139,9 +139,9 @@ RSpec.describe Paradoxical::Parser do
       end
 
       it "doesn't shadow identifiers that start with load_template_" do
-        # The &whitespace_character lookahead on load_template_kind
-        # ensures `load_template_foo` is treated as a regular
-        # identifier, not as a load_template directive.
+        # `load_template` carries a &whitespace_character lookahead in
+        # `prefixed_kind` so `load_template_foo` parses as a regular
+        # identifier rather than `load_template` + `_foo`.
         prop = parse("load_template_foo = bar").first
         expect(prop).to be_a(Paradoxical::Elements::Property)
         expect(prop.key.to_s).to eq("load_template_foo")
