@@ -132,6 +132,9 @@ RSpec.describe Paradoxical::Parser do
       ["top-level keyless list", "{\n\tname = first\n}\n"],
       ["nested keyless list", "curve = {\n\t{ 0.0 { 0.0 -0.4 0.1 } }\n}\n"],
       ["bare-keyword list", "position { x = 0 y = 0 }\n"],
+      ["trailing semicolon after property", %{a = "foo";\nb = 2\n}],
+      ["trailing semicolon after list value", "color = { 0.0 0.0 0.0 };\nwidth = 0.15\n"],
+      ["trailing semicolon at EOF", "a = 1;"],
     ].each do |label, input|
       it "round-trips #{label}" do
         doc = parse(input)
