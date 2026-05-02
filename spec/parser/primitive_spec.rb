@@ -56,6 +56,22 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
         expect(prop.value.to_f).to eq(5.0)
       end
+
+      it "accepts a C-style `f` suffix (EU4 gfx files)" do
+        # EU4 combat_result_environment.txt: `{ 0.0f -5.5f 0.0f }`.
+        prop = parse("foo = -5.5f\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Float)
+        expect(prop.value.to_f).to eq(-5.5)
+        expect(prop.value.to_pdx).to eq("-5.5f")
+      end
+
+      it "doesn't greedily consume `f` when followed by more identifier" do
+        # `0.5fix` should parse as a string (identifier), not float `0.5f`
+        # plus stranded `ix`. The trailing &break_character protects this.
+        prop = parse("foo = 0.5fix\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("0.5fix")
+      end
     end
 
     describe "boolean" do
