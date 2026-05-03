@@ -57,7 +57,7 @@ list_kind             = @{ "LIST" ~ &whitespace_character }
 // emits the same flat token stream regardless of which head matched
 // (the AST is built from the inner ws/primitive/operator/kind tokens,
 // not from the head rule itself).
-keyable_list          = _{ ws ~ ( prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_head | bare_head ) ~ ws ~ "{" ~ expression* ~ ws ~ "}" }
+keyable_list          = _{ ws ~ ( prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_head | bare_head ) ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
 // `types foo` / `template foo` / `load_template foo` / `local_template foo`
 // — keyword-prefixed, no operator.
@@ -76,7 +76,14 @@ keyed_head            = _{ primitive ~ ws ~ operator }
 // `position { x = 0 y = 0 }` shapes and by defines for
 // `NAdvanceTreeSettings { … }`. Tried last so `keyed_head` wins
 // whenever an operator is present.
-bare_head             = _{ primitive }
+//
+// The negative lookahead rejects numeric/boolean/etc. primitives so
+// `{ 0.0 { 0.0 -0.4 0.1 } }` (EU5 gene curve pairs) parses as
+// `[value(0.0), keyless_list]` rather than `bare_head{key=0.0,
+// body=[values]}`. Bare-keyword keys are names by convention, never
+// numbers — restricting at the head level keeps the AST shape that
+// downstream callers expect.
+bare_head             = _{ !( color | percentage | date | float | integer | boolean | placeholder ) ~ primitive }
 
 mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 

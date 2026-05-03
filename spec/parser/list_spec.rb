@@ -231,6 +231,37 @@ RSpec.describe Paradoxical::Parser do
         list = parse("foo = { x = 1 }\n").first
         expect(list.operator).to eq("=")
       end
+
+      it "doesn't match a numeric primitive as a bare-keyword key" do
+        # Inside a keyless_list (array_list child), `0.0 { ... }` is a
+        # value followed by a sub-block — frame index + frame data, in
+        # the EU5 gene curves case. Without the negative lookahead on
+        # bare_head, it would greedily match as bare_head{key=0.0,
+        # body=[values]} and lose the pair semantics.
+        doc = Paradoxical::Parser.parse("curve = {\n\t{ 0.0 { 1 2 3 } }\n}\n")
+        outer_keyless = doc.first.first
+        expect(outer_keyless.size).to eq(2)
+        expect(outer_keyless[0]).to be_a(Paradoxical::Elements::Value)
+        expect(outer_keyless[0].value.to_s).to eq("0.0")
+        expect(outer_keyless[1]).to be_a(Paradoxical::Elements::List)
+        expect(outer_keyless[1].key).to be(false)
+      end
+    end
+
+    describe "values inside gui_kind list bodies" do
+      it "accepts bare values like `text \"\"` inside a keyable_list body" do
+        # Imperator gui/diplomatic_view.gui has
+        # `blockoverride "Text" { text "" }` — two adjacent values
+        # inside a keyable_list (gui_kind) body. Before keyable_list's
+        # body was widened to ( expression | value )*, this failed.
+        list = parse("blockoverride \"Text\" {\n\ttext \"\"\n}\n").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.kind).to eq("blockoverride")
+        expect(list.size).to eq(2)
+        expect(list[0]).to be_a(Paradoxical::Elements::Value)
+        expect(list[0].value.to_s).to eq("text")
+        expect(list[1]).to be_a(Paradoxical::Elements::Value)
+      end
     end
 
     describe "scripted_kind variants" do

@@ -9,5 +9,4 @@
 # Generated baseline 2026-04 (game build at time of phase 1c).
 
 - gfx/map/post_effects/posteffect_volumes.txt
-- gui/diplomatic_view.gui
 - gui/shared/gui_base.gui
