@@ -24,7 +24,17 @@ value                 =  { ws ~ primitive }
 
 property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 
-list                  =  { keyable_list | array_list | mixed_list }
+// One unified list shape. Each head alternative is silent, so the
+// inner ws/primitive/operator/kind tokens flow up to `list` regardless
+// of which head matched, and the AST is built from those tokens. Body
+// accepts properties/lists/etc. (via `expression`), bare values, and
+// nested keyless_list children — covering the property-only,
+// values-only, mixed, and list-of-keyless-blocks shapes that used to
+// each get their own dispatcher (keyable_list / mixed_list / array_list).
+list                  =  { ws ~ list_head ~ ws ~ "{" ~ ( expression | value | keyless_list )* ~ ws ~ "}" }
+
+// Head shapes ordered most→least specific so PEG picks the right one.
+list_head             = _{ prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_kind_head | keyed_head | bare_head }
 
 // All "kind keyword that prefixes a key without an operator" forms,
 // rolled into one rule so prefixed_kind_head reads the same shape as
@@ -48,16 +58,6 @@ gui_type_kind         = @{ string }
 
 // matches scripted_trigger foo = { ... }
 scripted_kind         =  @{ "scripted_" ~ ("trigger" | "effect") }
-
-// matches key = LIST { ... }  (Imperator climate, etc.)
-list_kind             = @{ "LIST" ~ &whitespace_character }
-
-// One head shape per real-world list construct, ordered most→least
-// specific so PEG picks the right one. Each is silent so the parser
-// emits the same flat token stream regardless of which head matched
-// (the AST is built from the inner ws/primitive/operator/kind tokens,
-// not from the head rule itself).
-keyable_list          = _{ ws ~ ( prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_kind_head | keyed_head | bare_head ) ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
 // `types foo` / `template foo` / `load_template foo` / `local_template foo`
 // — keyword-prefixed, no operator.
@@ -101,10 +101,6 @@ keyed_head            = _{ primitive ~ ws ~ operator }
 // numbers — restricting at the head level keeps the AST shape that
 // downstream callers expect.
 bare_head             = _{ !( color | percentage | date | float | integer | boolean | placeholder ) ~ primitive }
-
-mixed_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
-
-array_list            = _{ ws ~ primitive ~ ws ~ operator ~ ws ~ ( list_kind ~ ws )? ~ "{" ~ ( value | comment | keyless_list )* ~ ws ~ "}" }
 
 // Allow nested keyless_list children for shapes like
 // `{ 0.0 { 0.0 -0.4 0.1 } }` (EU5/Imperator gene curve data).
