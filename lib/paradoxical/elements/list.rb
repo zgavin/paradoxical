@@ -4,13 +4,14 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   
   attr_accessor :key, :operator, :kind
 
-  def initialize key, children, operator: "=", whitespace: nil, gui_type: false, kind: nil
+  def initialize key, children, operator: "=", whitespace: nil, gui_type: false, kind: nil, kind_after_key: false
     @key = key
     @children = children
 		@operator = operator
     @whitespace = whitespace
     @kind = kind
     @gui_type = gui_type
+    @kind_after_key = kind_after_key
     
     @children.each do |object| 
       raise ArgumentError.new "Must be Paradoxical::Elements::Node: #{object.inspect}" unless object.is_a? Paradoxical::Elements::Node
@@ -67,13 +68,12 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     buffer << next_ws.call(current_indent)
     
     unless key == false then
-      kind_after_op = gui_type? || kind == "LIST"
       buffer << ( "type" + next_ws.call ) if gui_type?
-      buffer << ( kind + next_ws.call ) unless kind_after_op or kind.nil?
+      buffer << ( kind + next_ws.call ) if kind && !@kind_after_key
       buffer << key.to_pdx
       buffer << next_ws.call
       buffer << ( operator + next_ws.call ) unless operator.nil?
-      buffer << ( kind + next_ws.call ) if kind_after_op
+      buffer << ( kind + next_ws.call ) if kind && @kind_after_key
     end
     
     buffer << '{'
@@ -101,13 +101,12 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   public
   
   def inspect
-    kind_after_op = gui_type? || kind == "LIST"
     parts = []
     parts << "gui_type" if gui_type?
-    parts << "kind=#{kind.inspect}" unless kind_after_op or kind.nil?
+    parts << "kind=#{kind.inspect}" if kind && !@kind_after_key
     parts << "key=#{key.inspect}"
     parts << "operator=#{operator.inspect}" unless operator.nil?
-    parts << "kind=#{kind.inspect}" if kind_after_op
+    parts << "kind=#{kind.inspect}" if kind && @kind_after_key
     parts << "children=#{children.inspect}"
 
     "#<Paradoxical::Elements::List #{parts.join(" ")}>"

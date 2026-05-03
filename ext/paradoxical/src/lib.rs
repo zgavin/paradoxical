@@ -159,14 +159,23 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
     let mut key: Value = s(ruby, "").as_value();
     let mut operator: Value = ruby.qfalse().as_value();
     let mut gui_type = false;
+    // True when the kind keyword sits after the key/operator in the
+    // source (gui_type_kind / keyed_kind / list_kind). False for
+    // prefixed_kind / scripted_kind, which sit before the key. Drives
+    // serialization position in Elements::List#to_pdx.
+    let mut kind_after_key = false;
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::primitive => key = primitive(ruby, inner),
             Rule::operator => operator = p(ruby, inner).as_value(),
             Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
-            Rule::prefixed_kind | Rule::gui_type_kind | Rule::scripted_kind | Rule::list_kind => {
+            Rule::prefixed_kind | Rule::scripted_kind => {
                 kind = p(ruby, inner).as_value()
+            }
+            Rule::gui_type_kind | Rule::keyed_kind | Rule::list_kind => {
+                kind = p(ruby, inner).as_value();
+                kind_after_key = true;
             }
             Rule::gui_type => gui_type = true,
             _ => {
@@ -194,7 +203,8 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                 "kind" => kind,
                 "whitespace" => whitespace,
                 "operator" => operator,
-                "gui_type" => gui_type
+                "gui_type" => gui_type,
+                "kind_after_key" => kind_after_key
             ),
         ))
         .unwrap()
