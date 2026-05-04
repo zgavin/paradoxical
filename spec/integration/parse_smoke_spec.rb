@@ -1,9 +1,9 @@
 RSpec.describe "parse smoke", :parse_smoke do
-  game_root = ENV["PARADOXICAL_PARSE_SMOKE"]
+  slug = ENV["PARADOXICAL_PARSE_SMOKE"]
 
-  if game_root.nil? || game_root.empty? || !File.directory?(game_root)
-    it "is skipped (set PARADOXICAL_PARSE_SMOKE to a game root)" do
-      skip "PARADOXICAL_PARSE_SMOKE unset or not a directory"
+  if slug.nil? || slug.empty?
+    it "is skipped (set PARADOXICAL_PARSE_SMOKE to a game slug)" do
+      skip "PARADOXICAL_PARSE_SMOKE unset (e.g. eu5, stellaris, eu4 — see Paradoxical::Games)"
     end
   else
     require "paradoxical"
@@ -12,9 +12,9 @@ RSpec.describe "parse smoke", :parse_smoke do
 
     # Some files share an extension with script files but aren't script
     # format. The same basenames recur across every PDX game. Filter by
-    # basename, not by path, and don't conflate with the allowlist (which
-    # is for script files we expect to fail to parse, a different
-    # category).
+    # basename, not by path, and don't conflate with the allowlist
+    # (which is for script files we expect to fail to parse, a
+    # different category).
     excluded_basenames = %w[
       checksum_manifest.txt
       caesar_branch.txt
@@ -39,9 +39,9 @@ RSpec.describe "parse smoke", :parse_smoke do
       trigger_profile.txt
     ].to_set
 
-    # Whole directories of non-script content. Path substrings since the
-    # same dirs recur across games. /licenses/ vs /licences/ — Imperator
-    # uses British spelling.
+    # Whole directories of non-script content. Path substrings since
+    # the same dirs recur across games. /licenses/ vs /licences/ —
+    # Imperator uses British spelling.
     excluded_path_substrings = %w[
       /sound/banks/
       /licenses/
@@ -60,69 +60,55 @@ RSpec.describe "parse smoke", :parse_smoke do
       tests/
     ].freeze
 
-    game_label = ENV["PARADOXICAL_PARSE_SMOKE_GAME"] ||
-      File.basename(game_root.chomp("/").sub(/\/game\z/, "")).downcase.gsub(/\s+/, "_")
+    game_module = Paradoxical::Games.find(slug)
 
-    # Encodings to try, in order. Most games ship pure UTF-8 so the list
-    # is just [nil] (no hint, read raw). EU4 (jomini v1, 2013) is mostly
-    # Windows-1252 but a handful of files with non-Latin characters
-    # (Korean province names, the Tengri events, the Mamluk missions)
-    # are actually UTF-8 — so we try UTF-8 first and fall back. The
-    # parse_file cache populates only on success, so the retry path is
-    # cheap.
-    # PARADOXICAL_PARSE_SMOKE_ENCODING overrides to a single forced
-    # encoding (useful for diagnostic runs).
-    encoding_fallbacks_per_game = {
-      "europa_universalis_iv" => ["Windows-1252"],
-    }.freeze
+    # Game.new resolves install/user paths from the module's defaults
+    # (NAME, HAS_GAME_SUBDIR), wires the launcher dispatch, and
+    # auto-registers per-version corrections — which is exactly the
+    # state the smoke wants. PARADOXICAL_PARSE_SMOKE_ROOT overrides
+    # the install root for off-default Steam library locations.
+    game = Paradoxical::Game.new(
+      game_module,
+      root: ENV["PARADOXICAL_PARSE_SMOKE_ROOT"],
+      user_directory: "/tmp/no-paradoxical-mods-loaded",
+    )
+
+    # Encoding fallbacks live on the game module (EU4 has a
+    # Windows-1252 fallback for its older non-UTF-8 files; the rest
+    # ship pure UTF-8).
     encodings = if (override = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"])
       [override]
     else
-      [nil] + (encoding_fallbacks_per_game[game_label] || [])
+      [nil] + game_module::ENCODING_FALLBACKS
     end
 
-    allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{game_label}.yml", __dir__)
+    allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{slug}.yml", __dir__)
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
     allowlist_set = allowlist.to_set
 
-    root_prefix_for_filter = "#{game_root.chomp('/')}/"
-    files = Dir.glob(File.join(game_root, "**/*"))
+    root_prefix_for_filter = "#{game.root.to_s.chomp('/')}/"
+    files = Dir.glob(File.join(game.root, "**/*"))
       .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
       .reject { |f| excluded_basenames.include?(File.basename(f)) }
       .reject { |f| excluded_path_substrings.any? { |s| f.include?(s) } }
       .reject { |f| excluded_root_dirs.any? { |d| f.sub(root_prefix_for_filter, "").start_with?(d) } }
       .sort
 
-    wrapper_class = Class.new do
-      include Paradoxical::FileParser
-      attr_reader :root
-
-      def initialize(root)
-        @root = Pathname.new(root)
-        @file_cache = {}
-        @corrections = {}
-      end
-    end
-
-    wrapper = wrapper_class.new(game_root)
-
-    it "parses every #{parseable_exts.join('/')} file under #{game_root.inspect} (game: #{game_label})" do
+    it "parses every #{parseable_exts.join('/')} file under #{slug} (root: #{game.root})" do
       ok = 0
       failures = []
       allowlisted_pass = []
       allowlisted_fail = 0
 
-      root_prefix = "#{game_root.chomp('/')}/"
-
       files.each do |full_path|
-        relative = full_path.sub(/\A#{Regexp.escape(root_prefix)}/, "")
+        relative = full_path.sub(/\A#{Regexp.escape(root_prefix_for_filter)}/, "")
         on_allowlist = allowlist_set.include?(relative)
 
         parsed = false
         last_error = nil
         encodings.each do |enc|
           begin
-            wrapper.parse_file(relative, encoding: enc)
+            game.parse_file(relative, encoding: enc)
             parsed = true
             break
           rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
@@ -142,7 +128,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       end
 
       total = files.size
-      puts "\nParse smoke (#{game_label}): #{total} files | #{ok} ok | #{failures.size} failed | #{allowlisted_fail} allowlisted-fail | #{allowlisted_pass.size} allowlisted-pass"
+      puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | #{failures.size} failed | #{allowlisted_fail} allowlisted-fail | #{allowlisted_pass.size} allowlisted-pass"
 
       unless allowlisted_pass.empty?
         puts "  Files in allowlist that now parse — consider removing:"
@@ -151,8 +137,8 @@ RSpec.describe "parse smoke", :parse_smoke do
       end
 
       # Optional dump of all failures for analysis. Set
-      # PARADOXICAL_PARSE_SMOKE_DUMP to a file path to write a YAML-shaped
-      # list of every failing path (suitable for piping into an allowlist).
+      # PARADOXICAL_PARSE_SMOKE_DUMP to a file path to write a
+      # YAML-shaped list of every failing path.
       if (dump = ENV["PARADOXICAL_PARSE_SMOKE_DUMP"]) && !failures.empty?
         File.open(dump, "w") do |f|
           failures.each { |fail| f.puts "- #{fail[:path]}" }

@@ -1,11 +1,12 @@
 # Files in this allowlist are real .txt/.gui/.gfx script files in
-# Imperator: Rome whose parsing currently fails — known parser/grammar gaps
-# (or, for EU4, files that fail even after Windows-1252 transcoding).
+# this game whose parsing currently fails — known parser/grammar gaps.
 # spec/integration/parse_smoke_spec.rb treats entries here as expected
 # failures; the smoke fails only on UNexpected failures (regressions).
 # A previously-failing file that now passes is positive signal — remove
 # it from this list.
 #
-# Generated baseline 2026-04 (game build at time of phase 1c).
-
-- gfx/map/post_effects/posteffect_volumes.txt
+# Empty as of phase 5c — every script file the smoke walks now parses
+# cleanly, with malformed-input cases handled via per-game CORRECTIONS
+# rather than by allowlisting. Kept around so future regressions land
+# here.
+[]

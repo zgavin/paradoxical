@@ -1,9 +1,16 @@
 module Paradoxical::Games::Stellaris
-  NAME             = "Stellaris"
-  SLUG             = "stellaris"
-  STEAM_ID         = 281990
-  JOMINI_VERSION   = 1
-  NATIVE_PLATFORMS = %i[windows linux macos].freeze
+  NAME               = "Stellaris"
+  SLUG               = "stellaris"
+  STEAM_ID           = 281990
+  NATIVE_PLATFORMS   = %i[windows linux macos].freeze
+  HAS_GAME_SUBDIR    = false
+  LAUNCHER_FORMAT    = :sqlite
+  ENCODING_FALLBACKS = [].freeze
+
+  # Reads `rawVersion` from the game's `launcher-settings.json`.
+  def self.installed_version game
+    Paradoxical::Games.read_launcher_version(game)
+  end
 
   # Stellaris-specific Builder helpers. `paradoxical!` prepends this
   # module onto Builder when Stellaris is the active game so these
@@ -59,7 +66,15 @@ module Paradoxical::Games::Stellaris
     end
   end
 
-  CORRECTIONS = {}
+  CORRECTIONS = {
+    # `scripted_loc_ruloc.txt` is missing its closing `}` at EOF
+    # (brace depth +1 with no trailing newline). Append `\n}` so
+    # the outer `defined_text { … }` block closes cleanly.
+    "4.3.5" => {
+      "common/scripted_loc/scripted_loc_ruloc.txt" =>
+        ->(data) { data << "\n}\n" },
+    },
+  }
 
   Paradoxical::Games.register(self)
 end

@@ -4,34 +4,61 @@ require 'os'
 
 class Paradoxical::Game
   include Paradoxical::FileParser
-	
-	attr_accessor :name, :executable, :root, :user_directory, :jomini_version, :steam_id
-	attr_reader :mod, :playset
-	
-	def initialize name, executable: nil, root: nil, user_directory: nil, jomini_version: nil, steam_id: nil
-		@name = name
-		@executable = ( executable or name.downcase )
-		@root = Pathname.new( ( root or default_root(name) ) )
-		@file_cache = {}
-		@jomini_version = (jomini_version or 1)
-		@steam_id = steam_id
-		
-		userdir_txt_path = @root.join 'userdir.txt'
-		
-		if user_directory.present? then
-			@user_directory = user_directory
-		elsif File.exist? userdir_txt_path then
-			@user_directory = File.read(userdir_txt_path).chomp
-		end
-		
-		if @user_directory.blank? then
-			@user_directory = default_user_directory name
-		end
-    
-    @user_directory = Pathname.new @user_directory
 
-		extend(jomini_version == 1 ? SqliteConfig : JsonConfig )
+	attr_reader :game_module, :name, :executable, :steam_id, :root, :user_directory
+	attr_reader :mod, :playset
+
+	# Build a Game from a `Paradoxical::Games::*` module — all per-game
+	# constants (NAME, STEAM_ID, NATIVE_PLATFORMS, HAS_GAME_SUBDIR,
+	# LAUNCHER_FORMAT, etc.) flow from there. `root:` and
+	# `user_directory:` override the default install / user paths for
+	# advanced callers.
+	#
+	# The constructor wires up everything a mod script expects:
+	# - install + user dirs (with userdir.txt fallback)
+	# - launcher dispatch (Sqlite / Json / Legacy stub)
+	# - per-version corrections from the game module's CORRECTIONS hash
+	def initialize game_module, root: nil, user_directory: nil
+		@game_module = game_module
+		@name = game_module::NAME
+		@steam_id = game_module::STEAM_ID
+		@executable = Paradoxical::Games.executable_for(game_module)
+		@file_cache = {}
+
+		@root = Pathname.new(root || default_root)
+		@user_directory = Pathname.new(user_directory || resolve_user_directory)
+
+		case game_module::LAUNCHER_FORMAT
+		when :sqlite then extend(SqliteConfig)
+		when :json   then extend(JsonConfig)
+		when :legacy then extend(LegacyConfig)
+		else raise ArgumentError, "unknown LAUNCHER_FORMAT for #{game_module}: #{game_module::LAUNCHER_FORMAT.inspect}"
+		end
+
+		register_corrections
 	end
+
+	private
+
+	def default_root
+		base = File.join(steamapps_dir, "common", @game_module::NAME)
+		@game_module::HAS_GAME_SUBDIR ? File.join(base, "game") : base
+	end
+
+	def resolve_user_directory
+		userdir_txt = @root.join("userdir.txt")
+		return File.read(userdir_txt).chomp if userdir_txt.file?
+		default_user_directory(@game_module::NAME)
+	end
+
+	def register_corrections
+		installed = @game_module.installed_version(self)
+		Paradoxical::Games::Corrections.resolve(@game_module::CORRECTIONS, installed).each do |path, block|
+			add_correction(path, &block)
+		end
+	end
+
+	public
 	
 	def mods			
 		_mods.dup
@@ -116,38 +143,50 @@ class Paradoxical::Game
   end
 end
 
-def default_root name 
-	File.join(
-		steamapps_dir,
-		"common", 
-		name,
-		*(jomini_version == 1 ? [] : ["game"])
-	)
+class Paradoxical::Game
+	private
+
+	def default_user_directory name
+		File.expand_path(
+			File.join(
+				"~",
+				*(OS.linux? ? [".local", "share"] : ["Documents"]),
+				"Paradox Interactive",
+				name,
+			)
+		)
+	end
+
+	def steamapps_dir
+		@steamapps_dir ||= File.expand_path(
+			File.join(
+				*(
+					OS.linux? ? ["~", ".local", "share"] :
+					OS.mac?   ? ["~", "Library", "Application Support"] :
+					            ["C", "Program Files (x86)"]
+				),
+				"Steam",
+				"steamapps",
+			)
+		)
+	end
 end
 
-def default_user_directory name
-	File.expand_path(
-		File.join(
-			"~",
-			*(OS.linux? ? [".local", "share" ] : ["Documents"]),
-			"Paradox Interactive",
-			name
-		)
-	)
-end
+# Stub mod-loading for games whose launcher we haven't ported to —
+# currently CK2, which predates both the SqliteConfig and JsonConfig
+# launchers. Mod-related accessors raise loudly so anyone trying to
+# use mod selection on these games gets a clear signal; parser-only
+# usage (parse_file etc.) keeps working since it doesn't go through
+# `_mods` / `_enabled_mods`.
+module LegacyConfig
+	def _mods
+		raise NotImplementedError,
+			"#{name} mod loading isn't supported (legacy launcher format). Parser-only usage works; PRs welcome."
+	end
 
-def steamapps_dir
-	@steamapps_dir ||= File.expand_path( 
-		File.join(
-			*(		
-				OS.linux? ? ["~", ".local", "share"] :
-				OS.mac? ? ["~", "Library", "Application Support"] :
-				["C", "Program Files (x86)"]
-			),  
-			"Steam", 
-			"steamapps", 
-		)
-	)
+	def _enabled_mods
+		_mods
+	end
 end
 
 module SqliteConfig
@@ -155,13 +194,17 @@ module SqliteConfig
 		@db ||= SQLite3::Database.new user_directory.join("launcher-v2.sqlite")
 	end
 
-  def _mods
-		@mods ||= begin
-			db.execute("SELECT id, gameRegistryId  FROM mods;").map do |(id, gameRegistryId)|
-				Paradoxical::Mod.new self, id, user_directory.join(gameRegistryId)
-			end
+	def _mods
+		# Smoke / parser-only callers can hand Game a user_directory
+		# that doesn't have the launcher SQLite. Return an empty mod
+		# list so `mod_for_path` resolves to nil and parse_file falls
+		# through to the bare FileParser path.
+		return @mods ||= [] unless user_directory.join("launcher-v2.sqlite").file?
+
+		@mods ||= db.execute("SELECT id, gameRegistryId FROM mods;").map do |(id, gameRegistryId)|
+			Paradoxical::Mod.new self, id, user_directory.join(gameRegistryId)
 		end
-  end
+	end
   
   def _enabled_mods
     @enabled_mods ||= begin						 
@@ -182,21 +225,19 @@ end
 
 
 module JsonConfig
-  def _mods
-		@mods ||= begin
-			(
-				Dir[File.join(steamapps_dir, "common", "workshop", "content", steam_id.to_s, "*", ".metadata", "metadata.json")] + 
-				Dir[File.join(user_directory, "mod", "*", ".metadata", "metadata.json")]
-			).map do |metadata_path|
-				path = File.expand_path File.join(metadata_path, "..", "..") 
-				steam_id =  File.basename path
-				metadata = JSON.parse File.read(metadata_path, encoding: "bom|utf-8")
-				name = metadata["name"]
-				id = metadata["id"]
-				Paradoxical::Mod.new self, id, path, name: name, steam_id: steam_id
-			end
+	def _mods
+		@mods ||= (
+			Dir[File.join(steamapps_dir, "common", "workshop", "content", steam_id.to_s, "*", ".metadata", "metadata.json")] +
+			Dir[File.join(user_directory, "mod", "*", ".metadata", "metadata.json")]
+		).map do |metadata_path|
+			path = File.expand_path File.join(metadata_path, "..", "..")
+			steam_id = File.basename path
+			metadata = JSON.parse File.read(metadata_path, encoding: "bom|utf-8")
+			name = metadata["name"]
+			id = metadata["id"]
+			Paradoxical::Mod.new self, id, path, name: name, steam_id: steam_id
 		end
-  end
+	end
   
   def _enabled_mods
     @enabled_mods ||= begin			
