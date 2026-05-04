@@ -112,6 +112,19 @@ RSpec.describe Paradoxical::Parser do
       expect(comment).to be_a(Paradoxical::Elements::Comment)
       expect(comment.text.to_s).to eq("")
     end
+
+    it "accepts C-style `//` comments and preserves the marker" do
+      # PDX accepts both `#` (native) and `//` (a C-style holdover in
+      # some EU5 defines files). The marker is captured per-comment so
+      # round-trip preserves whichever form the source used.
+      input = "# hash\n// slashes\nfoo = 1\n"
+      doc = parse(input)
+      expect(doc[0]).to be_a(Paradoxical::Elements::Comment)
+      expect(doc[0].marker).to eq("#")
+      expect(doc[1]).to be_a(Paradoxical::Elements::Comment)
+      expect(doc[1].marker).to eq("//")
+      expect(doc.to_pdx).to eq(input)
+    end
   end
 
   describe "round-trip preservation" do

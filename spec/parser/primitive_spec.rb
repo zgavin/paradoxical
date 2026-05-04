@@ -247,6 +247,17 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.to_s).to eq("@$SIZE$_t$TIER$_upkeep_energy")
       end
 
+      it "parses an `@@` indirect-variable reference" do
+        # EU5 city_data templates: `@@rgo_contributor = @scale`. `@@`
+        # resolves the @-variable's value as the name of another
+        # @-variable. unquoted_string treats `@@` as a distinct sigil
+        # alongside `@` and `@$`.
+        prop = parse("@@rgo_contributor = @scale\n").first
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.key.to_s).to eq("@@rgo_contributor")
+        expect(prop.value.to_s).to eq("@scale")
+      end
+
       it "rejects double-sigil starts like `$$` and `-$$`" do
         # The `@$` prefix is a deliberate special case for parameter
         # splices; other `$`-sigil combos shouldn't be valid. The

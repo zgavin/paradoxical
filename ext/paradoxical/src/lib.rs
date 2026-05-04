@@ -90,17 +90,19 @@ fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
 fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
     let whitespace = RArray::new();
     let mut key = s(ruby, "");
+    let mut marker = s(ruby, "#");
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::comment_marker => marker = p(ruby, inner),
             Rule::comment_text => key = p(ruby, inner),
             r => unreachable!("unexpected rule: {:?}", r),
         }
     }
 
     ruby.get_inner(&COMMENT_CLASS)
-        .new_instance((key, kwargs!(ruby, "whitespace" => whitespace)))
+        .new_instance((key, kwargs!(ruby, "whitespace" => whitespace, "marker" => marker)))
         .unwrap()
 }
 

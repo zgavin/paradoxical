@@ -16,8 +16,11 @@ parameter_name        = @{ (LETTER | NUMBER | "_")+ }
 code_block            =  { ws ~ "code" ~ &whitespace_character ~ code_block_prefix ~ "[[" ~ expression* ~ ws ~ "]]" }
 code_block_prefix     = @{ (!"[[" ~ ANY)* }
 
-comment               =  { ws ~ "#" ~ comment_text }
-
+// PDX accepts both `#` (its native form) and `//` (a C-style holdover
+// in some EU5 defines files). The marker is captured so round-trip
+// preserves which form the source used.
+comment               =  { ws ~ comment_marker ~ comment_text }
+comment_marker        = @{ "#" | "//" }
 comment_text          = @{ ( !NEWLINE ~ ANY )* }
 
 value                 =  { ws ~ primitive }
@@ -148,11 +151,12 @@ localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") }
 // the various PDX special forms. Three branches in the prefix:
 //
 //   1. A sigil-prefixed identifier: `@varname` (variable ref),
-//      `@$NAME$_text` (Stellaris parameter splice), `_keys`,
-//      `$NAME$` (parameter), `-$NAME$` (negated parameter). The
-//      sigil determines what follows; the next char must still be
-//      a LETTER or NUMBER to anchor the identifier (so `$$` and
-//      `_$` are correctly rejected).
+//      `@$NAME$_text` (Stellaris parameter splice), `@@nested` (EU5
+//      template indirect-variable ref), `_keys`, `$NAME$` (parameter),
+//      `-$NAME$` (negated parameter). The sigil determines what
+//      follows; the next char must still be a LETTER or NUMBER to
+//      anchor the identifier (so `$$` and `-$$` are correctly
+//      rejected).
 //   2. A bare LETTER or NUMBER (the common case: `foo`, `42x`).
 //   3. A run of underscores alone (`_`, `__`, etc.) — used as
 //      placeholder identifiers in some PDX files.
@@ -162,9 +166,9 @@ localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") }
 // tail (digits, dots, dashes, unicode letters, more `$`s, etc.)
 // flows through unchanged.
 //
-// Note `"@$"` precedes `"@"` in the alternation so the longer
-// sigil wins for `@$NAME$_text` shapes.
-unquoted_string       =  { ( ( ( "@$" | "@" | "_"+ | "$" | "-$" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
+// Longer sigils precede shorter ones in the alternation so PEG
+// picks `@@`/`@$` over a bare `@` when the source has them.
+unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 
