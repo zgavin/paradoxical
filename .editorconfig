@@ -1,0 +1,32 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.rb]
+indent_style = space
+indent_size = 2
+
+[{Gemfile,Rakefile,*.gemspec}]
+indent_style = space
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false  # Trailing whitespace in Markdown is significant (line breaks).
+
+[*.rs]
+indent_style = space
+indent_size = 4
+
+[*.pest]
+indent_style = space
+indent_size = 2
