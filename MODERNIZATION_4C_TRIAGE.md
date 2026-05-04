@@ -1,5 +1,11 @@
 # Phase 4c Triage: Remaining Allowlist Entries
 
+> **Historical, kept for reference.** Phase 4d landed and the allowlist
+> dropped from 222 → 5 (all malformed-input Category D files); see
+> [MODERNIZATION.md § 4d](MODERNIZATION.md#4d-continue-fixing-root-causes-landed)
+> for the exit summary. The cluster analysis below was the planning
+> snapshot at the start of 4d, not the current state.
+
 A breakdown of the **222 files** still allowlisted across the four PDX games after phases 4b-i and 4b-ii landed. Each cluster is grouped by root cause so phase 4d can pick fixes by impact-per-effort rather than file-by-file.
 
 Methodology: a throwaway script (`/tmp/triage.rb`) walked each game with the smoke's filtering rules and captured `{path, line, col, expected, source}` per failure. Failures were then clustered by pest's "expected" message and top-level directory. Representative files were sampled to confirm the pattern.

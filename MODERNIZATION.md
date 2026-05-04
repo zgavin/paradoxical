@@ -146,15 +146,35 @@ Top of the suggested 4d sequence:
 
 If items 1–5 land, total drops 222 → ~80. Diminishing returns thereafter. Triage doc has the full sequence and per-cluster reasoning.
 
-#### 4d. Continue fixing root causes
+#### 4d. Continue fixing root causes (landed)
 
-Driven by 4c. Each fix is its own PR with smoke re-run. Continue while the effort/impact ratio stays good — typically "one PR unblocks 5+ files across 2+ games."
+Triage's suggested sequence largely held: filter cleanup, B1–B5 grammar additions (non-ASCII identifiers, `---` placeholder, hsv360, alpha colors, negative-prefixed parameters), then C1–C9 (load_template, BC dates, hex/cylindrical, parameter blocks, code blocks, mid-file BOMs, etc.). Several follow-ons that surfaced during smoke iteration: case-insensitive `gui_kind`, `local_template`, top-level bare identifiers, top-level keyless lists, `keyed_kind_head` (`key = kind { body }`), `parameter_block` body widening, `unquoted_string` `@$` / `@@` / `'` sigils, C-style `//` comments, `f`-suffixed floats, trailing `;`.
+
+Refactors rode along where they paid down complexity: `keyable_list` / `array_list` / `mixed_list` collapsed into one `list` rule with a named `list_head` alternation; the kind-position discriminator generalized from a content check (`kind == "LIST"`) into a parse-time `kind_after_key` flag; `bare_head` added with a numeric-rejection lookahead so `0.5 { … }` keeps its pair semantics; `cylindrical` peeled out of the `color` rule (it was always a camera property, not a color, and the unified `list` is its proper home).
+
+Final allowlist totals at exit (down from 247 at phase-1c baseline / 222 at the 4c triage):
+
+| game | start | exit | parsed clean |
+|---|---:|---:|---:|
+| EU4 | 118 | 0 | 8375 / 8375 |
+| EU5 | 60 | 3 | 3033 / 3036 |
+| Stellaris | 53 | 1 | 2989 / 2990 |
+| Imperator | 16 | 1 | 1976 / 1977 |
+| **total** | **247** | **5** | **16373 / 16378** |
+
+The 5 remaining are all malformed-input files (extra/missing `}` in source) — Category D from the triage:
+
+- EU5 `coalition.gui`, `crusade.gui`, `city_tooltips.gui` — extra `}` near EOF.
+- Stellaris `scripted_loc_ruloc.txt` — missing `}` at EOF.
+- Imperator `posteffect_volumes.txt` — extra `}` (47 opens, 48 closes).
+
+PDX engine tolerates these; the right home for them is `Paradoxical::FileParser#corrections`, expanded with per-game-version default fix-ups that mutate the raw bytes before parsing — keeping the grammar strict rather than silently absorbing typos. That work is Phase-5-ish; not a phase-4 concern.
 
 #### 4e. README rewrite
 
-Independent of grammar work; can land any time. Replace the boilerplate gem template with a real README covering installation, supported games, a small worked example, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`).
+Still pending. Independent of grammar work; can land any time. Replace the boilerplate gem template with a real README covering installation, supported games, a small worked example, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`).
 
-#### Exit condition
+#### Exit condition: met (2026-05-03)
 
 Phase 4 ends when remaining allowlist entries are either categorized as won't-fix or qualify as a new dedicated phase. The smoke baseline at exit becomes the new normal — anything that fails after isn't a phase-4 concern.
 

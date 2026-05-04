@@ -76,9 +76,3 @@ See **MODERNIZATION.md** for the phased plan to address all of the above. Read i
 - **Don't type the DSL.** The `method_missing` surface in `builder.rb` resists static typing; the public API classes are where types pay off.
 - **Touching `script.pest`, `search.pest`, or YAML parsing?** Once the parser smoke from MODERNIZATION.md phase 1 lands, run it (`PARADOXICAL_PARSE_SMOKE=<game-root>`) against at least one real install before declaring the change done. Grammar regressions silently affect the long tail of game files we never look at directly.
 
-## Open bugs worth knowing about
-
-Fixed in MODERNIZATION.md phase 4, but worth flagging if encountered earlier:
-
-- `lib/paradoxical/builder.rb:196` and `:201` both define `check_galaxy_setup_value`; the second silently overrides the first.
-- `lib/paradoxical/builder.rb:221` and `:229` reference a bare `mult` identifier; should be the string `'mult'`.
