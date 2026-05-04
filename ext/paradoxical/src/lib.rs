@@ -173,7 +173,7 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
             Rule::prefixed_kind | Rule::scripted_kind => {
                 kind = p(ruby, inner).as_value()
             }
-            Rule::gui_type_kind | Rule::keyed_kind | Rule::list_kind => {
+            Rule::gui_type_kind | Rule::keyed_kind => {
                 kind = p(ruby, inner).as_value();
                 kind_after_key = true;
             }

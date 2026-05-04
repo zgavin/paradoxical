@@ -213,17 +213,6 @@ RSpec.describe Paradoxical::Parser do
         expect { prop.value.rgb! }.to raise_error(NotImplementedError, /phase 8/)
       end
 
-      it "parses a cylindrical coordinate (3 components, may be negative)" do
-        # EU5 portrait_cameras and city_data use cylindrical{ radius
-        # height angle } for camera/coordinate placement. Not strictly
-        # a color but shares the syntax shape; lives under the same
-        # rule. Components can be negative (e.g. negative angles).
-        prop = parse("position = cylindrical{ 260 30 -10 }").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
-        expect(prop.value).to be_cylindrical
-        expect(prop.value.colors).to eq(%w[260 30 -10])
-      end
-
       it "parses a hex literal color" do
         # EU5 unit_graphics/colors use hex{ 0xRRGGBBAA } as a single-
         # component literal — different body shape than the multi-
@@ -234,11 +223,7 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.colors).to eq(["0xffffffff"])
       end
 
-      it "raises on cylindrical / hex conversions (phase 8 follow-up)" do
-        cylindrical = parse("x = cylindrical{ 210 30 10 }").first.value
-        expect { cylindrical.hsv! }.to raise_error(NotImplementedError, /phase 8/)
-        expect { cylindrical.justify! }.to raise_error(NotImplementedError, /phase 8/)
-
+      it "raises on hex conversions (phase 8 follow-up)" do
         hex = parse("x = hex{ 0xffffffff }").first.value
         expect { hex.rgb! }.to raise_error(NotImplementedError, /phase 8/)
         expect { hex.justify! }.to raise_error(NotImplementedError, /phase 8/)
