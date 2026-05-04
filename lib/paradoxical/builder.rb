@@ -176,61 +176,27 @@ class Paradoxical::Builder
 		end
 	end
 
+	# `set_variable` / `check_variable` / etc. — game-agnostic base.
+	# Each generates a `key { which = NAME value = VALUE }` list.
+	# EU4 needs a small wrinkle (uses `which` instead of `value` as
+	# the second key for non-numeric values); that override lives in
+	# `Paradoxical::Games::EU4::DSL`.
 	%w{ set check change subtract multiply divide modulo round_variable_to_closest export_to_variable }.each do |word|
-		key = word.include?("variable") ? word : "#{word}_variable" 
-	
-		define_method key do |which, operator, value=nil|			
+		key = word.include?("variable") ? word : "#{word}_variable"
+
+		define_method key do |which, operator, value=nil|
 			value, operator = operator, '=' if value.nil?
-			l( key, p('which', which), p((Paradoxical.game.is? "eu4" and not value.is_a? Numeric and word != "export_to_variable") ? 'which' : 'value' , operator, value ) ).single_line!
+			l( key, p('which', which), p('value', operator, value ) ).single_line!
 		end
 	end
-	
+
 	def export_to_variable which, value, who=nil
 		l "export_to_variable" do
 			p 'which', which
-			p 'value', value  
+			p 'value', value
 			p 'who', who unless who.nil?
 		end.single_line!
 	end
-	
-	def get_galaxy_setup_value setting, operator, value=nil
-		value, operator = operator, '=' if value.nil?
-		l( "get_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
-	end
-
-	def check_galaxy_setup_value setting, operator, value=nil
-		value, operator = operator, '=' if value.nil?
-		l( "check_galaxy_setup_value", p('setting', setting), p('value', operator, value ) ).single_line!
-	end
-	
-  def resource_stockpile_compare resource, operator, value=nil, mult: nil
-		if value.nil? then
-			value = operator
-			operator = '='
-		end
-	
-		if mult.nil? then
-			l( 'resource_stockpile_compare', p('resource', resource ), p('value', operator, value ) ).single_line!
-		else
-			l( 'resource_stockpile_compare', p('resource', resource ), p('value', operator, value ), p('mult', mult) )
-		end
-  end
-  
-  def add_resource( resource, value )
-    if value.is_a? String then
-      l( 'add_resource', p( resource, 1 ), p( 'mult', value ) )
-    else
-      l( 'add_resource', p( resource, value ) ).single_line!
-    end
-  end
-  
-  def remove_resource( resource, value )
-    if value.is_a? String then
-      l( 'add_resource', p( resource, -1 ), p( 'mult', value ) )
-    else
-      l( 'add_resource', p( resource, -1 * value ) ).single_line!
-    end
-  end
   
   def country_event *args, **opts, &block
     if args.count == 1 and [::String, String].any? do |klass| args.first.is_a? klass end then
