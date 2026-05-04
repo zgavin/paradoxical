@@ -42,7 +42,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rake-compiler", "~> 1.2"
   spec.add_development_dependency "rspec", "~> 3.13"
-  
+
   spec.add_dependency "activesupport", "~> 8.0"
   spec.add_dependency "rubyzip", "~> 2.3"
   spec.add_dependency "sqlite3", '~> 2.0'

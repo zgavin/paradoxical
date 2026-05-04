@@ -9,17 +9,17 @@ module Paradoxical
   module Elements end
   module Elements::Concerns end
   module Elements::Primitives end
-  module Search end 
-  
-	class << self 	
-		def game= game
-			@game = game
-		end
-	
-		def game
-			@game
-		end
-	end
+  module Search end
+
+  class << self
+    def game= game
+      @game = game
+    end
+
+    def game
+      @game
+    end
+  end
 end
 
 %w{
@@ -28,7 +28,7 @@ end
   file_parser
 
   builder
-	editor
+  editor
   game
   games
   games/corrections
@@ -50,7 +50,7 @@ end
   elements/parameter_block
   elements/property
   elements/value
-	elements/yaml
+  elements/yaml
 
   elements/primitives/color
   elements/primitives/core_extensions
