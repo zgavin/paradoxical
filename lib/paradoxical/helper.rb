@@ -1,45 +1,38 @@
 module Paradoxical::Helper
-	def game! name,  executable: nil, root: nil, user_directory: nil, jomini_version: nil, steam_id: nil
-		Paradoxical.game = Paradoxical::Game.new name, executable: executable, root: root, user_directory: user_directory, jomini_version: jomini_version, steam_id: steam_id
-	end
-	
+	# Game / playset / mod selection happens via the top-level
+	# `paradoxical!` entry point now (defined in lib/paradoxical.rb).
+	# Helper covers the read/write surface that mod scripts use after
+	# setup is done.
+
 	def game
 		Paradoxical.game
 	end
-	
+
 	def mods
 		game.mods
 	end
-	
-	def playset! name
-		game.playset = name
-	end
-	
+
 	def glob s
 		game.glob s
 	end
-	
+
 	def mod
 		game.mod
 	end
-	
+
 	def exists? path
 		game.mod.exists? path
 	end
-	
+
 	def mod_enabled? name
 		mod = mod_named(name)
 		mod.present? and mod.enabled?
 	end
-	
+
 	def mod_named name
 		game.mod_named name
 	end
-	
-	def mod! name
-		game.mod = mods.find do |mod| mod.name == name end
-	end	
-	
+
 	def common_files dir
 		glob "common/#{dir}/*.txt"
 	end
