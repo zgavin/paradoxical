@@ -61,11 +61,7 @@ A mod-script that overrides one entry in EU5's auto-modifiers file:
 ```ruby
 require "paradoxical"
 
-include Paradoxical::Helper
-
-game!    "Europa Universalis V", executable: "eu5.exe", jomini_version: 2, steam_id: 3450310
-playset! "Standard"
-mod!     "My Mod"
+paradoxical! game: "eu5", playset: "Standard", mod: "My Mod"
 
 modifiers = parse_files "in_game/common/auto_modifiers/country.txt"
 
@@ -79,13 +75,20 @@ end
 
 What this does:
 
-1. Connects to the game's install + user directories. The active playset
-   and the named mod become the read/write targets.
-2. Parses `country.txt` from the base game (or whichever earlier mod
-   in the playset overrides it).
-3. Emits a new file under your mod with the modified entry. The `~`
-   prefix matters — PDS reads files in lexical order, so a `~` filename
-   takes effect last.
+1. `paradoxical!` resolves the game slug to the matching
+   `Paradoxical::EU5` module (which carries the steam id, executable,
+   and jomini-version constants), builds a `Paradoxical::Game`,
+   selects the active playset and mod, and pulls the helper methods
+   into scope so the rest of the script can use them directly.
+2. `parse_files` reads `country.txt` from the base game (or whichever
+   earlier mod in the playset overrides it).
+3. `write` emits a new file under your mod with the modified entry.
+   The `~` prefix matters — PDS reads files in lexical order, so a
+   `~` filename takes effect last.
+
+Supported game slugs: `eu4`, `eu5`, `stellaris`, `imperator`, `ck2`,
+`ck3`, `v3`, `hoi4`. Pass `root:` and/or `user_directory:` to
+`paradoxical!` to override the default install / user paths.
 
 ## Parser-only usage
 

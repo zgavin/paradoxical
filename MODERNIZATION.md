@@ -180,12 +180,66 @@ Phase 4 ends when remaining allowlist entries are either categorized as won't-fi
 
 ### 5. Game-namespaced DSLs
 
-Restructuring, not just cleanup. Larger and worth its own PR.
+Restructuring, not just cleanup. Split across three sub-PRs.
 
-- Move game-specific DSL helpers into `Paradoxical::Stellaris::DSL`, `Paradoxical::EU4::DSL`, `Paradoxical::EU5::DSL`, `Paradoxical::ImperatorRome::DSL` modules.
-- The shared `Paradoxical::Builder` extends the appropriate module based on `Paradoxical.game`, mirroring the existing `extend(jomini_version == 1 ? SqliteConfig : JsonConfig)` pattern in `lib/paradoxical/game.rb:33`.
-- `check_galaxy_setup_value`, `resource_stockpile_compare`, `add_resource`/`remove_resource` (Stellaris); the `is? "eu4"` branch in the `set_variable` family (EU4); etc., move into their respective modules.
-- The global builder stops carrying every game's vocabulary.
+#### 5a. Game modules + `paradoxical!` entry point (landed)
+
+Each PDS title gets its own module under `Paradoxical::*` carrying the
+game's constants (`NAME`, `SLUG`, `EXECUTABLE`, `STEAM_ID`,
+`JOMINI_VERSION`), a `DSL` submodule (empty for now; populated in 5b),
+and a `CORRECTIONS` hash (empty for now; populated in 5c).
+`Paradoxical::Games` is a small registry — game modules register
+themselves on require, and `Games.find(slug)` resolves slug strings.
+
+A new top-level `paradoxical!` method is the single entry point for
+mod scripts:
+
+```ruby
+require "paradoxical"
+paradoxical! game: "eu5", playset: "Standard", mod: "My Mod"
+```
+
+It resolves the slug, builds the `Game` from the module's constants,
+selects playset+mod, mixes the per-game DSL into Builder, registers
+per-game default corrections on the active game, and pulls Helper into
+Object so the rest of the script can call `parse_files` / `write` /
+etc. without an explicit include. `root:` and `user_directory:` remain
+available for advanced callers.
+
+`Helper#game!` / `playset!` / `mod!` removed — `paradoxical!` replaces
+them. No backwards-compat shim because PancakeTaco is the only
+consumer (the maintainer is the only user).
+
+8 games registered in chronological release order: CK2, EU4, HOI4,
+Stellaris, Imperator: Rome, CK3, Victoria 3, EU5. CK2/CK3/V3/HOI4 are
+placeholders — constants only — to round out the past ~15 years of
+PDS titles.
+
+#### 5b. DSL helpers per game
+
+- Move game-specific DSL helpers off the shared `Paradoxical::Builder`
+  into the matching `Paradoxical::Games::*::DSL` modules.
+- The Builder's per-game include is wired up by `paradoxical!`,
+  mirroring the existing `extend(jomini_version == 1 ? SqliteConfig : JsonConfig)`
+  pattern in `lib/paradoxical/game.rb:33`.
+- `check_galaxy_setup_value`, `resource_stockpile_compare`,
+  `add_resource`/`remove_resource` (Stellaris); the `is? "eu4"` branch
+  in the `set_variable` family (EU4); etc., move into their respective
+  game modules. Builder stops carrying every game's vocabulary.
+
+#### 5c. Corrections registry
+
+- The `Paradoxical::FileParser#corrections` hook (existing) gets
+  populated automatically by `paradoxical!` from the active game
+  module's `CORRECTIONS` hash.
+- Initial population: the 5 malformed-input files left in the smoke
+  allowlist after phase 4d (3 EU5 gui files with extra `}`,
+  Stellaris `scripted_loc_ruloc.txt` missing `}`, Imperator
+  `posteffect_volumes.txt` extra `}`). Each correction is a small
+  block that mutates the raw bytes before parsing.
+- Allowlist drops to 0 across all four games once 5c lands.
+- Future malformed-input cases live alongside the game module rather
+  than getting allowlisted.
 
 ### 6. RBS types
 
