@@ -6,6 +6,6 @@
 # A previously-failing file that now passes is positive signal — remove
 # it from this list.
 #
-# Generated baseline 2026-04 (game build at time of phase 1c).
-
-- common/cultures/00_cultures.txt
+# Empty as of phase 4d's exit — every EU4 script file the smoke walks
+# now parses cleanly. Kept around so future regressions land here.
+[]

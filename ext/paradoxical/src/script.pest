@@ -153,22 +153,23 @@ localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") }
 //   1. A sigil-prefixed identifier: `@varname` (variable ref),
 //      `@$NAME$_text` (Stellaris parameter splice), `@@nested` (EU5
 //      template indirect-variable ref), `_keys`, `$NAME$` (parameter),
-//      `-$NAME$` (negated parameter). The sigil determines what
-//      follows; the next char must still be a LETTER or NUMBER to
-//      anchor the identifier (so `$$` and `-$$` are correctly
-//      rejected).
+//      `-$NAME$` (negated parameter), `'Ali` (apostrophe-leading
+//      transliteration, common in EU4 Arabic name lists). The sigil
+//      determines what follows; the next char must still be a LETTER
+//      or NUMBER to anchor the identifier (so `$$` and `-$$` are
+//      correctly rejected).
 //   2. A bare LETTER or NUMBER (the common case: `foo`, `42x`).
 //   3. A run of underscores alone (`_`, `__`, etc.) — used as
 //      placeholder identifiers in some PDX files.
 //
 // Once the prefix matches, the trailing `(!break_character ~ ANY)*`
 // consumes everything up to a break, so anything non-break in the
-// tail (digits, dots, dashes, unicode letters, more `$`s, etc.)
-// flows through unchanged.
+// tail (digits, dots, dashes, unicode letters, more `$`s, mid-name
+// `'`s like `Sa'd`, etc.) flows through unchanged.
 //
 // Longer sigils precede shorter ones in the alternation so PEG
 // picks `@@`/`@$` over a bare `@` when the source has them.
-unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
+unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" | "'" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 

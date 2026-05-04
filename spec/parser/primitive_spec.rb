@@ -258,6 +258,14 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.to_s).to eq("@scale")
       end
 
+      it "parses apostrophe-leading identifiers (Arabic transliterations)" do
+        # EU4 cultures: `male_names = { Muhammad 'Alî 'Abd Sa'd ... }`.
+        # `'` as a leading sigil anchors names like `'Alî`; mid-name
+        # `'` (e.g. `Sa'd`) is already accepted by the tail.
+        list = parse("male_names = { Muhammad 'Alî Sa'd 'Abd }\n").first
+        expect(list.values.map { |v| v.value.to_s }).to eq(["Muhammad", "'Alî", "Sa'd", "'Abd"])
+      end
+
       it "rejects double-sigil starts like `$$` and `-$$`" do
         # The `@$` prefix is a deliberate special case for parameter
         # splices; other `$`-sigil combos shouldn't be valid. The
