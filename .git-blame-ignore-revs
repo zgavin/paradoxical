@@ -1,0 +1,10 @@
+# Revisions listed here are skipped by `git blame` (and by GitHub's
+# blame view) so bulk whitespace / formatting commits don't bury the
+# real authorship of each line.
+#
+# Configure locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Bulk reformat: tabs → 2 spaces, trim trailing whitespace.
+# Sets the project's whitespace contract pinned in .editorconfig.
+b3074b5
