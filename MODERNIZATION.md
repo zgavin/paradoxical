@@ -227,19 +227,24 @@ PDS titles.
   in the `set_variable` family (EU4); etc., move into their respective
   game modules. Builder stops carrying every game's vocabulary.
 
-#### 5c. Corrections registry
+#### 5c. Corrections registry + Game.new lockdown (landed)
 
-- The `Paradoxical::FileParser#corrections` hook (existing) gets
-  populated automatically by `paradoxical!` from the active game
-  module's `CORRECTIONS` hash.
-- Initial population: the 5 malformed-input files left in the smoke
-  allowlist after phase 4d (3 EU5 gui files with extra `}`,
-  Stellaris `scripted_loc_ruloc.txt` missing `}`, Imperator
-  `posteffect_volumes.txt` extra `}`). Each correction is a small
-  block that mutates the raw bytes before parsing.
-- Allowlist drops to 0 across all four games once 5c lands.
-- Future malformed-input cases live alongside the game module rather
-  than getting allowlisted.
+**Per-game versioned corrections.** Each game module's `CORRECTIONS` hash is keyed by version: `{ "X.Y.Z" => { "path" => ->(data) { … } } }`. `Paradoxical::Games::Corrections.resolve` walks versions in ascending order, applies those `<=` the installed version, and supports per-path overrides — a `nil` at a later version unregisters a correction once Paradox patches the file.
+
+**Version detection.** Each game module exposes `installed_version(game)`:
+- EU4 / Stellaris / HOI4 / Imperator / CK3 / V3 share `Paradoxical::Games.read_launcher_version` (parses `rawVersion` from `launcher-settings.json`; helper searches `game.root` and `game.root.parent` for both `launcher-settings.json` and `launcher/launcher-settings.json` to handle install-layout variations).
+- EU5 uses `read_branch_version("caesar_branch.txt", /release\/(\S+)/)` since it ships no `launcher-settings.json`.
+- CK2 is hardcoded at `3.3.5.1` — game has been EOL since the September 2021 patch.
+
+**`Paradoxical::Game.new` lockdown.** Constructor signature is now `Game.new(game_module, root: nil, user_directory: nil)`. All the per-game inputs (NAME, STEAM_ID, executable, install layout, launcher format) flow from the module's constants. `JOMINI_VERSION` retired — replaced by orthogonal `HAS_GAME_SUBDIR` (controls `default_root`) and `LAUNCHER_FORMAT` (`:sqlite` / `:json` / `:legacy`, controls launcher dispatch). EU5 is the only `:json` user; CK2 gets `:legacy`, a stub that raises on mod-loading methods (parser-only usage still works); everything else is `:sqlite`. Per-version corrections register automatically inside the constructor.
+
+**`paradoxical!` simplifies** down to slug → module lookup → `Game.new` → playset/mod selection → DSL prepend → Helper extend.
+
+**Initial CORRECTIONS population** — the 5 malformed-input files left after phase 4d: 3 EU5 gui files (extra `}`), Stellaris `scripted_loc_ruloc.txt` (missing `}`), Imperator `posteffect_volumes.txt` (extra `}`).
+
+**Smoke spec refactor**: `PARADOXICAL_PARSE_SMOKE` now takes a slug (e.g. `eu5`); install root resolves from the game module's defaults. `PARADOXICAL_PARSE_SMOKE_ROOT` overrides the install path for off-default Steam library locations. Encoding fallbacks moved to per-game `ENCODING_FALLBACKS` constants. Allowlist files renamed to slug-based names (`parse_smoke_allow_eu5.yml` etc.).
+
+**All four game smokes are now empty-allowlist clean: 16,380 / 16,380 files parse.** Future malformed-input cases live in the matching game module's `CORRECTIONS` rather than getting allowlisted.
 
 ### 6. RBS types
 

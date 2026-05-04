@@ -31,6 +31,7 @@ end
 	editor
   game
   games
+  games/corrections
   helper
   mod
   parser
@@ -84,13 +85,12 @@ end
 
 require 'paradoxical/paradoxical'
 
-# Single entry point for mod scripts. Resolves the game slug to the
-# corresponding `Paradoxical::Games::<Game>` module (constants like
-# STEAM_ID, JOMINI_VERSION, NATIVE_PLATFORMS come from there), builds
-# the Game, selects the playset and mod, mixes the per-game DSL into
-# Builder, registers any per-game default corrections on the active
-# game, and extends the top-level `main` object with Helper so the
-# rest of the mod script can use `parse_files`, `write`, etc. without
+# Single entry point for mod scripts. Resolves the game slug to its
+# `Paradoxical::Games::*` module, builds the Game (which pulls in the
+# module's per-game constants and auto-registers per-version
+# corrections), selects the playset and mod, prepends the per-game
+# DSL onto Builder, and extends the top-level `main` object with
+# Helper so the script can use `parse_files`, `write`, etc. without
 # an explicit include.
 #
 #   require "paradoxical"
@@ -105,26 +105,14 @@ require 'paradoxical/paradoxical'
 def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
   game_module = Paradoxical::Games.find(game)
 
-  Paradoxical.game = Paradoxical::Game.new(
-    game_module::NAME,
-    executable: Paradoxical::Games.executable_for(game_module),
-    jomini_version: game_module::JOMINI_VERSION,
-    steam_id: game_module::STEAM_ID,
-    root: root,
-    user_directory: user_directory,
-  )
-
+  Paradoxical.game = Paradoxical::Game.new(game_module, root: root, user_directory: user_directory)
   Paradoxical.game.playset = playset if playset
   Paradoxical.game.mod = Paradoxical.game.mods.find { |m| m.name == mod } if mod
 
-  # `prepend` (vs `include`) so methods on the DSL win over Builder's
-  # base ones — this is how EU4's variable-method override (different
+  # `prepend` (vs `include`) so DSL methods win over Builder's base
+  # ones — this is how EU4's variable-method override (different
   # second-key semantics for non-numeric values) takes effect.
   Paradoxical::Builder.prepend(game_module::DSL)
-
-  game_module::CORRECTIONS.each do |path, blocks|
-    blocks.each { |block| Paradoxical.game.add_correction(path, &block) }
-  end
 
   TOPLEVEL_BINDING.eval('self').extend(Paradoxical::Helper)
 

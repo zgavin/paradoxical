@@ -28,10 +28,10 @@ RSpec.describe Paradoxical::Games do
 
   describe "per-game module shape" do
     # Pin the shape so future games copy a consistent template and
-    # `paradoxical!` can rely on the constants being there.
+    # `Game.new`/`paradoxical!` can rely on the constants being there.
     Paradoxical::Games.all.each do |game_module|
       describe game_module.name do
-        %i[NAME SLUG STEAM_ID JOMINI_VERSION NATIVE_PLATFORMS].each do |const|
+        %i[NAME SLUG STEAM_ID NATIVE_PLATFORMS HAS_GAME_SUBDIR LAUNCHER_FORMAT ENCODING_FALLBACKS].each do |const|
           it "defines #{const}" do
             expect(game_module.const_defined?(const)).to be(true)
           end
@@ -41,6 +41,10 @@ RSpec.describe Paradoxical::Games do
           expect(game_module::NATIVE_PLATFORMS - %i[windows linux macos]).to be_empty
         end
 
+        it "uses a known LAUNCHER_FORMAT (sqlite / json / legacy)" do
+          expect(%i[sqlite json legacy]).to include(game_module::LAUNCHER_FORMAT)
+        end
+
         it "defines a DSL submodule" do
           expect(game_module::DSL).to be_a(Module)
         end
@@ -48,6 +52,69 @@ RSpec.describe Paradoxical::Games do
         it "defines a CORRECTIONS hash" do
           expect(game_module::CORRECTIONS).to be_a(Hash)
         end
+
+        it "responds to installed_version(game)" do
+          expect(game_module).to respond_to(:installed_version)
+        end
+      end
+    end
+  end
+
+  describe "version detection helpers" do
+    # Use a fake game-like object exposing just `root` (a Pathname),
+    # which is all the helpers consult.
+    let(:tmpdir) { Dir.mktmpdir }
+    after        { FileUtils.remove_entry(tmpdir) if Dir.exist?(tmpdir) }
+
+    let(:fake_game) { Struct.new(:root).new(Pathname.new(tmpdir)) }
+
+    describe ".read_branch_version" do
+      it "parses a branch file at game.root via the supplied regex" do
+        File.write(File.join(tmpdir, "eu4_branch.txt"), "release_1.37.5\n")
+        v = described_class.read_branch_version(fake_game, "eu4_branch.txt", /release_(\S+)/)
+        expect(v).to eq(Gem::Version.new("1.37.5"))
+      end
+
+      it "falls back to game.root.parent when the file isn't at root" do
+        Dir.mkdir(File.join(tmpdir, "game"))
+        File.write(File.join(tmpdir, "caesar_branch.txt"), "release/1.1.0\n")
+        inner = Struct.new(:root).new(Pathname.new(File.join(tmpdir, "game")))
+        v = described_class.read_branch_version(inner, "caesar_branch.txt", /release\/(\S+)/)
+        expect(v).to eq(Gem::Version.new("1.1.0"))
+      end
+
+      it "returns nil when neither root nor parent has the file" do
+        v = described_class.read_branch_version(fake_game, "nonexistent.txt", /release_(\S+)/)
+        expect(v).to be_nil
+      end
+
+      it "returns nil when the regex doesn't match" do
+        File.write(File.join(tmpdir, "eu4_branch.txt"), "garbage\n")
+        v = described_class.read_branch_version(fake_game, "eu4_branch.txt", /release_(\S+)/)
+        expect(v).to be_nil
+      end
+    end
+
+    describe ".read_launcher_version" do
+      it "parses rawVersion (Stellaris-style `vX.Y.Z`)" do
+        File.write(File.join(tmpdir, "launcher-settings.json"), '{"rawVersion": "v4.3.5"}')
+        v = described_class.read_launcher_version(fake_game)
+        expect(v).to eq(Gem::Version.new("4.3.5"))
+      end
+
+      it "parses rawVersion (HOI4-style 4-component without leading v)" do
+        File.write(File.join(tmpdir, "launcher-settings.json"), '{"rawVersion": "1.18.1.0"}')
+        v = described_class.read_launcher_version(fake_game)
+        expect(v).to eq(Gem::Version.new("1.18.1.0"))
+      end
+
+      it "returns nil when launcher-settings.json is missing" do
+        expect(described_class.read_launcher_version(fake_game)).to be_nil
+      end
+
+      it "returns nil when rawVersion is absent" do
+        File.write(File.join(tmpdir, "launcher-settings.json"), '{"gameId": "stellaris"}')
+        expect(described_class.read_launcher_version(fake_game)).to be_nil
       end
     end
   end
