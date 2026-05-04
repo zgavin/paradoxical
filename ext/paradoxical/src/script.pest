@@ -57,7 +57,7 @@ list_kind             = @{ "LIST" ~ &whitespace_character }
 // emits the same flat token stream regardless of which head matched
 // (the AST is built from the inner ws/primitive/operator/kind tokens,
 // not from the head rule itself).
-keyable_list          = _{ ws ~ ( prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_head | bare_head ) ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
+keyable_list          = _{ ws ~ ( prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_kind_head | keyed_head | bare_head ) ~ ws ~ "{" ~ ( expression | value )* ~ ws ~ "}" }
 
 // `types foo` / `template foo` / `load_template foo` / `local_template foo`
 // — keyword-prefixed, no operator.
@@ -68,6 +68,23 @@ gui_type_head         = _{ gui_type ~ ws ~ primitive ~ ws ~ operator ~ ws ~ gui_
 
 // `scripted_trigger foo =` / `scripted_effect foo =`.
 scripted_kind_head    = _{ scripted_kind ~ ws ~ primitive ~ ws ~ operator }
+
+// `key = kind { body }` — typed list assignment without the `type`
+// keyword prefix. Used by EU5 city_data
+// (`load_template = player_buildings { ... }`) and PDX gui shorthand
+// for negation (`exact = not { setting_value = ... }`). Distinct from
+// gui_type (which carries the literal `type` keyword) and from the
+// LIST shape (where the kind is the literal `LIST`); to_pdx
+// discriminates via the kind-after-key flag set at parse time.
+//
+// Tried before `keyed_head` so the `kind { body }` tail wins over the
+// shorter operator-only prefix when a `{` actually follows.
+//
+// The negative lookahead excludes color keywords so `foo = rgb { ... }`
+// stays a property with a color-typed RHS (handled by the `color`
+// primitive) rather than getting eaten as kind=`rgb`.
+keyed_kind_head       = _{ primitive ~ ws ~ operator ~ ws ~ keyed_kind }
+keyed_kind            = @{ !( "hsv360" | "hsv" | "rgb" | "cylindrical" | "hex" ) ~ string }
 
 // Regular keyed list `foo =`.
 keyed_head            = _{ primitive ~ ws ~ operator }

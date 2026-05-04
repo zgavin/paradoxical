@@ -248,6 +248,37 @@ RSpec.describe Paradoxical::Parser do
       end
     end
 
+    describe "keyed_kind variant (`key = kind { body }`)" do
+      it "parses the typed-list-without-`type` shape" do
+        # EU5 city_data: `load_template = player_buildings { ... }`.
+        # Distinct from gui_type form (no `type` keyword) and from a
+        # property with a list RHS (the body is the list, not the value).
+        list = parse("load_template = player_buildings {\n\tx = 1\n}\n").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.key.to_s).to eq("load_template")
+        expect(list.operator).to eq("=")
+        expect(list.kind).to eq("player_buildings")
+        expect(list.gui_type?).to be(false)
+        expect(list.size).to eq(1)
+      end
+
+      it "round-trips byte-identically" do
+        # Kind sits after the operator, so to_pdx must put it there
+        # too. The kind_after_key flag set during parse drives this.
+        input = "exact = not {\n\tsetting_value = { value = \"1920x1080\" }\n}\n"
+        expect(parse(input).to_pdx).to eq(input)
+      end
+
+      it "doesn't shadow `key = color { ... }` shapes" do
+        # Color keywords (rgb/hsv/hsv360/cylindrical/hex) on the RHS
+        # of `=` should still parse as a color-typed property value,
+        # not as a keyed_kind list with kind=`rgb` etc.
+        prop = parse("foo = rgb { 128 64 32 }\n").first
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+      end
+    end
+
     describe "values inside gui_kind list bodies" do
       it "accepts bare values like `text \"\"` inside a keyable_list body" do
         # Imperator gui/diplomatic_view.gui has
