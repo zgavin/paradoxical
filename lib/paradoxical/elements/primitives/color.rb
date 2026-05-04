@@ -42,10 +42,6 @@ class Paradoxical::Elements::Primitives::Color
 		type == "hsv360"
 	end
 
-	def cylindrical?
-		type == "cylindrical"
-	end
-
 	def hex?
 		type == "hex"
 	end
@@ -57,8 +53,8 @@ class Paradoxical::Elements::Primitives::Color
 			@whitespace = []
 			@colors = @colors.map do |v| '%.3f' % v.to_f end
 		else
-			# hsv360 / cylindrical / hex / 4-component (alpha) — each
-			# would need its own justification rule. Phase 8 follow-up.
+			# hsv360 / hex / 4-component (alpha) — each would need its
+			# own justification rule. Phase 8 follow-up.
 			raise NotImplementedError, "justify! for #{type} (#{colors.length}-component) is a phase 8 follow-up"
 		end
 
@@ -182,16 +178,16 @@ class Paradoxical::Elements::Primitives::Color
 		return unless @type.nil? or @colors.nil? or @whitespace.nil?
 
 		# Two body shapes:
-		#   - 3-or-4-component:  rgb | hsv | hsv360 | cylindrical
+		#   - 3-or-4-component:  rgb | hsv | hsv360
 		#   - 1-component hex literal:  hex { 0x...... }
-		# Components allow optional leading `-` (cylindrical uses it for
-		# angles/heights; rgb/hsv don't but the regex is shared).
+		# Components allow optional leading `-` for symmetry; rgb/hsv
+		# typically don't use it but the grammar permits it.
 		if (m = @value.match(/^(?<type>hex)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>0x[0-9a-fA-F]+)(?<ws_close>\s*)\}$/))
 			@type = m[:type]
 			@colors = [m[:color_0]]
 			@whitespace = [m[:ws_open], m[:ws_1], m[:ws_close]]
 		else
-			m = @value.match(/^(?<type>hsv360|rgb|hsv|cylindrical)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>-?\d+\.?\d*)(?<ws_2>\s+)(?<color_1>-?\d+\.?\d*)(?<ws_3>\s+)(?<color_2>-?\d+\.?\d*)(?:(?<ws_pre_alpha>\s+)(?<color_3>-?\d+\.?\d*))?(?<ws_close>\s*)\}$/)
+			m = @value.match(/^(?<type>hsv360|rgb|hsv)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>-?\d+\.?\d*)(?<ws_2>\s+)(?<color_1>-?\d+\.?\d*)(?<ws_3>\s+)(?<color_2>-?\d+\.?\d*)(?:(?<ws_pre_alpha>\s+)(?<color_3>-?\d+\.?\d*))?(?<ws_close>\s*)\}$/)
 			@type = m[:type]
 			@colors = [m[:color_0], m[:color_1], m[:color_2], m[:color_3]].compact
 			@whitespace = [m[:ws_open], m[:ws_1], m[:ws_2], m[:ws_3]]

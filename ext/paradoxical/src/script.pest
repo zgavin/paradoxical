@@ -82,9 +82,12 @@ scripted_kind_head    = _{ scripted_kind ~ ws ~ primitive ~ ws ~ operator }
 //
 // The negative lookahead excludes color keywords so `foo = rgb { ... }`
 // stays a property with a color-typed RHS (handled by the `color`
-// primitive) rather than getting eaten as kind=`rgb`.
+// primitive) rather than getting eaten as kind=`rgb`. `cylindrical`
+// is intentionally NOT excluded — it's a camera/coordinate construct
+// that shares the brace+components syntax but isn't a color, so the
+// unified `list` rule is the right home (kind=`cylindrical`).
 keyed_kind_head       = _{ primitive ~ ws ~ operator ~ ws ~ keyed_kind }
-keyed_kind            = @{ !( "hsv360" | "hsv" | "rgb" | "cylindrical" | "hex" ) ~ string }
+keyed_kind            = @{ !( "hsv360" | "hsv" | "rgb" | "hex" ) ~ string }
 
 // Regular keyed list `foo =`.
 keyed_head            = _{ primitive ~ ws ~ operator }
@@ -110,7 +113,7 @@ primitive             =  { ( color | percentage | date | float | integer | boole
 
 operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
-color                 = @{ ( ( "hsv360" | "hsv" | "rgb" | "cylindrical" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3,4} ~ ws ~ "}" ) | ( "hex" ~ ws ~ "{" ~ ws ~ "0x" ~ ASCII_HEX_DIGIT+ ~ ws ~ "}" ) }
+color                 = @{ ( ( "hsv360" | "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3,4} ~ ws ~ "}" ) | ( "hex" ~ ws ~ "{" ~ ws ~ "0x" ~ ASCII_HEX_DIGIT+ ~ ws ~ "}" ) }
 
 date                  = @{ "-"? ~ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASCII_DIGIT{1,2}  }
 
