@@ -35,7 +35,7 @@ RSpec wired up, `.tool-versions` pinning Ruby 3.2.0, GitHub Actions CI, a trivia
 
 #### 1b. PancakeTaco round-trip harness — local-only baseline before phase 2
 
-- Walks every parseable file under `PARADOXICAL_EXAMPLE_MOD` (`~/.pdx/Europa Universalis V/mod/PancakeTaco's Mod`), skipping `scripts/ruby/`; for each: parse → re-serialize → assert byte-equal with the original. `.txt` / `.gui` / `.gfx` go through `Paradoxical::Parser`; `.yml` through `Paradoxical::Elements::YAML`.
+- Drives `paradoxical!` against an installed game's playset+mod (env vars: `PARADOXICAL_EXAMPLE_MOD`=mod display name, `PARADOXICAL_EXAMPLE_PLAYSET` defaults to `Standard`, `PARADOXICAL_EXAMPLE_GAME` defaults to `eu5`), then walks every parseable file under the resolved mod path (skipping `scripts/ruby/`); for each: parse → re-serialize → assert byte-equal. `.txt` / `.gui` / `.gfx` go through `Paradoxical::Parser`; `.yml` through `Paradoxical::Elements::YAML`. Going through `paradoxical!` rather than a hand-rolled FileParser wrapper means regressions in Game / Mod / launcher construction surface here too.
 - Strictest assertion that doesn't require AST-shape correctness — directly exercises the parse/serialize boundary that phase 2 is about to swap.
 - `:integration` tagged, env-var-gated, skipped in default `rspec`. CI never sees it. Run locally before the magnus port to baseline, then again after to confirm parity.
 - Allowlist hook (`spec/fixtures/round_trip_allow.yml`) for files that genuinely don't round-trip today; populate lazily.
