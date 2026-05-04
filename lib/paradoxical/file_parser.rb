@@ -1,76 +1,76 @@
-module Paradoxical::FileParser 
+module Paradoxical::FileParser
   def corrections
     @corrections ||= {}
   end
-   
+
   def add_correction path, &block
     corrections[ path ] ||= []
-    
+
     corrections[ path ] << block
   end
-  
+
   def exists? relative_path
     File.exist? full_path_for relative_path
   end
-  
-	def glob relative_path
-		Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root.to_s + '/').reverse ).reverse end
-	end
-  
-  def read relative_path
-		
-  	File.read( full_path_for relative_path )
+
+  def glob relative_path
+    Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root.to_s + '/').reverse ).reverse end
   end
-  
+
+  def read relative_path
+
+    File.read( full_path_for relative_path )
+  end
+
   def full_path_for path
     path.to_s.start_with?('/') ? path : root.join( path )
   end
-  
+
   def parse_file path, mutex: nil, ignore_cache: false, encoding: nil
     document = nil
-    
+
     mutex ||= Object.new.tap do |o| o.define_singleton_method :synchronize do |&block| block.call end end
-    
+
     mutex.synchronize do
-      document = @file_cache[path] 
+      document = @file_cache[path]
     end
-    
-    return document unless ignore_cache or document.nil? 
-    
-		data = read path 
-		data.force_encoding( encoding ).encode! Encoding::UTF_8 if encoding			
-		
-		bom = data.start_with? "\xEF\xBB\xBF"
-		# Strip BOMs anywhere in the file. Imperator ships at least two
-		# files (concatenation artifacts) with a second BOM mid-content;
-		# only the leading one carries author intent, the rest are garbage.
-		data.gsub!("\xEF\xBB\xBF", "")
-    
+
+    return document unless ignore_cache or document.nil?
+
+    data = read path
+    data.force_encoding( encoding ).encode! Encoding::UTF_8 if encoding
+
+    bom = data.start_with? "\xEF\xBB\xBF"
+    # Strip BOMs anywhere in the file. Imperator ships at least two
+    # files (concatenation artifacts) with a second BOM mid-content;
+    # only the leading one carries author intent, the rest are garbage.
+    data.gsub!("\xEF\xBB\xBF", "")
+
     ( corrections[ path ] or [] ).each do |block|
       block.call data
     end
-    
+
     document = parse data, path: path, bom: bom, encoding: encoding
-    
-		mutex.synchronize do
-			@file_cache[path] = document
-		end
-    
+
+    mutex.synchronize do
+      @file_cache[path] = document
+    end
+
     return document
   end
-  
-	def parse data, path: nil, bom: false, encoding: nil
-		document = Paradoxical::Parser.parse data
+
+  def parse data, path: nil, bom: false, encoding: nil
+    document = Paradoxical::Parser.parse data
 
     document.instance_variable_set( :@owner, self )
     document.instance_variable_set( :@path, path )
-		document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
-		document.instance_variable_set( :@bom, bom )
-		document.instance_variable_set( :@encoding, encoding )
+    document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
+    document.instance_variable_set( :@bom, bom )
+    document.instance_variable_set( :@encoding, encoding )
 
     document
   rescue Paradoxical::Parser::ParseError => error
     prefix = path ? "#{path}#{ self.is_a?(Paradoxical::Mod) ? " (#{name})" : '' }: " : ""
     raise Paradoxical::Parser::ParseError, "#{prefix}#{error.message}"
-	end
+  end
 end

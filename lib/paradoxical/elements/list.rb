@@ -1,21 +1,21 @@
 class Paradoxical::Elements::List < Paradoxical::Elements::Node
   include Paradoxical::Elements::Concerns::Arrayable
   include Paradoxical::Elements::Concerns::Searchable
-  
+
   attr_accessor :key, :operator, :kind
 
   def initialize key, children, operator: "=", whitespace: nil, gui_type: false, kind: nil, kind_after_key: false
     @key = key
     @children = children
-		@operator = operator
+    @operator = operator
     @whitespace = whitespace
     @kind = kind
     @gui_type = gui_type
     @kind_after_key = kind_after_key
-    
-    @children.each do |object| 
+
+    @children.each do |object|
       raise ArgumentError.new "Must be Paradoxical::Elements::Node: #{object.inspect}" unless object.is_a? Paradoxical::Elements::Node
-      object.send( :parent=, self ) 
+      object.send( :parent=, self )
     end
   end
 
@@ -42,31 +42,31 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   def dup children: nil, key: nil
     self.class.new( (key or @key).dup, ( children or @children ).map( &:dup ), whitespace: @whitespace.dup )
   end
-  
+
   def eql? other
     other.is_a?( Paradoxical::Elements::List ) and @key.eql?( other.key ) and @children.eql?( other.send( :children ) )
   end
-  
+
   def == other
     other.is_a?( Paradoxical::Elements::List ) and @key == other.key and @children == other.send( :children )
   end
-  
+
   def hash
     [@key, *@children].hash
   end
-  
-	def line_break
-		document&.line_break or "\n"
-	end
-	
+
+  def line_break
+    document&.line_break or "\n"
+  end
+
   def to_pdx indent: 0, buffer: ""
     iter = (self.whitespace or []).each
     next_ws = -> (default=" ") { (iter.next or default) rescue default }
-		
-		current_indent = line_break + ("\t" * indent)
-    
+
+    current_indent = line_break + ("\t" * indent)
+
     buffer << next_ws.call(current_indent)
-    
+
     unless key == false then
       buffer << ( "type" + next_ws.call ) if gui_type?
       buffer << ( kind + next_ws.call ) if kind && !@kind_after_key
@@ -75,7 +75,7 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
       buffer << ( operator + next_ws.call ) unless operator.nil?
       buffer << ( kind + next_ws.call ) if kind && @kind_after_key
     end
-    
+
     buffer << '{'
 
     render_children indent: indent, current_indent: current_indent, buffer: buffer
@@ -99,7 +99,7 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   end
 
   public
-  
+
   def inspect
     parts = []
     parts << "gui_type" if gui_type?
@@ -111,48 +111,48 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
 
     "#<Paradoxical::Elements::List #{parts.join(" ")}>"
   end
-	
-	def single_line! indent: nil
-		self.whitespace = [ indent, ' ', ' ', ' ' ]
-		
-		@children.each do |object|
-			if object.is_a? Paradoxical::Elements::List then
-				object.single_line! indent: ' '
-			elsif object.is_a? Paradoxical::Elements::Property then
-				object.whitespace = [' '] * 3
-			elsif object.is_a? Paradoxical::Elements::Value then
-				object.whitespace = [' ']
-			elsif object.respond_to? :whitespace= then
-				object.whitespace = [' ']
-			end
-		end
-				
-		self
-	end
-  
-  def singleton? 
+
+  def single_line! indent: nil
+    self.whitespace = [ indent, ' ', ' ', ' ' ]
+
+    @children.each do |object|
+      if object.is_a? Paradoxical::Elements::List then
+        object.single_line! indent: ' '
+      elsif object.is_a? Paradoxical::Elements::Property then
+        object.whitespace = [' '] * 3
+      elsif object.is_a? Paradoxical::Elements::Value then
+        object.whitespace = [' ']
+      elsif object.respond_to? :whitespace= then
+        object.whitespace = [' ']
+      end
+    end
+
+    self
+  end
+
+  def singleton?
     return false if @children.count != 1
-    
+
     child = @children.first
-    
+
     return false unless child.respond_to? :key
-    
+
     return true if child.is_a? Paradoxical::Elements::Property
     return true if %w{add_resource resource_stockpile_compare}.include? child.key
-    return true if /_variable$/ =~ child.key    
-    
+    return true if /_variable$/ =~ child.key
+
     false
   end
-  
+
   def reset_whitespace!
     self.whitespace = nil
-    
-		@children.each do |object|
+
+    @children.each do |object|
       if object.respond_to? :reset_whitespace! then
-				object.reset_whitespace!
-			end
-		end
-				
-		self
+        object.reset_whitespace!
+      end
+    end
+
+    self
   end
 end

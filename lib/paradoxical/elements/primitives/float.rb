@@ -1,10 +1,10 @@
-class Paradoxical::Elements::Primitives::Float 
+class Paradoxical::Elements::Primitives::Float
   include Paradoxical::Elements::Concerns::Impersonator
-  
+
   impersonate ::Float
-  
+
   impersonate_infix_methods %i{ !~ % * ** + - / =~ }
-  
+
   def coerce something
     case something
     when Float

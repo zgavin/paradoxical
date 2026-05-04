@@ -3,24 +3,24 @@ class Paradoxical::Elements::Primitives::Date
   # Stellaris has 360 day year with 12 months of 30 days each.
   # The other games use a modified julian calendar with no leap years
   # There's been no need to actually manipulate dates so all we need is the raw value for now
-  
+
   def initialize value
-		@value = value
+    @value = value
   end
 
   def dup
-		self.class.new @value.dup
+    self.class.new @value.dup
   end
 
-  def to_pdx				
-		@value
+  def to_pdx
+    @value
   end
-	
-	def to_s
-		@value.to_s
-	end
-	
-	def to_date
-		Date.new *@value.split(".").map(&:to_i)
-	end
+
+  def to_s
+    @value.to_s
+  end
+
+  def to_date
+    Date.new *@value.split(".").map(&:to_i)
+  end
 end

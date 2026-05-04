@@ -1,4 +1,4 @@
-class Paradoxical::Search::Rule 
+class Paradoxical::Search::Rule
   attr_accessor :key, :property_matchers, :function_matchers, :combinator
 
   # rutie seemingly has no way to pass keyword arguments to ruby 3, so we expose an optional opts argument and a splat then merge them
@@ -17,12 +17,12 @@ class Paradoxical::Search::Rule
     return false unless key == '*' or ( node.respond_to?(:key) and key == node.key.to_s.downcase )
 
     return false unless property_matchers.all? do |p| p.matches? node end
-    
+
     return false unless function_matchers.all? do |p| p.matches? node end
 
     true
   end
-  
+
   def objects_for node
     case @combinator
     when '>'

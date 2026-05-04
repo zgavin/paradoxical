@@ -11,18 +11,18 @@ class Paradoxical::Search::PropertyMatcher
 
   def matches? node
     return false unless node.is_a? Paradoxical::Elements::Document or node.is_a? Paradoxical::Elements::List
-    
+
     properties = node.send(:children).select do |node| node.is_a? Paradoxical::Elements::Property and node.key.downcase == key end
 
     return false if properties.empty?
 
     return true if operator.nil? or value.nil?
-    
+
     properties.any? do |property|
       tmp = value
       tmp = tmp.to_i if property.value.is_a? Integer
       tmp = tmp.to_f if property.value.is_a?(Float) or property.value.is_a?(Paradoxical::Elements::Primitives:: Float)
-      
+
       case operator
       when '='
         property.value == tmp
@@ -43,6 +43,6 @@ class Paradoxical::Search::PropertyMatcher
       else
         false
       end
-    end    
+    end
   end
 end

@@ -1,4 +1,4 @@
-module Paradoxical::Parser 
+module Paradoxical::Parser
   class ParseError < StandardError
   end
 end
