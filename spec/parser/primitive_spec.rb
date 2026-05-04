@@ -238,6 +238,26 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.to_s).to eq("bar")
       end
 
+      it "parses a parameter splice mixed with literal text" do
+        # Stellaris inline_scripts: `food = @$SIZE$_t$TIER$_upkeep_energy`.
+        # `@$` is a distinct prefix in unquoted_string covering the
+        # `@` + parameter-substitution form.
+        prop = parse("food = @$SIZE$_t$TIER$_upkeep_energy\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("@$SIZE$_t$TIER$_upkeep_energy")
+      end
+
+      it "rejects double-sigil starts like `$$` and `-$$`" do
+        # The `@$` prefix is a deliberate special case for parameter
+        # splices; other `$`-sigil combos shouldn't be valid. The
+        # required LETTER/NUMBER after `$` and `-$` correctly rejects
+        # these. (`_$foo` does parse — via the bare-`_+` branch — but
+        # that's the placeholder-identifier case, intentionally
+        # permissive.)
+        expect { parse("foo = $$bar\n") }.to raise_error(Paradoxical::Parser::ParseError)
+        expect { parse("foo = -$$bar\n") }.to raise_error(Paradoxical::Parser::ParseError)
+      end
+
       it "parses a quoted string" do
         prop = parse(%(foo = "hello world")).first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
