@@ -12,24 +12,29 @@ class Paradoxical::Mod
 		@name = name
 		@steam_id = steam_id
 
-    @file_cache = {}    
+    @file_cache = {}
     @config = {}
     @corrections = {}
-		
-		if game.jomini_version == 1 then
-			result = parse_file path 
-				
-			result.properties.each do |p|
+
+		# SqliteConfig hands us the path to a `.mod` descriptor (a
+		# paradox-script document) — parse it and stash properties.
+		# JsonConfig hands us the mod's root dir; metadata lives in
+		# `.metadata/metadata.json` per mod. Discriminate on the active
+		# game's launcher format rather than re-deriving it.
+		case game.game_module::LAUNCHER_FORMAT
+		when :sqlite
+			parse_file(path).properties.each do |p|
 				@config[p.key] = p.value
 			end
-		else
-			meta = JSON.parse File.read(File.join(path, ".metadata", "metadata.json"), encoding: "bom|utf-8")
+		when :json
+			meta = JSON.parse(File.read(File.join(path, ".metadata", "metadata.json"), encoding: "bom|utf-8"))
 			@config["name"] = meta["name"]
 			@config["path"] = path
 			@config["supported_version"] = meta["supported_game_version"]
 			@config["archive"] = false
+		else
+			raise ArgumentError, "Mod construction not supported for #{game.game_module::LAUNCHER_FORMAT.inspect} launcher format"
 		end
-
 	end
 	
 	%w{name path supported_version remote_file_id archive}.each do |key|
