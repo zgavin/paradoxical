@@ -117,7 +117,10 @@ def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
   Paradoxical.game.playset = playset if playset
   Paradoxical.game.mod = Paradoxical.game.mods.find { |m| m.name == mod } if mod
 
-  Paradoxical::Builder.include(game_module::DSL)
+  # `prepend` (vs `include`) so methods on the DSL win over Builder's
+  # base ones — this is how EU4's variable-method override (different
+  # second-key semantics for non-numeric values) takes effect.
+  Paradoxical::Builder.prepend(game_module::DSL)
 
   game_module::CORRECTIONS.each do |path, blocks|
     blocks.each { |block| Paradoxical.game.add_correction(path, &block) }
