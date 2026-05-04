@@ -270,12 +270,26 @@ RSpec.describe Paradoxical::Parser do
       end
 
       it "doesn't shadow `key = color { ... }` shapes" do
-        # Color keywords (rgb/hsv/hsv360/cylindrical/hex) on the RHS
-        # of `=` should still parse as a color-typed property value,
-        # not as a keyed_kind list with kind=`rgb` etc.
+        # True color keywords (rgb/hsv/hsv360/hex) on the RHS of `=`
+        # should still parse as a color-typed property value, not as
+        # a keyed_kind list with kind=`rgb` etc.
         prop = parse("foo = rgb { 128 64 32 }\n").first
         expect(prop).to be_a(Paradoxical::Elements::Property)
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+      end
+
+      it "parses `cylindrical { ... }` as a list, not a color" do
+        # cylindrical is a camera/coordinate construct, not a color.
+        # Components are `radius height angle` (any may be negative),
+        # and EU5 portrait_environments uses @-variables for them
+        # which color components don't accept. Letting this fall to
+        # the unified `list` rule keeps the AST honest — kind is the
+        # construct name, body is the components as values.
+        list = parse("position = cylindrical { 260 30 -10 }\n").first
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.key.to_s).to eq("position")
+        expect(list.kind).to eq("cylindrical")
+        expect(list.values.map { |v| v.value.to_s }).to eq(%w[260 30 -10])
       end
     end
 
