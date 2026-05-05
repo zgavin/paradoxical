@@ -86,13 +86,44 @@ RSpec.describe "parse smoke", :parse_smoke do
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
     allowlist_set = allowlist.to_set
 
-    root_prefix_for_filter = "#{game.root.to_s.chomp('/')}/"
-    files = Dir.glob(File.join(game.root, "**/*"))
+    # For jomini-v2 layouts the install root is one above `game.root`;
+    # for jomini-v1 (HAS_GAME_SUBDIR=false) it is `game.root` itself.
+    # Display/allowlist paths are computed relative to the install
+    # root so engine-dir files (jomini/, clausewitz/) and game/ files
+    # share a consistent prefix scheme.
+    install_root = game_module::HAS_GAME_SUBDIR ? game.root.parent : game.root
+
+    # Walk the game's own scripts under `game.root`, plus the
+    # engine-default sibling dirs the engine ships (jomini/,
+    # clausewitz/) so they get regression coverage too. Engine files
+    # don't go through Game.parse_file (no corrections apply at the
+    # engine level) — parsed via the bare Parser instead.
+    script_roots = [game.root]
+    if game_module::HAS_GAME_SUBDIR
+      %w[jomini clausewitz].each do |engine|
+        candidate = install_root.join(engine)
+        script_roots << candidate if candidate.directory?
+      end
+    end
+
+    files = script_roots.flat_map { |root| Dir.glob(File.join(root, "**/*")) }
+      .uniq
       .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
       .reject { |f| excluded_basenames.include?(File.basename(f)) }
       .reject { |f| excluded_path_substrings.any? { |s| f.include?(s) } }
-      .reject { |f| excluded_root_dirs.any? { |d| f.sub(root_prefix_for_filter, "").start_with?(d) } }
+      .reject { |f|
+        # `excluded_root_dirs` is anchored to the start of each script
+        # root's relative path, so it correctly excludes EU4's
+        # console-transcript `tests/` without touching EU5's nested
+        # `in_game/common/tests/`.
+        owning_root = script_roots.find { |r| f.start_with?("#{r}/") }
+        rel = f.sub("#{owning_root}/", "")
+        excluded_root_dirs.any? { |d| rel.start_with?(d) }
+      }
       .sort
+
+    install_prefix = "#{install_root.to_s.chomp('/')}/"
+    game_prefix    = "#{game.root.to_s.chomp('/')}/"
 
     it "parses every #{parseable_exts.join('/')} file under #{slug} (root: #{game.root})" do
       ok = 0
@@ -101,14 +132,27 @@ RSpec.describe "parse smoke", :parse_smoke do
       allowlisted_fail = 0
 
       files.each do |full_path|
-        relative = full_path.sub(/\A#{Regexp.escape(root_prefix_for_filter)}/, "")
-        on_allowlist = allowlist_set.include?(relative)
+        # Display path is install-root-relative so engine and game/
+        # files share a prefix scheme; allowlists are keyed off it.
+        display = full_path.sub(/\A#{Regexp.escape(install_prefix)}/, "")
+        on_allowlist = allowlist_set.include?(display)
 
         parsed = false
         last_error = nil
         encodings.each do |enc|
           begin
-            game.parse_file(relative, encoding: enc)
+            # Use Game.parse_file for both game/ and engine paths so
+            # BOM stripping and encoding fallback flow through
+            # uniformly. Game files use a relative path (so per-game
+            # corrections fire); engine files use an absolute path
+            # (FileParser#full_path_for returns absolute as-is, so the
+            # call still resolves — corrections key off relative paths
+            # and don't apply at the engine layer, which is fine since
+            # engine files ship clean).
+            arg = full_path.start_with?(game_prefix) ?
+              full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
+              full_path
+            game.parse_file(arg, encoding: enc)
             parsed = true
             break
           rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
@@ -117,13 +161,13 @@ RSpec.describe "parse smoke", :parse_smoke do
         end
 
         if parsed
-          on_allowlist ? allowlisted_pass << relative : ok += 1
+          on_allowlist ? allowlisted_pass << display : ok += 1
         elsif on_allowlist
           allowlisted_fail += 1
         else
           label = last_error.is_a?(Paradoxical::Parser::ParseError) ? "" : "[#{last_error.class}] "
           first_line = last_error.message.lines.first&.chomp.to_s
-          failures << { path: relative, error: "#{label}#{first_line}" }
+          failures << { path: display, error: "#{label}#{first_line}" }
         end
       end
 

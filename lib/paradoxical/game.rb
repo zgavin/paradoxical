@@ -174,18 +174,18 @@ end
 
 # Stub mod-loading for games whose launcher we haven't ported to —
 # currently CK2, which predates both the SqliteConfig and JsonConfig
-# launchers. Mod-related accessors raise loudly so anyone trying to
-# use mod selection on these games gets a clear signal; parser-only
-# usage (parse_file etc.) keeps working since it doesn't go through
-# `_mods` / `_enabled_mods`.
+# launchers. Returns empty lists so parser-only usage works
+# transparently (parse_file falls through to the bare FileParser
+# path); `paradoxical!` with `mod:`/`playset:` set on a `:legacy`
+# game silently no-ops on selection, which is a known gap until/
+# unless someone needs it.
 module LegacyConfig
   def _mods
-    raise NotImplementedError,
-      "#{name} mod loading isn't supported (legacy launcher format). Parser-only usage works; PRs welcome."
+    @mods ||= []
   end
 
   def _enabled_mods
-    _mods
+    @enabled_mods ||= []
   end
 end
 
