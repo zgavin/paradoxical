@@ -75,7 +75,7 @@ class Paradoxical::Mod
     result
   end
 
-  def read relative_path
+  def read relative_path, encoding: nil
     return super unless archive?
 
     result = nil
@@ -84,7 +84,7 @@ class Paradoxical::Mod
       result = zip_file.glob( relative_path.to_s ).first.get_input_stream.read
     end
 
-    result
+    enforce_encoding! result, encoding: encoding, path: relative_path
   end
 
   def root

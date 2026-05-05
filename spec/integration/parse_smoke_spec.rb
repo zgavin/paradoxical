@@ -81,11 +81,12 @@ RSpec.describe "parse smoke", :parse_smoke do
       user_directory: "/tmp/no-paradoxical-mods-loaded",
     )
 
-    # `Game#parse_file` already walks the game module's
-    # ENCODING_FALLBACKS automatically when the caller doesn't pin an
-    # encoding. PARADOXICAL_PARSE_SMOKE_ENCODING is a diagnostic
-    # override — pass `encoding:` explicitly to bypass the fallback
-    # chain and force a single encoding.
+    # `FileParser#read` reads as UTF-8 by default and transparently
+    # retries as Windows-1252 if the bytes are invalid UTF-8 — so the
+    # smoke just calls `game.parse_file` once.
+    # PARADOXICAL_PARSE_SMOKE_ENCODING is a diagnostic override —
+    # pass `encoding:` explicitly to pin a specific encoding (and
+    # disable the retry).
     forced_encoding = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"]
 
     allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{slug}.yml", __dir__)
@@ -144,12 +145,13 @@ RSpec.describe "parse smoke", :parse_smoke do
         on_allowlist = allowlist_set.include?(display)
 
         # Use Game.parse_file for both game/ and engine paths so BOM
-        # stripping, per-game corrections, and the ENCODING_FALLBACKS
-        # chain flow through uniformly. Game files use a relative path
-        # (so per-game corrections fire); engine files use an absolute
-        # path (FileParser#full_path_for returns absolute as-is) —
-        # corrections key off relative paths and don't apply at the
-        # engine layer, which is fine since engine files ship clean.
+        # stripping, per-game corrections, and the FileParser-level
+        # Windows-1252 fallback flow through uniformly. Game files use
+        # a relative path (so per-game corrections fire); engine files
+        # use an absolute path (FileParser#full_path_for returns
+        # absolute as-is) — corrections key off relative paths and
+        # don't apply at the engine layer, which is fine since engine
+        # files ship clean.
         arg = full_path.start_with?(game_prefix) ?
           full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
           full_path

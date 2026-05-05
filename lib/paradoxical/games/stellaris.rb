@@ -5,7 +5,6 @@ module Paradoxical::Games::Stellaris
   NATIVE_PLATFORMS   = %i[windows linux macos].freeze
   HAS_GAME_SUBDIR    = false
   LAUNCHER_FORMAT    = :sqlite
-  ENCODING_FALLBACKS = [].freeze
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

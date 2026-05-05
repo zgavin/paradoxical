@@ -5,11 +5,6 @@ module Paradoxical::Games::EU4
   NATIVE_PLATFORMS  = %i[windows linux macos].freeze
   HAS_GAME_SUBDIR   = false
   LAUNCHER_FORMAT   = :sqlite
-  # EU4 (jomini-v1, 2013) is mostly Windows-1252, but a handful of
-  # files with non-Latin characters (Korean province names, the
-  # Tengri events, the Mamluk missions) are actually UTF-8 — so the
-  # smoke tries UTF-8 first and falls back to Windows-1252.
-  ENCODING_FALLBACKS = ["Windows-1252"].freeze
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

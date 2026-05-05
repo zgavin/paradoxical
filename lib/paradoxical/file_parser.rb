@@ -17,9 +17,22 @@ module Paradoxical::FileParser
     Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root.to_s + '/').reverse ).reverse end
   end
 
-  def read relative_path
-
-    File.read( full_path_for relative_path )
+  # When the caller doesn't specify an `encoding:`, try UTF-8 first
+  # (the default for every modern PDS title) and fall back to
+  # Windows-1252 if this UTF-8 doesn't match.  Only EU4 (predominately
+  # Windows-1252) and HOI4 (one stray file `online_accountcreate.gui`
+  # with `§` Windows-1252 markup bytes) rely on this later behavior.
+  # Since many mod writers use windows, they may unintentionally use
+  # Windows-1252, so we get their files for free with this pattern
+  #
+  # Mod scripts that pass an explicit `encoding:` get exactly that
+  # encoding with no fallback.
+  #
+  # Raises EncodingError if final encoding is not valid
+  def read relative_path, encoding: nil
+    full_path = full_path_for(relative_path)
+    data = File.read full_path, encoding: (encoding || Encoding::UTF_8)
+    enforce_encoding! data, encoding: encoding, path: full_path
   end
 
   def full_path_for path
@@ -37,14 +50,20 @@ module Paradoxical::FileParser
 
     return document unless ignore_cache or document.nil?
 
-    data = read path
-    data.force_encoding( encoding ).encode! Encoding::UTF_8 if encoding
+    data = read path, encoding: encoding
 
-    bom = data.start_with? "\xEF\xBB\xBF"
-    # Strip BOMs anywhere in the file. Imperator ships at least two
-    # files (concatenation artifacts) with a second BOM mid-content;
-    # only the leading one carries author intent, the rest are garbage.
-    data.gsub!("\xEF\xBB\xBF", "")
+    encoding ||= data.encoding
+
+    bom = false
+    
+    if encoding == Encoding::UTF_8 then 
+      bom_marker = "\xEF\xBB\xBF"
+      bom = data.start_with? bom_marker
+      # Strip BOMs anywhere in the file. Imperator ships at least two
+      # files (concatenation artifacts) with a second BOM mid-content;
+      # only the leading one carries author intent, the rest are garbage.
+      data.gsub!(bom_marker, "")
+    end
 
     ( corrections[ path ] or [] ).each do |block|
       block.call data
@@ -73,4 +92,18 @@ module Paradoxical::FileParser
     prefix = path ? "#{path}#{ self.is_a?(Paradoxical::Mod) ? " (#{name})" : '' }: " : ""
     raise Paradoxical::Parser::ParseError, "#{prefix}#{error.message}"
   end
+
+  protected
+
+  def enforce_encoding! data, encoding: nil, path: nil
+    return data if data.valid_encoding?
+
+    raise EncodingError, "Encoding for file: #{path} did not match passed value: #{encoding}" unless encoding.nil?
+
+    data.force_encoding Encoding::WINDOWS_1252
+    raise EncodingError, "Unknown encoding for file: #{path}" unless data.valid_encoding?
+    data
+  end
+
+
 end
