@@ -141,7 +141,15 @@ string                = @{ empty_string | quoted_string | computation_string | u
 
 empty_string          = @{ "\"\"" }
 
-quoted_string         = @{ ( "\"" ~ ( "\\\"" | ( !"\"" ~ ANY ) )* ~ "\"" ) }
+// `"foo"` is the canonical PDX quoted string. PDX content also turns
+// up with curly quotes (`\u{201C}foo\u{201D}`) — usually because a
+// modder pasted text from a word processor or a smart-quote-happy
+// text editor — and the engine accepts them as literal bytes. Match
+// either form so we don't fail loudly where the engine doesn't.
+quoted_string         = @{
+  ( "\"" ~ ( "\\\"" | ( !"\"" ~ ANY ) )* ~ "\"" )
+  | ( "\u{201C}" ~ ( !"\u{201D}" ~ ANY )* ~ "\u{201D}" )
+}
 
 computation_string    = @{ ( ("@\\" | "@") ~ "[" ~ (!"]" ~ ANY)* ~ "]" ) }
 

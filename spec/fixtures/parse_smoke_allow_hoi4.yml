@@ -5,14 +5,11 @@
 # A previously-failing file that now passes is positive signal — remove
 # it from this list.
 #
-# HOI4 baseline after CORRECTIONS for the brace-mismatch cluster: 7
-# remaining files. None are simple brace mismatches; each needs its
-# own grammar investigation.
+# HOI4 baseline: 5 remaining. Each is a distinct grammar issue
+# requiring its own focused investigation.
 
-- common/names/00_names.txt
 - common/scorers/country/generic_platonic_scorers.txt
 - common/units/names/00_ITA_names.txt
 - common/units/names_divisions/SOV_names_divisions.txt
-- common/units/names_ships/BUL_ship_names.txt
 - events/WUW_Germany.txt
 - pdx_online_assets/interface/online_accountcreate.gui

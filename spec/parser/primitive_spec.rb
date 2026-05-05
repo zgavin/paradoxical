@@ -291,6 +291,22 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.to_s).to eq("")
       end
 
+      it "accepts curly quotes (“foo”) as an alternate quoted-string form" do
+        # PDS content turns up with curly quotes — usually because a
+        # modder pasted text from a word processor — and the engine
+        # accepts them. HOI4's `BUL_ship_names.txt` and `00_names.txt`
+        # both ship lines like `“Shipka”` mixed with normal
+        # `"Sofia"` entries. The AST stores curly-quoted bytes
+        # verbatim (vs straight-quoted, which strips the quotes and
+        # sets `quoted?` true) so round-trip preserves whichever the
+        # source used.
+        input = %(foo = “hello”)
+        prop = parse(input).first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("“hello”")
+        expect(parse(input).to_pdx).to eq(input)
+      end
+
       it "parses a localization string" do
         prop = parse("foo = [ROOT.GetName]").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
