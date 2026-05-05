@@ -27,6 +27,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       credits.txt
       credits_l_simp_chinese.txt
       license-fi.txt
+      licenses.txt
       LICENSE.txt
       OFL.txt
       steam_appid.txt
@@ -36,7 +37,13 @@ RSpec.describe "parse smoke", :parse_smoke do
       99_README_EDICTS.txt
       startup_info.txt
       TODO.txt
+      robots.txt
       trigger_profile.txt
+      fake.txt
+      fake2.txt
+      buildings_nudger_markers.txt
+      unit_nudger_markers.txt
+      particle_repository.txt
     ].to_set
 
     # Whole directories of non-script content. Path substrings since
@@ -49,6 +56,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       /patchnotes/
       /previewer_assets/
       /pdx_launcher/
+      /fonts/korean/
     ].freeze
 
     # Directories at the root of the game install that aren't script.
