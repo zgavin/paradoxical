@@ -25,9 +25,9 @@ RSpec.describe "PancakeTaco round-trip", :integration do
       parseable_exts = %w[.txt .gui .gfx].freeze
 
       files = Dir.glob(File.join(mod_path, "**/*"))
-                 .reject { |f| f.include?("/scripts/ruby/") }
-                 .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
-                 .sort
+        .reject { |f| f.include?("/scripts/ruby/") }
+        .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
+        .sort
 
       allowlist_path = File.expand_path("../fixtures/round_trip_allow.yml", __dir__)
       allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []

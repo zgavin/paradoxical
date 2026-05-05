@@ -34,29 +34,29 @@ module Paradoxical::Games::EU5
   CORRECTIONS = {
     "1.1.0" => {
       # Stray `}` directly after the self-closing
-      # `country_flag_small = {}`. Removing it leaves the surrounding
-      # structure balanced. `country_flag_small = {}` is unique to
-      # this file so anchoring on it is sufficient.
+      # `country_flag_small = {}`. `country_flag_small = {}` is unique
+      # to this file so anchoring on it is sufficient. The capture
+      # preserves the self-closing block; `\s*\n\s*\}` matches the
+      # newline + indent + stray `}` and gets dropped.
       "in_game/gui/panels/organization/crusade.gui" =>
-        ->(data) {
-          data.sub!(
-            "\t\t\tcountry_flag_small = {}\n\t\t\t}\n\t\t}",
-            "\t\t\tcountry_flag_small = {}\n\t\t}",
-          )
-        },
+        ->(data) { data.sub!(/(country_flag_small = \{\})\s*\n\s*\}/, '\1') },
 
       # Two `blockoverride "ios_header_content_divider" {}` sites
       # exist; only the first has a stray `\t}` line after it. The
       # following block's name (`ios_information_header_content_extra_2`)
-      # is unique to the broken site, so we anchor on the divider →
-      # stray-brace → next-block sequence to disambiguate.
+      # is unique to the broken site, so anchor on the divider + stray
+      # `}` + whitespace + that next block. Captures keep the divider
+      # and the whitespace-leading-into-next-block; the stray `}` is
+      # dropped.
       "in_game/gui/panels/organization/coalition.gui" =>
         ->(data) {
           data.sub!(
-            "        blockoverride \"ios_header_content_divider\" {}\n\t}\n\n" \
-            "\tblockoverride \"ios_information_header_content_extra_2\"",
-            "        blockoverride \"ios_header_content_divider\" {}\n\n" \
-            "\tblockoverride \"ios_information_header_content_extra_2\"",
+            %r{
+              (blockoverride\s+"ios_header_content_divider"\s+\{\})
+              \s*\}
+              (\s*blockoverride\s+"ios_information_header_content_extra_2")
+            }x,
+            '\1\2',
           )
         },
 

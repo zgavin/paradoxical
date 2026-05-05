@@ -70,9 +70,9 @@ module Paradoxical::Elements::Concerns::Searchable
 
     return matches if rules.empty?
 
-    result = matches.select do |match|
-      match.respond_to?(:__search, true)
-    end.map do |match| match.send :__search, rules end
+    result = matches
+      .select do |match| match.respond_to?(:__search, true) end
+      .map do |match| match.send :__search, rules end
 
     result.flatten.uniq do |obj| obj.object_id end
   end

@@ -31,11 +31,10 @@ class Paradoxical::Editor
     @game = (game or Paradoxical::Game.new("Stellaris"))
 
     Zip::File.open(full_path) do |zip_file|
-      @meta = Paradoxical::Parser.parse zip_file.glob("meta").first.get_input_stream.read
+      meta, gamestate = ["meta", "gamestate"].map do |file| zip_file.glob(file).first.get_input_stream.read end
+      @meta = Paradoxical::Parser.parse meta
       # for some reason the intel manager section is not formatted correctly so we need to use a regex to fix it
-      @gamestate = Paradoxical::Parser.parse zip_file.glob("gamestate").first.get_input_stream.read.gsub(
-        /^(\d+)\s*\{$/, '\1 = {'
-      )
+      @gamestate = Paradoxical::Parser.parse gamestate.gsub(/^(\d+)\s*\{$/, '\1 = {')
     end
   end
 
@@ -61,8 +60,13 @@ class Paradoxical::Editor
     @gamestate.send(sym, *args, **opts, &block)
   end
 
-  { empires: "country", systems: "galactic_object", planets: "planets > planet", leaders: "leaders",
-    clusters: "clusters" }.each do |sym, key|
+  {
+    empires: "country",
+    systems: "galactic_object",
+    planets: "planets > planet",
+    leaders: "leaders",
+    clusters: "clusters"
+  }.each do |sym, key|
     define_method sym do
       @gamestate.find("> #{key}").lists
     end
@@ -106,8 +110,17 @@ class Paradoxical::Editor
       end
     end
 
-    %w{empire_cluster marauder_cluster precursor_1 precursor_2 precursor_3 precursor_4 precursor_5 precursor_baol_1
-       precursor_zroni_1}.each do |flag|
+    %w{
+      empire_cluster
+      marauder_cluster
+      precursor_1
+      precursor_2
+      precursor_3
+      precursor_4
+      precursor_5
+      precursor_baol_1
+      precursor_zroni_1
+    }.each do |flag|
       flag_a, flag_b = systems.map do |s| s.find("> flags > #{flag}")&.remove end
 
       if flag_b then
@@ -147,8 +160,8 @@ class Paradoxical::Editor
     has_flag = proc do |sys, flag| sys.present? and (sys["flags"]&.properties&.map(&:key) or []).include? flag end
 
     eligible_systems = self.systems
-                           .reject do |sys| sys.key == a end
-                           .reject do |sys|
+      .reject do |sys| sys.key == a end
+      .reject do |sys|
       has_flag.call sys,
                     "empire_home_system"
     end
@@ -199,25 +212,25 @@ class Paradoxical::Editor
       max_jumps = 3 if max_jumps == "@jumps"
 
       target = eligible_systems
-               .reject do |sys| has_flag.call sys, "hostile_system" end
-               .reject do |target|
-                 %w{neighbor_t1 neighbor_t2 neighbor_t1_first_colony
-                    neighbor_t2_second_colony}.any? do |flag|
-                   has_flag.call target, flag and not has_flag.call source, flag
-                 end
-               end
-               .map do |target|
-                 [target, distance(origin, target.key),
-                  (jump_map[target.key] or Float::INFINITY)]
-               end
-               .filter do |(target, distance, jumps)|
-                 next false if min_distance > distance or max_distance < distance
-                 next false if min_jumps > jumps or max_jumps < jumps
+        .reject do |sys| has_flag.call sys, "hostile_system" end
+        .reject do |target|
+          %w{neighbor_t1 neighbor_t2 neighbor_t1_first_colony
+             neighbor_t2_second_colony}.any? do |flag|
+            has_flag.call target, flag and not has_flag.call source, flag
+          end
+        end
+        .map do |target|
+          [target, distance(origin, target.key),
+           (jump_map[target.key] or Float::INFINITY)]
+        end
+        .filter do |(target, distance, jumps)|
+          next false if min_distance > distance or max_distance < distance
+          next false if min_jumps > jumps or max_jumps < jumps
 
-                 true
-               end
-               .min_by do |(target, distance, jumps)| distance end
-               &.first
+          true
+        end
+        .min_by do |(target, distance, jumps)| distance end
+        &.first
 
       puts "warning: source not found for \"#{neighbor["initializer"].value}\" initializer" if source.nil?
       puts "warning: target not found for \"#{neighbor["initializer"].value}\" initializer" if target.nil?

@@ -70,11 +70,8 @@ class Paradoxical::Elements::Node
   end
 
   def parent= parent
-    unless parent.nil? or parent.is_a?(Paradoxical::Elements::List) or parent.is_a?(Paradoxical::Elements::Document)
-      raise ArgumentError.new(
-        "must be Paradoxical::Elements::List, Paradoxical::Elements::Document, or nil",
-      )
-    end
+    valid = (parent.nil? or parent.is_a?(Paradoxical::Elements::List) or parent.is_a?(Paradoxical::Elements::Document))
+    raise ArgumentError.new("must be Paradoxical::Elements::List, Paradoxical::Elements::Document, or nil") unless valid
 
     @parent.delete self unless @parent.nil? or parent.nil?
 

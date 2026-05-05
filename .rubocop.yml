@@ -11,6 +11,13 @@ AllCops:
 Layout:
   Enabled: true
 
+# Chain `.method` calls indent one level from the parent line rather
+# than aligning with the receiver column. Avoids the wide-gulf
+# indentation that the default `aligned` style produces for
+# long-named receivers.
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
 # TODO: revisit. Disabled wholesale for the first pass; toggle Lint
 # cops on individually in follow-up PRs so we can evaluate each
 # (e.g. Lint/AmbiguousBlockAssociation, Lint/UnusedMethodArgument)

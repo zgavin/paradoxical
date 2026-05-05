@@ -98,7 +98,7 @@ Build-system-only swap. `helix_runtime` Rakefile and `Rutie.new(:paradoxical).in
 
 #### Out of scope for 2d, deferred
 
-- Search submodule kwargs migration. `ext/paradoxical/src/search.rs` still passes a positional `RHash` to `Paradoxical::Search::{Rule,PropertyMatcher,FunctionMatcher}` — the same rutie-era pattern. Migrating it requires changes on both Rust and Ruby sides, and there's no regression test for the search DSL today (PancakeTaco round-trip doesn't exercise `Paradoxical::Search`). Defer until phase 1c lands unit tests, then migrate with confidence.
+- Search submodule kwargs migration. `ext/paradoxical/src/search.rs` still passes a positional `RHash` to `Paradoxical::Search::{Rule,PropertyMatcher,FunctionMatcher}` — the same rutie-era pattern. Each Ruby-side `initialize` carries the workaround `def initialize key, opts = {}, **kwargs` and a `defaults.merge(opts).merge(kwargs)` deconstruction, with a comment that still mentions rutie. Migrating cleans up both the Rust caller and those three Ruby files. Phase 1c is now landed but Search itself still lacks dedicated unit tests (PancakeTaco round-trip doesn't exercise `Paradoxical::Search`); add coverage there first, then migrate.
 - The "false-as-no-operator/no-kind" placeholder in `List`. The `operator`/`kind` getters on `Paradoxical::Elements::List` translate `false` to `nil` per a comment that blames rutie segfaults on nil. magnus handles nil fine, so the workaround is vestigial — but flipping it touches the Ruby side and warrants its own PR.
 
 ### 3. Dependency bumps
@@ -267,6 +267,12 @@ PDS titles.
 **Smoke spec refactor**: `PARADOXICAL_PARSE_SMOKE` now takes a slug (e.g. `eu5`); install root resolves from the game module's defaults. `PARADOXICAL_PARSE_SMOKE_ROOT` overrides the install path for off-default Steam library locations. Encoding fallbacks initially moved to per-game `ENCODING_FALLBACKS` constants (superseded in phase 4f by a universal Windows-1252 fallback at the FileParser layer). Allowlist files renamed to slug-based names (`parse_smoke_allow_eu5.yml` etc.).
 
 **All four game smokes are now empty-allowlist clean: 16,380 / 16,380 files parse.** Future malformed-input cases live in the matching game module's `CORRECTIONS` rather than getting allowlisted.
+
+#### 5d. Game-namespaced code follow-up (deferred)
+
+`lib/paradoxical/editor.rb` is Stellaris-specific despite living at the top of `Paradoxical::`: it manipulates `intel_manager`, `clusters`, `galactic_object`, etc., none of which exist in other PDS titles. It also defaults `@game = (game or Paradoxical::Game.new("Stellaris"))` and reads/writes `meta` + `gamestate` from a `.sav` zip — a Stellaris save format. Should move under `Paradoxical::Games::Stellaris::` (file path `lib/paradoxical/games/stellaris/editor.rb`) when game-namespacing is revisited; the namespace already has a DSL submodule, this would be a sibling.
+
+While there: the `@gamestate` parser includes a regex fix-up for the intel-manager section (`gsub(/^(\d+)\s*\{$/, '\1 = {')`). Stellaris save games deliberately ship that section in malformed PDX (the engine special-cases it on load), and the corresponding `write` path forces the same `intel > &list > &list` operators back to `""` so the round-trip preserves the engine's expected format. Worth recording: not all PDX malformedness is a bug — sometimes the engine itself emits non-conforming script. Same category as the HOI4 `online_accountcreate.gui` Windows-1252 markup bytes — engine-specific quirks the parser has to humor.
 
 ### 6. RBS types
 

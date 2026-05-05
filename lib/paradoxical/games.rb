@@ -13,9 +13,10 @@ module Paradoxical::Games
     end
 
     def find slug
-      @registered.find { |m| m::SLUG == slug } or
-        raise ArgumentError,
-              "unknown game slug #{slug.inspect}; known: #{@registered.map { |m| m::SLUG }.inspect}"
+      game = @registered.find do |m| m::SLUG == slug end
+      return game unless game.nil?
+
+      raise ArgumentError, "unknown game slug #{slug.inspect}; known: #{@registered.map { |m| m::SLUG }.inspect}"
     end
 
     # Resolves the runtime executable name for a game module:
@@ -25,7 +26,7 @@ module Paradoxical::Games
     #   Proton/Wine (e.g. EU5 on Linux — Win-only game on a non-Win OS).
     def executable_for game_module
       base = game_module::SLUG
-      if current_platform == :windows || !game_module::NATIVE_PLATFORMS.include?(current_platform)
+      if current_platform == :windows || !game_module::NATIVE_PLATFORMS.include?(current_platform) then
         "#{base}.exe"
       else
         base
