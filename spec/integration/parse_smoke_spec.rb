@@ -81,14 +81,12 @@ RSpec.describe "parse smoke", :parse_smoke do
       user_directory: "/tmp/no-paradoxical-mods-loaded",
     )
 
-    # Encoding fallbacks live on the game module (EU4 has a
-    # Windows-1252 fallback for its older non-UTF-8 files; the rest
-    # ship pure UTF-8).
-    encodings = if (override = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"])
-      [override]
-    else
-      [nil] + game_module::ENCODING_FALLBACKS
-    end
+    # `Game#parse_file` already walks the game module's
+    # ENCODING_FALLBACKS automatically when the caller doesn't pin an
+    # encoding. PARADOXICAL_PARSE_SMOKE_ENCODING is a diagnostic
+    # override — pass `encoding:` explicitly to bypass the fallback
+    # chain and force a single encoding.
+    forced_encoding = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"]
 
     allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{slug}.yml", __dir__)
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
@@ -145,27 +143,23 @@ RSpec.describe "parse smoke", :parse_smoke do
         display = full_path.sub(/\A#{Regexp.escape(install_prefix)}/, "")
         on_allowlist = allowlist_set.include?(display)
 
+        # Use Game.parse_file for both game/ and engine paths so BOM
+        # stripping, per-game corrections, and the ENCODING_FALLBACKS
+        # chain flow through uniformly. Game files use a relative path
+        # (so per-game corrections fire); engine files use an absolute
+        # path (FileParser#full_path_for returns absolute as-is) —
+        # corrections key off relative paths and don't apply at the
+        # engine layer, which is fine since engine files ship clean.
+        arg = full_path.start_with?(game_prefix) ?
+          full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
+          full_path
         parsed = false
         last_error = nil
-        encodings.each do |enc|
-          begin
-            # Use Game.parse_file for both game/ and engine paths so
-            # BOM stripping and encoding fallback flow through
-            # uniformly. Game files use a relative path (so per-game
-            # corrections fire); engine files use an absolute path
-            # (FileParser#full_path_for returns absolute as-is, so the
-            # call still resolves — corrections key off relative paths
-            # and don't apply at the engine layer, which is fine since
-            # engine files ship clean).
-            arg = full_path.start_with?(game_prefix) ?
-              full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
-              full_path
-            game.parse_file(arg, encoding: enc)
-            parsed = true
-            break
-          rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
-            last_error = e
-          end
+        begin
+          game.parse_file(arg, encoding: forced_encoding)
+          parsed = true
+        rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
+          last_error = e
         end
 
         if parsed

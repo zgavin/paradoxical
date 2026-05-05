@@ -110,12 +110,28 @@ class Paradoxical::Game
     mod.read relative_path
   end
 
+  # When the caller doesn't specify an `encoding:`, try UTF-8 first
+  # (the default for every modern PDS title) and fall back through the
+  # game module's `ENCODING_FALLBACKS` list. EU4 (mostly Windows-1252
+  # with a handful of UTF-8 outliers) and HOI4 (one stray
+  # `online_accountcreate.gui` with `§` Windows-1252 markup bytes)
+  # rely on this. Mod scripts that pass an explicit `encoding:` get
+  # exactly that encoding with no fallback.
   def parse_file relative_path, mod: nil, mutex: nil, ignore_cache: false, encoding: nil
+    encodings = encoding.nil? ? [nil] + @game_module::ENCODING_FALLBACKS : [encoding]
+
     mod ||= mod_for_path relative_path, mod: mod unless mod == false
 
-    return super relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: encoding unless mod.present?
-
-    mod.parse_file relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: encoding
+    last_error = nil
+    encodings.each do |enc|
+      begin
+        return super(relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: enc) unless mod.present?
+        return mod.parse_file(relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: enc)
+      rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
+        last_error = e
+      end
+    end
+    raise last_error
   end
 
   def parse_files *files, mod: nil, encoding: nil
