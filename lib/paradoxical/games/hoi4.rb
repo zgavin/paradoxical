@@ -5,7 +5,11 @@ module Paradoxical::Games::HOI4
   NATIVE_PLATFORMS   = %i[windows linux macos].freeze
   HAS_GAME_SUBDIR    = false
   LAUNCHER_FORMAT    = :sqlite
-  ENCODING_FALLBACKS = [].freeze
+  # HOI4 ships pure UTF-8 except for a handful of older files that
+  # use Windows-1252 in-game markup bytes (`§R`, `§!` color codes).
+  # `pdx_online_assets/interface/online_accountcreate.gui` is the
+  # one we know about; the smoke tries UTF-8 first and falls back.
+  ENCODING_FALLBACKS = ["Windows-1252"].freeze
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game
