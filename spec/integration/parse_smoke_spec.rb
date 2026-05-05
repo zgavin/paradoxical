@@ -117,27 +117,17 @@ RSpec.describe "parse smoke", :parse_smoke do
                         .uniq
                         .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
                         .reject { |f| excluded_basenames.include?(File.basename(f)) }
-                        .reject { |f|
-      excluded_path_substrings.any? { |s|
-        f.include?(s)
-      }
-    }
+                        .reject { |f| excluded_path_substrings.any? { |s| f.include?(s) } }
                         .reject { |f|
                           # `excluded_root_dirs` is anchored to the start of each script
                           # root's relative path, so it correctly excludes EU4's
                           # console-transcript `tests/` without touching EU5's nested
                           # `in_game/common/tests/`.
-                          owning_root = script_roots.find { |r|
-                            f.start_with?("#{r}/")
-                          }
-                          rel = f.sub(
-                            "#{owning_root}/", ""
-                          )
-                          excluded_root_dirs.any? { |d|
-                            rel.start_with?(d)
-                          }
+                          owning_root = script_roots.find { |r| f.start_with?("#{r}/") }
+                          rel = f.sub("#{owning_root}/", "")
+                          excluded_root_dirs.any? { |d| rel.start_with?(d) }
                         }
-      .sort
+                        .sort
 
     install_prefix = "#{install_root.to_s.chomp("/")}/"
     game_prefix    = "#{game.root.to_s.chomp("/")}/"
@@ -186,7 +176,9 @@ RSpec.describe "parse smoke", :parse_smoke do
       end
 
       total = files.size
-      puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | #{failures.size} failed | #{allowlisted_fail} allowlisted-fail | #{allowlisted_pass.size} allowlisted-pass"
+      puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | " \
+           "#{failures.size} failed | #{allowlisted_fail} allowlisted-fail | " \
+           "#{allowlisted_pass.size} allowlisted-pass"
 
       unless allowlisted_pass.empty?
         puts "  Files in allowlist that now parse — consider removing:"

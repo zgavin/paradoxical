@@ -9,8 +9,14 @@ Gem::Specification.new do |spec|
   spec.email         = ["zgavin@mountainpasstech.com"]
 
   spec.summary       = %q{ A modding framework for paradox games }
-  spec.description   = %q{ Paradoxical is a framework for making mods for games created by Paradox Development Studios (PDS).  It contains a parser (written in Rust) for PDS's proprietary script format and numerous convenience features to make writing complex mods faster and more robust. }
-  spec.license       = "MIT"
+  spec.description   = <<~DESC
+    Paradoxical is a framework for making mods for games created by
+    Paradox Development Studios (PDS).  It contains a parser (written
+    in Rust) for PDS's proprietary script format and numerous
+    convenience features to make writing complex mods faster and more
+    robust.
+  DESC
+  spec.license = "MIT"
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'
   # to allow pushing to a single host or delete this section to allow pushing to any host.

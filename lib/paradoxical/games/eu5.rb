@@ -53,8 +53,10 @@ module Paradoxical::Games::EU5
       "in_game/gui/panels/organization/coalition.gui" =>
         ->(data) {
           data.sub!(
-            "        blockoverride \"ios_header_content_divider\" {}\n\t}\n\n\tblockoverride \"ios_information_header_content_extra_2\"",
-            "        blockoverride \"ios_header_content_divider\" {}\n\n\tblockoverride \"ios_information_header_content_extra_2\"",
+            "        blockoverride \"ios_header_content_divider\" {}\n\t}\n\n" \
+            "\tblockoverride \"ios_information_header_content_extra_2\"",
+            "        blockoverride \"ios_header_content_divider\" {}\n\n" \
+            "\tblockoverride \"ios_information_header_content_extra_2\"",
           )
         },
 

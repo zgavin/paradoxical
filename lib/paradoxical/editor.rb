@@ -172,7 +172,11 @@ class Paradoxical::Editor
                           num_guaranteed_colonies = @gamestate.find("> galaxy > num_guaranteed_colonies").value
                           operator = trigger["num_guaranteed_colonies"].operator
                           operator = "==" if operator == "="
+                          # Inputs come from parsed PDX game files (trusted source); the
+                          # eval evaluates a simple numeric comparison like `5 >= 3`.
+                          # rubocop:disable Security/Eval
                           eval "#{num_guaranteed_colonies} #{operator} #{trigger["num_guaranteed_colonies"].value}"
+                          # rubocop:enable Security/Eval
                         else
                           puts "warning: unhandled trigger in #{initializer_name}: #{neighbor["trigger"].to_pdx}"
                           true
@@ -197,15 +201,15 @@ class Paradoxical::Editor
       target = eligible_systems
                .reject do |sys| has_flag.call sys, "hostile_system" end
                .reject do |target|
-        %w{neighbor_t1 neighbor_t2 neighbor_t1_first_colony
-           neighbor_t2_second_colony}.any? do |flag|
-          has_flag.call target, flag and not has_flag.call source, flag
-        end
-      end
+                 %w{neighbor_t1 neighbor_t2 neighbor_t1_first_colony
+                    neighbor_t2_second_colony}.any? do |flag|
+                   has_flag.call target, flag and not has_flag.call source, flag
+                 end
+               end
                .map do |target|
-        [target, distance(origin, target.key),
-         (jump_map[target.key] or Float::INFINITY)]
-      end
+                 [target, distance(origin, target.key),
+                  (jump_map[target.key] or Float::INFINITY)]
+               end
                .filter do |(target, distance, jumps)|
                  next false if min_distance > distance or max_distance < distance
                  next false if min_jumps > jumps or max_jumps < jumps
@@ -222,9 +226,18 @@ class Paradoxical::Editor
 
       target_init = initializers[target["initializer"].value]
 
-      puts "warning: could not find existing system for \"#{neighbor["initializer"].value}\" but eligible system #{target} exists in new location" if source.nil? and target.present?
-      puts "warning: moving \"#{target["initializer"].value}\" which was chained from #{target["init_parent"].value}" unless target["init_parent"].nil?
-      puts "warning: moving \"#{target["initializer"].value}\" (#{target.key}) which has is_in_cluster" if target_init.find("> usage_odds > modifier is_in_cluster")
+      if source.nil? and target.present?
+        puts "warning: could not find existing system for \"#{neighbor["initializer"].value}\" " \
+             "but eligible system #{target} exists in new location"
+      end
+      unless target["init_parent"].nil?
+        puts "warning: moving \"#{target["initializer"].value}\" " \
+             "which was chained from #{target["init_parent"].value}"
+      end
+      if target_init.find("> usage_odds > modifier is_in_cluster")
+        puts "warning: moving \"#{target["initializer"].value}\" (#{target.key}) " \
+             "which has is_in_cluster"
+      end
 
       puts "#{neighbor["initializer"].value}: #{source.key} -> #{target.key}"
 

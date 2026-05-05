@@ -21,7 +21,16 @@ end
 class String
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
 
-  IS_VALID_RAW_STRING_REGEXP = /^(hidden:event_target:|event_target:|trigger:|modifier:|value:|hidden:|parameter:|@|\w|-?\d+\.?\d*%+$)[\w\.]*$/
+  IS_VALID_RAW_STRING_REGEXP = %r{
+    ^
+    (
+      hidden:event_target: | event_target: |
+      trigger: | modifier: | value: | hidden: | parameter: |
+      @ | \w | -?\d+\.?\d*%+$
+    )
+    [\w\.]*
+    $
+  }x
 
   def to_pdx
     IS_VALID_RAW_STRING_REGEXP =~ self ? self : %{"#{self}"}

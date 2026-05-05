@@ -1,7 +1,8 @@
 class Paradoxical::Search::FunctionMatcher
   attr_accessor :name, :arguments
 
-  # rutie seemingly has no way to pass keyword arguments to ruby 3, so we expose an optional opts argument and a splat then merge them
+  # rutie seemingly has no way to pass keyword arguments to ruby 3,
+  # so we expose an optional opts argument and a splat then merge them.
   def initialize name, opts = {}, **kwargs
     { arguments: [] }.merge(opts).merge(kwargs) => { arguments: }
     @name = name
@@ -49,10 +50,16 @@ class Paradoxical::Search::FunctionMatcher
   end
 
   def value_matches node
-    node.respond_to?(:value) and arguments.first.is_a?(Regexp) ? arguments.first =~ node.value.to_s : node.value.to_s.include?(arguments.first.to_s)
+    return false unless node.respond_to? :value
+
+    arg = arguments.first
+    arg.is_a?(Regexp) ? arg =~ node.value.to_s : node.value.to_s.include?(arg.to_s)
   end
 
   def key_matches node
-    node.respond_to?(:key) and arguments.first.is_a?(Regexp) ? arguments.first =~ node.key : node.key.include?(arguments.first.to_s)
+    return false unless node.respond_to? :key
+
+    arg = arguments.first
+    arg.is_a?(Regexp) ? arg =~ node.key : node.key.include?(arg.to_s)
   end
 end

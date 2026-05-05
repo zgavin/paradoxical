@@ -1,7 +1,8 @@
 class Paradoxical::Search::PropertyMatcher
   attr_accessor :key, :operator, :value
 
-  # rutie seemingly has no way to pass keyword arguments to ruby 3, so we expose an optional opts argument and a splat then merge them
+  # rutie seemingly has no way to pass keyword arguments to ruby 3,
+  # so we expose an optional opts argument and a splat then merge them.
   def initialize key, opts = {}, **kwargs
     { operator: nil, value: nil }.merge(opts).merge(kwargs) => { operator:, value: }
     @key = key.downcase

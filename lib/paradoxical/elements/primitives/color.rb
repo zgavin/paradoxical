@@ -184,7 +184,17 @@ class Paradoxical::Elements::Primitives::Color
       @colors = [m[:color_0]]
       @whitespace = [m[:ws_open], m[:ws_1], m[:ws_close]]
     else
-      m = @value.match(/^(?<type>hsv360|rgb|hsv)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>-?\d+\.?\d*)(?<ws_2>\s+)(?<color_1>-?\d+\.?\d*)(?<ws_3>\s+)(?<color_2>-?\d+\.?\d*)(?:(?<ws_pre_alpha>\s+)(?<color_3>-?\d+\.?\d*))?(?<ws_close>\s*)\}$/)
+      m = @value.match(%r{
+        ^
+        (?<type>hsv360|rgb|hsv)
+        (?<ws_open>\s*)\{(?<ws_1>\s*)
+        (?<color_0>-?\d+\.?\d*)(?<ws_2>\s+)
+        (?<color_1>-?\d+\.?\d*)(?<ws_3>\s+)
+        (?<color_2>-?\d+\.?\d*)
+        (?:(?<ws_pre_alpha>\s+)(?<color_3>-?\d+\.?\d*))?
+        (?<ws_close>\s*)\}
+        $
+      }x)
       @type = m[:type]
       @colors = [m[:color_0], m[:color_1], m[:color_2], m[:color_3]].compact
       @whitespace = [m[:ws_open], m[:ws_1], m[:ws_2], m[:ws_3]]

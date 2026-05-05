@@ -29,13 +29,15 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   end
 
   def operator
-    # Using nil multiple times in rust seems to cause a segfault, so we use false as a placeholder and replace it the first time we see it
+    # Using nil multiple times in rust seems to cause a segfault, so we
+    # use false as a placeholder and replace it the first time we see it.
     @operator = nil if @operator == false
     @operator
   end
 
   def kind
-    # Using nil multiple times in rust seems to cause a segfault, so we use false as a placeholder and replace it the first time we see it
+    # Using nil multiple times in rust seems to cause a segfault, so we
+    # use false as a placeholder and replace it the first time we see it.
     @kind = nil if @kind == false
     @kind
   end

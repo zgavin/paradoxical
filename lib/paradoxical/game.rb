@@ -210,8 +210,15 @@ module SqliteConfig
   def _enabled_mods
     @enabled_mods ||= begin
       enabled_mods = if @playset.present? then
+                       sql = <<~SQL
+                         SELECT m.id FROM mods m
+                         JOIN playsets_mods pm ON pm.modId = m.id
+                         JOIN playsets p ON pm.playsetId = p.id
+                         WHERE pm.enabled AND p.name = '#{@playset}'
+                         ORDER BY pm.position ASC;
+                       SQL
                        db
-                         .execute("SELECT m.id FROM mods m join playsets_mods pm on pm.modId = m.id join playsets p on pm.playsetId = p.id where pm.enabled and p.name = '#{@playset}' order by pm.position ASC;")
+                         .execute(sql)
                          .map do |(id)| _mods.find do |mod| mod.id == id end end
                      else
                        _mods.dup
