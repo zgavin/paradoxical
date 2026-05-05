@@ -18,12 +18,21 @@ module Paradoxical::Games::ImperatorRome
   end
 
   CORRECTIONS = {
-    # `posteffect_volumes.txt` ends with a stray column-0 `}` after
-    # the structural close (47 opens, 48 closes). Same pattern as
-    # the EU5 gui files — strip the trailing column-0 `}`.
     "2.0.5" => {
+      # Stray `\t}` mid-file just before the
+      # `posteffect_height_volume` block whose
+      # `name = "zoom_step_3"`. The double `\t}\n\t}\n` is the
+      # tell. Anchor on the quoted `"zoom_step_3"` form (the only
+      # quoted occurrence; an unquoted `zoom_step_3` exists
+      # elsewhere as a different field) to keep the match scoped to
+      # exactly this defect site.
       "gfx/map/post_effects/posteffect_volumes.txt" =>
-        ->(data) { data.sub!(/^\}\s*\z/, '') },
+        ->(data) {
+          data.sub!(
+            "\t}\n\t}\n\tposteffect_height_volume = {\n\t\tname = \"zoom_step_3\"",
+            "\t}\n\tposteffect_height_volume = {\n\t\tname = \"zoom_step_3\"",
+          )
+        },
     },
   }
 

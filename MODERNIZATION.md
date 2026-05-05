@@ -184,6 +184,18 @@ Post-exit cleanup that brings HOI4 into the smoke and simplifies encoding handli
 
 **All five game smokes now empty-allowlist clean: 22,057 / 22,057 files parse** (eu4 8375, eu5 3242, stellaris 2992, imperator 2118, hoi4 5330).
 
+**Corrections triage methodology.** Tail-fixup corrections (append `\n}\n`, or strip a trailing `}`) often parse but produce semantically wrong AST when the real defect is mid-file — an orphan `{` mid-content gets "balanced" by stripping a legitimate structural close, leaving subsequent content nested under the wrong scope. To distinguish a genuine tail defect from a mid-file orphan, build a brace-depth trace of the file:
+
+1. Strip line comments (`#…`) and quoted-string contents (defects rarely live inside either, and counting their braces poisons the trace).
+2. Walk the cleaned bytes character-by-character tracking depth (`{` = +1, `}` = −1).
+3. Read two signals:
+   - **EOF depth.** +1 = one unclosed open; −1 = one extra close.
+   - **Minimum depth.** If depth ever dips below 0, a stray `}` closed something it shouldn't have; the line where it dipped is the defect site.
+
+A genuine tail-append case traces as EOF depth = 1, min = 0, last non-blank lines still at depth ≥ 1 — the file ends mid-outer-block, engine implicitly closes at EOF, our `\n}\n` append is structurally correct. A genuine trailing-extra-`}` case traces as EOF depth = −1, min = −1 at the very last `}` line. Mid-file orphans either dip negative earlier in the file or end with EOF depth > 0 while the last non-blank line is at depth 0 (structure visually closed; an earlier open never matched).
+
+**Triage findings.** All 17 HOI4 brace corrections (16 APPEND_BRACE + 1 STRIP_TRAILING_BRACE) trace as legitimate tail defects. Three EU5/Imperator corrections that were originally written as tail-fixups (`crusade.gui`, `coalition.gui`, `posteffect_volumes.txt`) turned out to be mid-file orphans and were re-anchored on unique surrounding substrings in PR #53. `eu5/city_tooltips.gui` (genuine trailing-`}`) and `stellaris/scripted_loc_ruloc.txt` (genuine missing-tail-`}`) stayed as before.
+
 #### Exit condition: met (2026-05-03)
 
 Phase 4 ends when remaining allowlist entries are either categorized as won't-fix or qualify as a new dedicated phase. The smoke baseline at exit becomes the new normal — anything that fails after isn't a phase-4 concern.
