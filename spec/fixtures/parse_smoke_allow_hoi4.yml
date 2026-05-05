@@ -5,32 +5,14 @@
 # A previously-failing file that now passes is positive signal — remove
 # it from this list.
 #
-# HOI4 baseline after filter cleanup: 25 files. The bulk
-# (~13) are upstream-malformed inputs (missing/extra `}`); the rest
-# are smaller grammar-gap clusters that need investigation.
+# HOI4 baseline after CORRECTIONS for the brace-mismatch cluster: 7
+# remaining files. None are simple brace mismatches; each needs its
+# own grammar investigation.
 
-- common/doctrines/subdoctrines/sea/navy_submarine_doctrines.txt
-- common/ideas/SOV.txt
-- common/ideas/persia.txt
-- common/ideas/switzerland.txt
-- common/military_industrial_organization/organizations/BRA_organization.txt
 - common/names/00_names.txt
-- common/national_focus/TSR_lingguang_incident_joint_branch.txt
 - common/scorers/country/generic_platonic_scorers.txt
 - common/units/names/00_ITA_names.txt
-- common/units/names_divisions/BRA_names_divisions.txt
 - common/units/names_divisions/SOV_names_divisions.txt
 - common/units/names_ships/BUL_ship_names.txt
 - events/WUW_Germany.txt
-- gfx/entities/empty.gfx
-- gfx/entities/flame_tanks.gfx
-- history/countries/NOR - Norway.txt
-- history/units/FRA_1936.txt
-- history/units/FRA_1936_nsb.txt
-- history/units/FRA_1939_naval_legacy.txt
-- history/units/FRA_1939_naval_mtg.txt
-- interface/backend.gui
-- interface/ger_monroe_doctrine_scripted_gui.gui
-- interface/powerbalanceview.gfx
-- interface/sov_propaganda_campaigns_scripted_gui.gui
 - pdx_online_assets/interface/online_accountcreate.gui
