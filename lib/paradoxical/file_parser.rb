@@ -17,18 +17,19 @@ module Paradoxical::FileParser
     Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root.to_s + '/').reverse ).reverse end
   end
 
-  # When the caller doesn't specify an `encoding:`, try UTF-8 first
+  # When the caller doesn't specify an `encoding:`, read as UTF-8
   # (the default for every modern PDS title) and fall back to
-  # Windows-1252 if this UTF-8 doesn't match.  Only EU4 (predominately
-  # Windows-1252) and HOI4 (one stray file `online_accountcreate.gui`
-  # with `§` Windows-1252 markup bytes) rely on this later behavior.
-  # Since many mod writers use windows, they may unintentionally use
-  # Windows-1252, so we get their files for free with this pattern
+  # Windows-1252 if the bytes aren't valid UTF-8. Among PDS titles
+  # only EU4 (predominantly Windows-1252) and HOI4 (one stray file
+  # `online_accountcreate.gui` with `§` Windows-1252 markup bytes)
+  # rely on this fallback, but mod authors on Windows often save
+  # scripts as Windows-1252 unintentionally, so we cover those files
+  # for free.
   #
   # Mod scripts that pass an explicit `encoding:` get exactly that
   # encoding with no fallback.
   #
-  # Raises EncodingError if final encoding is not valid
+  # Raises EncodingError if the final encoding is not valid.
   def read relative_path, encoding: nil
     full_path = full_path_for(relative_path)
     data = File.read full_path, encoding: (encoding || Encoding::UTF_8)

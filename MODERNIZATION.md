@@ -174,6 +174,16 @@ PDX engine tolerates these; the right home for them is `Paradoxical::FileParser#
 
 Still pending. Independent of grammar work; can land any time. Replace the boilerplate gem template with a real README covering installation, supported games, a small worked example, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`).
 
+#### 4f. HOI4 onboarding + encoding simplification (landed)
+
+Post-exit cleanup that brings HOI4 into the smoke and simplifies encoding handling along the way.
+
+**HOI4 added to the smoke baseline** — 37 allowlisted failures at first run, 0 at exit. Drove out via filter cleanup, per-game `CORRECTIONS` for malformed-input files (16 missing `}`, 1 extra `}`, 1 stray-character typo in `events/WUW_Germany.txt`), grammar additions (curly quotes in `quoted_string`; `,` separators, mid-head comments, and the `-name` sigil in `unquoted_string`).
+
+**Encoding handling simplified.** Per-game `ENCODING_FALLBACKS` constants and `Game#parse_file`'s retry loop replaced with a universal Windows-1252 fallback at the FileParser layer: `FileParser#read` reads UTF-8 by default and falls back to Windows-1252 when bytes aren't valid UTF-8 via a new `enforce_encoding!` helper. An explicit `encoding:` pin disables the fallback and raises if the bytes don't match. BOM detection in `parse_file` is gated on `encoding == Encoding::UTF_8` since the BOM is a UTF-8-specific marker. `Mod#read` runs zip-extracted bytes through the same validator so archived mods get the fallback for free.
+
+**All five game smokes now empty-allowlist clean: 22,057 / 22,057 files parse** (eu4 8375, eu5 3242, stellaris 2992, imperator 2118, hoi4 5330).
+
 #### Exit condition: met (2026-05-03)
 
 Phase 4 ends when remaining allowlist entries are either categorized as won't-fix or qualify as a new dedicated phase. The smoke baseline at exit becomes the new normal — anything that fails after isn't a phase-4 concern.
@@ -242,7 +252,7 @@ PDS titles.
 
 **Initial CORRECTIONS population** — the 5 malformed-input files left after phase 4d: 3 EU5 gui files (extra `}`), Stellaris `scripted_loc_ruloc.txt` (missing `}`), Imperator `posteffect_volumes.txt` (extra `}`).
 
-**Smoke spec refactor**: `PARADOXICAL_PARSE_SMOKE` now takes a slug (e.g. `eu5`); install root resolves from the game module's defaults. `PARADOXICAL_PARSE_SMOKE_ROOT` overrides the install path for off-default Steam library locations. Encoding fallbacks moved to per-game `ENCODING_FALLBACKS` constants. Allowlist files renamed to slug-based names (`parse_smoke_allow_eu5.yml` etc.).
+**Smoke spec refactor**: `PARADOXICAL_PARSE_SMOKE` now takes a slug (e.g. `eu5`); install root resolves from the game module's defaults. `PARADOXICAL_PARSE_SMOKE_ROOT` overrides the install path for off-default Steam library locations. Encoding fallbacks initially moved to per-game `ENCODING_FALLBACKS` constants (superseded in phase 4f by a universal Windows-1252 fallback at the FileParser layer). Allowlist files renamed to slug-based names (`parse_smoke_allow_eu5.yml` etc.).
 
 **All four game smokes are now empty-allowlist clean: 16,380 / 16,380 files parse.** Future malformed-input cases live in the matching game module's `CORRECTIONS` rather than getting allowlisted.
 
