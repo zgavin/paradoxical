@@ -31,7 +31,7 @@ RSpec.describe Paradoxical::Games do
     # `Game.new`/`paradoxical!` can rely on the constants being there.
     Paradoxical::Games.all.each do |game_module|
       describe game_module.name do
-        %i[NAME SLUG STEAM_ID NATIVE_PLATFORMS HAS_GAME_SUBDIR LAUNCHER_FORMAT ENCODING_FALLBACKS].each do |const|
+        %i[NAME SLUG STEAM_ID NATIVE_PLATFORMS HAS_GAME_SUBDIR LAUNCHER_FORMAT].each do |const|
           it "defines #{const}" do
             expect(game_module.const_defined?(const)).to be(true)
           end

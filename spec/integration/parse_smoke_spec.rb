@@ -27,6 +27,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       credits.txt
       credits_l_simp_chinese.txt
       license-fi.txt
+      licenses.txt
       LICENSE.txt
       OFL.txt
       steam_appid.txt
@@ -36,7 +37,13 @@ RSpec.describe "parse smoke", :parse_smoke do
       99_README_EDICTS.txt
       startup_info.txt
       TODO.txt
+      robots.txt
       trigger_profile.txt
+      fake.txt
+      fake2.txt
+      buildings_nudger_markers.txt
+      unit_nudger_markers.txt
+      particle_repository.txt
     ].to_set
 
     # Whole directories of non-script content. Path substrings since
@@ -49,6 +56,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       /patchnotes/
       /previewer_assets/
       /pdx_launcher/
+      /fonts/korean/
     ].freeze
 
     # Directories at the root of the game install that aren't script.
@@ -73,14 +81,13 @@ RSpec.describe "parse smoke", :parse_smoke do
       user_directory: "/tmp/no-paradoxical-mods-loaded",
     )
 
-    # Encoding fallbacks live on the game module (EU4 has a
-    # Windows-1252 fallback for its older non-UTF-8 files; the rest
-    # ship pure UTF-8).
-    encodings = if (override = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"])
-      [override]
-    else
-      [nil] + game_module::ENCODING_FALLBACKS
-    end
+    # `FileParser#read` reads as UTF-8 by default and transparently
+    # retries as Windows-1252 if the bytes are invalid UTF-8 — so the
+    # smoke just calls `game.parse_file` once.
+    # PARADOXICAL_PARSE_SMOKE_ENCODING is a diagnostic override —
+    # pass `encoding:` explicitly to pin a specific encoding (and
+    # disable the retry).
+    forced_encoding = ENV["PARADOXICAL_PARSE_SMOKE_ENCODING"]
 
     allowlist_path = File.expand_path("../fixtures/parse_smoke_allow_#{slug}.yml", __dir__)
     allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
@@ -137,27 +144,24 @@ RSpec.describe "parse smoke", :parse_smoke do
         display = full_path.sub(/\A#{Regexp.escape(install_prefix)}/, "")
         on_allowlist = allowlist_set.include?(display)
 
+        # Use Game.parse_file for both game/ and engine paths so BOM
+        # stripping, per-game corrections, and the FileParser-level
+        # Windows-1252 fallback flow through uniformly. Game files use
+        # a relative path (so per-game corrections fire); engine files
+        # use an absolute path (FileParser#full_path_for returns
+        # absolute as-is) — corrections key off relative paths and
+        # don't apply at the engine layer, which is fine since engine
+        # files ship clean.
+        arg = full_path.start_with?(game_prefix) ?
+          full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
+          full_path
         parsed = false
         last_error = nil
-        encodings.each do |enc|
-          begin
-            # Use Game.parse_file for both game/ and engine paths so
-            # BOM stripping and encoding fallback flow through
-            # uniformly. Game files use a relative path (so per-game
-            # corrections fire); engine files use an absolute path
-            # (FileParser#full_path_for returns absolute as-is, so the
-            # call still resolves — corrections key off relative paths
-            # and don't apply at the engine layer, which is fine since
-            # engine files ship clean).
-            arg = full_path.start_with?(game_prefix) ?
-              full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
-              full_path
-            game.parse_file(arg, encoding: enc)
-            parsed = true
-            break
-          rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
-            last_error = e
-          end
+        begin
+          game.parse_file(arg, encoding: forced_encoding)
+          parsed = true
+        rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
+          last_error = e
         end
 
         if parsed

@@ -10,7 +10,6 @@ module Paradoxical::Games::EU5
   # (`.metadata/metadata.json` per mod) instead of the shared
   # launcher-v2 SQLite database.
   LAUNCHER_FORMAT    = :json
-  ENCODING_FALLBACKS = [].freeze
 
   # EU5 ships no launcher-settings.json. The version sits in
   # `caesar_branch.txt` at the install root: `release/X.Y.Z`.

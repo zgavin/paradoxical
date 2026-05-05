@@ -19,9 +19,18 @@ code_block_prefix     = @{ (!"[[" ~ ANY)* }
 // PDX accepts both `#` (its native form) and `//` (a C-style holdover
 // in some EU5 defines files). The marker is captured so round-trip
 // preserves which form the source used.
-comment               =  { ws ~ comment_marker ~ comment_text }
+// Top-of-line / between-expression comments are captured as their
+// own AST element (a `Comment` node). Uses `inline_ws` (literal
+// whitespace only) for its own leading-whitespace handling so the
+// comment-aware `ws` rule below — which absorbs `#`-led comments
+// into the surrounding whitespace token — doesn't loop back on this
+// rule and consume the `#` we're about to match. inline_ws is
+// non-silent so `lib.rs::comment` can capture its bytes for
+// round-trip preservation.
+comment               =  { inline_ws ~ comment_marker ~ comment_text }
 comment_marker        = @{ "#" | "//" }
 comment_text          = @{ ( !NEWLINE ~ ANY )* }
+inline_ws             =  { whitespace_character* }
 
 value                 =  { ws ~ primitive }
 
@@ -141,7 +150,15 @@ string                = @{ empty_string | quoted_string | computation_string | u
 
 empty_string          = @{ "\"\"" }
 
-quoted_string         = @{ ( "\"" ~ ( "\\\"" | ( !"\"" ~ ANY ) )* ~ "\"" ) }
+// `"foo"` is the canonical PDX quoted string. PDX content also turns
+// up with curly quotes (`\u{201C}foo\u{201D}`) — usually because a
+// modder pasted text from a word processor or a smart-quote-happy
+// text editor — and the engine accepts them as literal bytes. Match
+// either form so we don't fail loudly where the engine doesn't.
+quoted_string         = @{
+  ( "\"" ~ ( "\\\"" | ( !"\"" ~ ANY ) )* ~ "\"" )
+  | ( "\u{201C}" ~ ( !"\u{201D}" ~ ANY )* ~ "\u{201D}" )
+}
 
 computation_string    = @{ ( ("@\\" | "@") ~ "[" ~ (!"]" ~ ANY)* ~ "]" ) }
 
@@ -153,7 +170,8 @@ localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") }
 //   1. A sigil-prefixed identifier: `@varname` (variable ref),
 //      `@$NAME$_text` (Stellaris parameter splice), `@@nested` (EU5
 //      template indirect-variable ref), `_keys`, `$NAME$` (parameter),
-//      `-$NAME$` (negated parameter), `'Ali` (apostrophe-leading
+//      `-$NAME$` (negated parameter), `-num_armies` (negated
+//      variable, HOI4 scorers and similar), `'Ali` (apostrophe-leading
 //      transliteration, common in EU4 Arabic name lists). The sigil
 //      determines what follows; the next char must still be a LETTER
 //      or NUMBER to anchor the identifier (so `$$` and `-$$` are
@@ -169,18 +187,32 @@ localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") }
 //
 // Longer sigils precede shorter ones in the alternation so PEG
 // picks `@@`/`@$` over a bare `@` when the source has them.
-unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" | "'" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
+unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" | "-" | "'" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
 
 percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
 
-break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | ";" | EOI }
+break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | ";" | "," | EOI }
 
 whitespace_character  = _{ " " | "\t" | "\r" | "\n" }
 
-// Some PDX files leave a stray C-style `;` after property values
-// (`key = "value";`). It's not whitespace per se, but `ws` consumes it
-// like whitespace so the surrounding token captures it for round-trip
-// without complicating any consumer rule. `whitespace_character` stays
-// strict so `&whitespace_character` lookaheads (e.g. on `template`)
-// don't accidentally accept `;`.
-ws                    =  { ( whitespace_character | ";" )* ~ !( whitespace_character | ";" ) }
+// `ws` is the "anywhere whitespace can appear" rule, used between
+// virtually every pair of tokens. It absorbs:
+//
+//   - actual whitespace characters (space / tab / CR / LF).
+//   - C-style stray separators that some PDX files leave between
+//     values: trailing `;` after property values (`key = "value";`)
+//     and `,` between list entries (HOI4's `00_ITA_names.txt` mixes
+//     `"H 1", "H 2"` with whitespace-separated entries).
+//   - `#`-led comments to end-of-line. Standalone comments still
+//     match the `comment` rule (it sits first in `expression`, so
+//     iteration always tries it before the surrounding rule's `ws`
+//     gets a chance), but a comment in a position where no
+//     expression iteration is happening — e.g. between an
+//     operator and an opening `{` (`SOV_CAV_02 = #COSSACK CAVALRY`,
+//     EU5's `block "Foo" #comment` shape) — gets absorbed into the
+//     ws token's bytes so round-trip preserves it.
+//
+// `whitespace_character` itself stays strict (just space/tab/CR/LF)
+// so `&whitespace_character` lookaheads (e.g. on `template`) don't
+// accidentally accept `;`/`,`/`#`.
+ws                    =  { ( whitespace_character | ";" | "," | ( "#" ~ ( !NEWLINE ~ ANY )* ) )* ~ !( whitespace_character | ";" | "," | "#" ) }

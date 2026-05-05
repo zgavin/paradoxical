@@ -94,7 +94,11 @@ fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            // `comment` uses `inline_ws` for its leading whitespace
+            // (literal whitespace only, no comment-absorption) so the
+            // comment-aware `ws` doesn't recursively consume the `#`
+            // we're about to match. Capture as `whitespace` either way.
+            Rule::ws | Rule::inline_ws => whitespace.push(p(ruby, inner)).unwrap(),
             Rule::comment_marker => marker = p(ruby, inner),
             Rule::comment_text => key = p(ruby, inner),
             r => unreachable!("unexpected rule: {:?}", r),

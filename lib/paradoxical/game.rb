@@ -102,13 +102,14 @@ class Paradoxical::Game
     [ super, *_enabled_mods.map do |mod| mod.glob relative_path end ].flatten.uniq.sort
   end
 
-  def read relative_path, mod: false
+  def read relative_path, mod: false, encoding: nil
     mod ||= mod_for_path relative_path, mod: mod unless mod == false
 
-    return super relative_path unless mod.present?
+    return super relative_path, encoding: encoding unless mod.present?
 
-    mod.read relative_path
+    mod.read relative_path, encoding: encoding
   end
+
 
   def parse_file relative_path, mod: nil, mutex: nil, ignore_cache: false, encoding: nil
     mod ||= mod_for_path relative_path, mod: mod unless mod == false

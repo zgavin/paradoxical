@@ -10,7 +10,6 @@ module Paradoxical::Games::CK2
   # implementation that raises if anything tries to actually load
   # mods (parser-only usage still works).
   LAUNCHER_FORMAT    = :legacy
-  ENCODING_FALLBACKS = [].freeze
 
   # CK2 ships no branch file or launcher JSON. The game has been EOL
   # since the 3.3.5.1 patch (Sep 2021), so any installed copy is on

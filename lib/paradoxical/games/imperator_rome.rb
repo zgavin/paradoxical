@@ -8,7 +8,6 @@ module Paradoxical::Games::ImperatorRome
   # inherit. Mod loading still goes through the SQLite launcher.
   HAS_GAME_SUBDIR    = true
   LAUNCHER_FORMAT    = :sqlite
-  ENCODING_FALLBACKS = [].freeze
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

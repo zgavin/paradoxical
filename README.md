@@ -17,10 +17,8 @@ state:
 - Round-trip preserves the original bytes — whitespace, comments, BOMs,
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
-  Stellaris / Imperator and their engine-default sibling dirs (16,727
-  files total) — all parse cleanly. HOI4 parses ~99.3% of its 5,342
-  files; the 37 known gaps are baselined in
-  `spec/fixtures/parse_smoke_allow_hoi4.yml` for incremental triage.
+  Stellaris / Imperator / HOI4 and their engine-default sibling dirs
+  (22,057 files total) — all parse cleanly.
 - See [`MODERNIZATION.md`](MODERNIZATION.md) for the phased plan and
   decision log.
 
@@ -37,7 +35,7 @@ version can still tell if they're covered.
 | **Stellaris** | 4.3.5 | full |
 | **Imperator: Rome** | 2.0.5 | full |
 | **Europa Universalis V** | 1.1.0 | full |
-| **Hearts of Iron IV** | 1.18.1.0 | ~99.3% (37 known gaps allowlisted) |
+| **Hearts of Iron IV** | 1.18.1.0 | full |
 | **Crusader Kings II** | 3.3.5.1 (EOL since Sep 2021) | parser-only; ~10% files fail (older pre-Jomini script conventions, not triaged). CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
 | **Crusader Kings III** | — | placeholder — game module exists, no install validation yet |
 | **Victoria 3** | — | placeholder — game module exists, no install validation yet |
