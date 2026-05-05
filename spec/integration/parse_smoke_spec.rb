@@ -114,25 +114,35 @@ RSpec.describe "parse smoke", :parse_smoke do
     end
 
     files = script_roots.flat_map { |root| Dir.glob(File.join(root, "**/*")) }
-      .uniq
-      .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
-      .reject { |f| excluded_basenames.include?(File.basename(f)) }
-      .reject { |f| excluded_path_substrings.any? { |s| f.include?(s) } }
-      .reject { |f|
-        # `excluded_root_dirs` is anchored to the start of each script
-        # root's relative path, so it correctly excludes EU4's
-        # console-transcript `tests/` without touching EU5's nested
-        # `in_game/common/tests/`.
-        owning_root = script_roots.find { |r| f.start_with?("#{r}/") }
-        rel = f.sub("#{owning_root}/", "")
-        excluded_root_dirs.any? { |d| rel.start_with?(d) }
+                        .uniq
+                        .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
+                        .reject { |f| excluded_basenames.include?(File.basename(f)) }
+                        .reject { |f|
+      excluded_path_substrings.any? { |s|
+        f.include?(s)
       }
+    }
+                        .reject { |f|
+                          # `excluded_root_dirs` is anchored to the start of each script
+                          # root's relative path, so it correctly excludes EU4's
+                          # console-transcript `tests/` without touching EU5's nested
+                          # `in_game/common/tests/`.
+                          owning_root = script_roots.find { |r|
+                            f.start_with?("#{r}/")
+                          }
+                          rel = f.sub(
+                            "#{owning_root}/", ""
+                          )
+                          excluded_root_dirs.any? { |d|
+                            rel.start_with?(d)
+                          }
+                        }
       .sort
 
-    install_prefix = "#{install_root.to_s.chomp('/')}/"
-    game_prefix    = "#{game.root.to_s.chomp('/')}/"
+    install_prefix = "#{install_root.to_s.chomp("/")}/"
+    game_prefix    = "#{game.root.to_s.chomp("/")}/"
 
-    it "parses every #{parseable_exts.join('/')} file under #{slug} (root: #{game.root})" do
+    it "parses every #{parseable_exts.join("/")} file under #{slug} (root: #{game.root})" do
       ok = 0
       failures = []
       allowlisted_pass = []

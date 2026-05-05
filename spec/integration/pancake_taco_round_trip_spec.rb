@@ -25,14 +25,14 @@ RSpec.describe "PancakeTaco round-trip", :integration do
       parseable_exts = %w[.txt .gui .gfx].freeze
 
       files = Dir.glob(File.join(mod_path, "**/*"))
-        .reject { |f| f.include?("/scripts/ruby/") }
-        .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
-        .sort
+                 .reject { |f| f.include?("/scripts/ruby/") }
+                 .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
+                 .sort
 
       allowlist_path = File.expand_path("../fixtures/round_trip_allow.yml", __dir__)
       allowlist = File.exist?(allowlist_path) ? Array(::YAML.safe_load_file(allowlist_path)) : []
 
-      mod_root_prefix = "#{mod_path.to_s.chomp('/')}/"
+      mod_root_prefix = "#{mod_path.to_s.chomp("/")}/"
 
       files.each do |full_path|
         relative = full_path.sub(/\A#{Regexp.escape(mod_root_prefix)}/, "")
@@ -55,8 +55,8 @@ RSpec.describe "PancakeTaco round-trip", :integration do
           data.encode!(document.encoding) unless document.encoding.nil?
 
           expect(data.b).to eq(original_bytes.b),
-            "round-trip mismatch for #{relative}\n" \
-            "original size: #{original_bytes.bytesize}, regenerated size: #{data.bytesize}"
+                            "round-trip mismatch for #{relative}\n" \
+                            "original size: #{original_bytes.bytesize}, regenerated size: #{data.bytesize}"
         end
       end
     end

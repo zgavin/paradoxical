@@ -42,31 +42,31 @@ module Paradoxical::Helper
   end
 
   def document whitespace: nil, path: nil, owner: nil, &block
-    children = block.nil? ? [] : build( &block )
+    children = block.nil? ? [] : build(&block)
 
-    Paradoxical::Elements::Document.new children, whitespace: whitespace, path: path, owner: ( owner or mod )
+    Paradoxical::Elements::Document.new children, whitespace: whitespace, path: path, owner: (owner or mod)
   end
 
   def write file_or_path, &block
     file = if file_or_path.is_a? Paradoxical::Elements::Document then
-        file_or_path.tap do |doc|
-          children = doc.instance_variable_get :@children
-          children.concat build &block unless block.nil?
-        end
-      elsif file_or_path.is_a? Paradoxical::Elements::Yaml then
-        file_or_path.tap do |yaml|
-          values = yaml.instance_variable_get :@values
-          values.merge! build &block unless block.nil?
-        end
-      elsif %w{.txt .gfx .gui}.include? File.extname file_or_path then
-        children = build &block
-        Paradoxical::Elements::Document.new children, owner: mod, path: file_or_path
-      elsif %w{.yml .yaml}.include? File.extname file_or_path then
-        values = block.call
-        Paradoxical::Elements::Yaml.new values, owner: mod, path: file_or_path
-      else
-        raise "unhandled file type for #{file_or_path}"
-      end
+             file_or_path.tap do |doc|
+               children = doc.instance_variable_get :@children
+               children.concat build &block unless block.nil?
+             end
+           elsif file_or_path.is_a? Paradoxical::Elements::Yaml then
+             file_or_path.tap do |yaml|
+               values = yaml.instance_variable_get :@values
+               values.merge! build &block unless block.nil?
+             end
+           elsif %w{.txt .gfx .gui}.include? File.extname file_or_path then
+             children = build &block
+             Paradoxical::Elements::Document.new children, owner: mod, path: file_or_path
+           elsif %w{.yml .yaml}.include? File.extname file_or_path then
+             values = block.call
+             Paradoxical::Elements::Yaml.new values, owner: mod, path: file_or_path
+           else
+             raise "unhandled file type for #{file_or_path}"
+           end
 
     mod.write file
   end

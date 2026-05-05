@@ -8,7 +8,7 @@ class Paradoxical::Elements::CodeBlock < Paradoxical::Elements::List
 
   # True when the source had `code = [[ ... ]]` (vs bare `code [[ ... ]]`).
   def operator?
-    @prefix.include? '='
+    @prefix.include? "="
   end
 
   def dup
@@ -17,17 +17,17 @@ class Paradoxical::Elements::CodeBlock < Paradoxical::Elements::List
 
   def to_pdx indent: 0, buffer: ""
     iter = (whitespace or []).each
-    next_ws = -> (default=" ") { (iter.next or default) rescue default }
+    next_ws = ->(default = " ") { (iter.next or default) rescue default }
 
     current_indent = line_break + ("\t" * indent)
 
     buffer << next_ws.call(current_indent)
-    buffer << 'code' << @prefix << '[['
+    buffer << "code" << @prefix << "[["
 
     render_children indent: indent, current_indent: current_indent, buffer: buffer
 
     buffer << next_ws.call(current_indent)
-    buffer << ']]'
+    buffer << "]]"
 
     buffer
   end

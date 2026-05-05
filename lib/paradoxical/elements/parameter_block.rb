@@ -29,20 +29,20 @@ class Paradoxical::Elements::ParameterBlock < Paradoxical::Elements::List
 
   def to_pdx indent: 0, buffer: ""
     iter = (whitespace or []).each
-    next_ws = -> (default=" ") { (iter.next or default) rescue default }
+    next_ws = ->(default = " ") { (iter.next or default) rescue default }
 
     current_indent = line_break + ("\t" * indent)
 
     buffer << next_ws.call(current_indent)
-    buffer << '[['
-    buffer << '!' if negated?
+    buffer << "[["
+    buffer << "!" if negated?
     buffer << name.to_s
-    buffer << ']'
+    buffer << "]"
 
     render_children indent: indent, current_indent: current_indent, buffer: buffer
 
     buffer << next_ws.call(current_indent)
-    buffer << ']'
+    buffer << "]"
 
     buffer
   end

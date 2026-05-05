@@ -12,7 +12,7 @@ class Paradoxical::Elements::Comment < Paradoxical::Elements::Node
   end
 
   def to_pdx indent: nil, buffer: ""
-    buffer << ( whitespace&.first or indent or "" ) << marker << text
+    buffer << (whitespace&.first or indent or "") << marker << text
   end
 
   def inspect

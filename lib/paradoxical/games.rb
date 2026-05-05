@@ -1,4 +1,4 @@
-require 'os'
+require "os"
 
 module Paradoxical::Games
   @registered = []
@@ -15,7 +15,7 @@ module Paradoxical::Games
     def find slug
       @registered.find { |m| m::SLUG == slug } or
         raise ArgumentError,
-          "unknown game slug #{slug.inspect}; known: #{@registered.map { |m| m::SLUG }.inspect}"
+              "unknown game slug #{slug.inspect}; known: #{@registered.map { |m| m::SLUG }.inspect}"
     end
 
     # Resolves the runtime executable name for a game module:
@@ -35,6 +35,7 @@ module Paradoxical::Games
     def current_platform
       return :windows if OS.windows?
       return :macos   if OS.mac?
+
       :linux
     end
 
@@ -49,8 +50,10 @@ module Paradoxical::Games
     def read_launcher_version game
       path = locate_in_install(game, "launcher-settings.json", "launcher/launcher-settings.json")
       return nil unless path
+
       raw = JSON.parse(File.read(path)).fetch("rawVersion", nil)
       return nil if raw.nil? || raw.empty?
+
       Gem::Version.new(raw.delete_prefix("v"))
     end
 
@@ -61,6 +64,7 @@ module Paradoxical::Games
     def read_branch_version game, filename, pattern
       path = locate_in_install(game, filename)
       return nil unless path
+
       File.read(path).match(pattern)&.then { |m| Gem::Version.new(m[1]) }
     end
 

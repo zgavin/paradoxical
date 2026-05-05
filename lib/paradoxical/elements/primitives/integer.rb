@@ -3,7 +3,7 @@ class Paradoxical::Elements::Primitives::Integer
 
   impersonate ::Integer
 
-  impersonate_infix_methods %i{ !~ % & * ** + - / << =~ >> ^ | }
+  impersonate_infix_methods %i{!~ % & * ** + - / << =~ >> ^ |}
 
   def to_int
     @value.to_i

@@ -3,7 +3,7 @@ class Paradoxical::Elements::Primitives::Float
 
   impersonate ::Float
 
-  impersonate_infix_methods %i{ !~ % * ** + - / =~ }
+  impersonate_infix_methods %i{!~ % * ** + - / =~}
 
   def coerce something
     case something

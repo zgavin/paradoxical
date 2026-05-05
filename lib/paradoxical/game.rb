@@ -1,6 +1,6 @@
-require 'sqlite3'
-require 'json'
-require 'os'
+require "sqlite3"
+require "json"
+require "os"
 
 class Paradoxical::Game
   include Paradoxical::FileParser
@@ -48,6 +48,7 @@ class Paradoxical::Game
   def resolve_user_directory
     userdir_txt = @root.join("userdir.txt")
     return File.read(userdir_txt).chomp if userdir_txt.file?
+
     default_user_directory(@game_module::NAME)
   end
 
@@ -93,13 +94,13 @@ class Paradoxical::Game
 
     return mod.exists? relative_path unless mod.nil?
 
-    return true unless mod_for_path( relative_path ).nil?
+    return true unless mod_for_path(relative_path).nil?
 
     super relative_path
   end
 
   def glob relative_path
-    [ super, *_enabled_mods.map do |mod| mod.glob relative_path end ].flatten.uniq.sort
+    [super, *_enabled_mods.map do |mod| mod.glob relative_path end].flatten.uniq.sort
   end
 
   def read relative_path, mod: false, encoding: nil
@@ -109,7 +110,6 @@ class Paradoxical::Game
 
     mod.read relative_path, encoding: encoding
   end
-
 
   def parse_file relative_path, mod: nil, mutex: nil, ignore_cache: false, encoding: nil
     mod ||= mod_for_path relative_path, mod: mod unless mod == false
@@ -210,12 +210,12 @@ module SqliteConfig
   def _enabled_mods
     @enabled_mods ||= begin
       enabled_mods = if @playset.present? then
-        db
-          .execute("SELECT m.id FROM mods m join playsets_mods pm on pm.modId = m.id join playsets p on pm.playsetId = p.id where pm.enabled and p.name = '#{@playset}' order by pm.position ASC;")
-          .map do |(id)| _mods.find do |mod| mod.id == id end end
-      else
-        _mods.dup
-      end
+                       db
+                         .execute("SELECT m.id FROM mods m join playsets_mods pm on pm.modId = m.id join playsets p on pm.playsetId = p.id where pm.enabled and p.name = '#{@playset}' order by pm.position ASC;")
+                         .map do |(id)| _mods.find do |mod| mod.id == id end end
+                     else
+                       _mods.dup
+                     end
 
       enabled_mods.delete_if do |other| other.id == @mod.id end if @mod.present?
 
@@ -223,7 +223,6 @@ module SqliteConfig
     end
   end
 end
-
 
 module JsonConfig
   def _mods
@@ -243,14 +242,17 @@ module JsonConfig
   def _enabled_mods
     @enabled_mods ||= begin
       enabled_mods = if @playset.present? then
-        playsets = JSON.parse(File.read(File.join(user_directory, "playsets.json"), encoding: "bom|utf-8"))["playsets"]
-        playset = playsets.find do |p| p["name"] === self.playset end
-        _mods.filter do |mod|
-          playset["orderedListMods"].any? do |entry| entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path) end
-        end
-      else
-        _mods.dup
-      end
+                       playsets = JSON.parse(File.read(File.join(user_directory, "playsets.json"),
+                                                       encoding: "bom|utf-8"))["playsets"]
+                       playset = playsets.find do |p| p["name"] === self.playset end
+                       _mods.filter do |mod|
+                         playset["orderedListMods"].any? do |entry|
+                           entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path)
+                         end
+                       end
+                     else
+                       _mods.dup
+                     end
 
       enabled_mods.delete_if do |other| other.name == @mod.name end if @mod.present?
 

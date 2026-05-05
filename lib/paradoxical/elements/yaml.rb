@@ -1,12 +1,12 @@
 class Paradoxical::Elements::Yaml
   attr_reader :path, :owner, :language, :extension
 
-  def initialize values={}, path: nil, owner: nil
+  def initialize values = {}, path: nil, owner: nil
     @values = values
     @path = path
     @owner = owner
-    @extension = File.extname( path )[1..-1]
-    @language = ( path.match(/_l_(\w+)\.#{@extension}$/)&.to_a&.last or "english" )
+    @extension = File.extname(path)[1..-1]
+    @language = (path.match(/_l_(\w+)\.#{@extension}$/)&.to_a&.last or "english")
   end
 
   def values
@@ -14,15 +14,15 @@ class Paradoxical::Elements::Yaml
   end
 
   def dup path: nil, owner: nil
-    self.class.new @values.dup, path: (path or self.path) , owner: (owner or self.owner)
+    self.class.new @values.dup, path: (path or self.path), owner: (owner or self.owner)
   end
 
   def eql? other
-    other.is_a?( Yaml ) and @values.eql?( other.send( :values ) )
+    other.is_a?(Yaml) and @values.eql?(other.send(:values))
   end
 
   def == other
-    other.is_a?( Yaml ) and @values == other.send( :values )
+    other.is_a?(Yaml) and @values == other.send(:values)
   end
 
   def hash
@@ -41,7 +41,7 @@ class Paradoxical::Elements::Yaml
   end
 
   def defines
-    properties.select do |p| p.key.starts_with? '@' end.map do |p| [p.key, p.value] end.to_h
+    properties.select do |p| p.key.starts_with? "@" end.map do |p| [p.key, p.value] end.to_h
   end
 
   def vanilla?

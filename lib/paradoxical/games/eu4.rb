@@ -24,10 +24,10 @@ module Paradoxical::Games::EU4
     %w[set check change subtract multiply divide modulo round_variable_to_closest].each do |word|
       key = word.include?("variable") ? word : "#{word}_variable"
 
-      define_method key do |which, operator, value=nil|
-        value, operator = operator, '=' if value.nil?
-        second_key = value.is_a?(Numeric) ? 'value' : 'which'
-        l(key, p('which', which), p(second_key, operator, value)).single_line!
+      define_method key do |which, operator, value = nil|
+        value, operator = operator, "=" if value.nil?
+        second_key = value.is_a?(Numeric) ? "value" : "which"
+        l(key, p("which", which), p(second_key, operator, value)).single_line!
       end
     end
   end

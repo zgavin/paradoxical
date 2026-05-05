@@ -1,7 +1,7 @@
 class Paradoxical::Builder
   attr_reader :elements
 
-  def build parent=nil, &block
+  def build parent = nil, &block
     @parent = parent
 
     @elements = []
@@ -56,13 +56,13 @@ class Paradoxical::Builder
       arg.is_a?(Paradoxical::Elements::Node) ? arg : val(arg)
     end
 
-    args.concat( self.class.new.build self, &block ) unless block.nil?
+    args.concat(self.class.new.build self, &block) unless block.nil?
 
     push Paradoxical::Elements::List.new key, args, **opts
   end
   alias_method :l, :list
 
-  def property key, operator, value=nil, whitespace: nil
+  def property key, operator, value = nil, whitespace: nil
     push Paradoxical::Elements::Property.new key, operator, value, whitespace: whitespace
   end
   alias_method :p, :property
@@ -95,7 +95,7 @@ class Paradoxical::Builder
   end
 
   def pdx_not *args, &block
-    obj = l 'NOT', *args, &block
+    obj = l "NOT", *args, &block
 
     obj.single_line! if obj.singleton?
 
@@ -104,18 +104,18 @@ class Paradoxical::Builder
   alias_method :not_, :pdx_not
 
   def pdx_else *args, &block
-    obj = l 'else', *args, &block
+    obj = l "else", *args, &block
 
-    obj.whitespace = [ ' ', ' ', ' ', nil ]
+    obj.whitespace = [" ", " ", " ", nil]
 
     obj
   end
   alias_method :else_, :pdx_else
 
   def pdx_else_if *args, &block
-    obj = l 'else_if', *args, &block
+    obj = l "else_if", *args, &block
 
-    obj.whitespace = [ ' ', ' ', ' ', nil ]
+    obj.whitespace = [" ", " ", " ", nil]
 
     obj
   end
@@ -143,15 +143,15 @@ class Paradoxical::Builder
   end
 
   def position x, y
-    l( 'position', p('x', '=', x), p('y', '=', y) ).single_line!
+    l("position", p("x", "=", x), p("y", "=", y)).single_line!
   end
 
   def hidden_position
-    l( 'position', p('x', '=', -10_000), p('y', '=', -10_000) ).single_line!
+    l("position", p("x", "=", -10_000), p("y", "=", -10_000)).single_line!
   end
 
   def off_screen
-    position( -10_000, -10_000 )
+    position(-10_000, -10_000)
   end
 
   SIZE_KEYS = {
@@ -159,14 +159,14 @@ class Paradoxical::Builder
   }
 
   def size x, y, parent: nil
-    parent = parent.key == 'containerWindowType' ? :container : nil if parent.respond_to?(:key)
+    parent = parent.key == "containerWindowType" ? :container : nil if parent.respond_to?(:key)
 
     x_key, y_key = parent.nil? ? %w{x y} : SIZE_KEYS[parent]
 
-    l( 'size', p( x_key, '=', x ), p( y_key, '=', y ) ).single_line!
+    l("size", p(x_key, "=", x), p(y_key, "=", y)).single_line!
   end
 
-  %w{ if while AND NAND OR NOR }.each do |word|
+  %w{if while AND NAND OR NOR}.each do |word|
     define_method "pdx_#{word.downcase}" do |*args, &block|
       l word, *args, &block
     end
@@ -181,33 +181,33 @@ class Paradoxical::Builder
   # EU4 needs a small wrinkle (uses `which` instead of `value` as
   # the second key for non-numeric values); that override lives in
   # `Paradoxical::Games::EU4::DSL`.
-  %w{ set check change subtract multiply divide modulo round_variable_to_closest export_to_variable }.each do |word|
+  %w{set check change subtract multiply divide modulo round_variable_to_closest export_to_variable}.each do |word|
     key = word.include?("variable") ? word : "#{word}_variable"
 
-    define_method key do |which, operator, value=nil|
-      value, operator = operator, '=' if value.nil?
-      l( key, p('which', which), p('value', operator, value ) ).single_line!
+    define_method key do |which, operator, value = nil|
+      value, operator = operator, "=" if value.nil?
+      l(key, p("which", which), p("value", operator, value)).single_line!
     end
   end
 
-  def export_to_variable which, value, who=nil
+  def export_to_variable which, value, who = nil
     l "export_to_variable" do
-      p 'which', which
-      p 'value', value
-      p 'who', who unless who.nil?
+      p "which", which
+      p "value", value
+      p "who", who unless who.nil?
     end.single_line!
   end
 
   def country_event *args, **opts, &block
     if args.count == 1 and [::String, String].any? do |klass| args.first.is_a? klass end then
-      l( 'country_event', p("id", args.first) ).single_line!
+      l("country_event", p("id", args.first)).single_line!
     else
-      l 'country_event', *args, **opts, &block
+      l "country_event", *args, **opts, &block
     end
   end
 
   def limit *args, &block
-    obj = l 'limit', *args, &block
+    obj = l "limit", *args, &block
 
     obj.single_line! if obj.singleton?
 
@@ -215,7 +215,7 @@ class Paradoxical::Builder
   end
 
   def potential *args, &block
-    obj = l 'potential', *args, &block
+    obj = l "potential", *args, &block
 
     obj.single_line! if obj.singleton?
 
@@ -241,7 +241,7 @@ class Paradoxical::Builder
   end
 
   def method_missing sym, *args, **opts, &block
-    super if sym.to_s.ends_with? '='
+    super if sym.to_s.ends_with? "="
 
     return empty_line if sym == :_
 

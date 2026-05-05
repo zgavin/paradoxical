@@ -40,7 +40,7 @@ class Float
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
 
   def to_pdx
-    '%.3f' % self
+    "%.3f" % self
   end
 end
 
@@ -66,10 +66,10 @@ end
 
 class Array
   def to_pdx
-    Paradoxical::Elements::Document.new( self, whitespace: [''] ).to_pdx
+    Paradoxical::Elements::Document.new(self, whitespace: [""]).to_pdx
   end
 
   def pdx_add_padding_lines
-    self.map do |v| [ v, Paradoxical::Elements::Value.empty_line ] end.flatten(1)[0..-2]
+    self.map do |v| [v, Paradoxical::Elements::Value.empty_line] end.flatten(1)[0..-2]
   end
 end

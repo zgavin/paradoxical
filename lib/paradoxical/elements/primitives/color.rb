@@ -51,7 +51,7 @@ class Paradoxical::Elements::Primitives::Color
       @whitespace = [nil, *colors.map do |c| " " * (4 - c.length) end, nil]
     elsif hsv? && colors.length == 3 then
       @whitespace = []
-      @colors = @colors.map do |v| '%.3f' % v.to_f end
+      @colors = @colors.map do |v| "%.3f" % v.to_f end
     else
       # hsv360 / hex / 4-component (alpha) — each would need its
       # own justification rule. Phase 8 follow-up.
@@ -80,29 +80,27 @@ class Paradoxical::Elements::Primitives::Color
 
     c = x_max - x_min
 
-
     h = if c == 0 then
-      0
-    elsif v == r then
-      ((g - b) / c)
-    elsif v == g then
-      ((b - r) / c) + 2
-    elsif v == b then
-      ((r - g) / c) + 4
-    end
+          0
+        elsif v == r then
+          ((g - b) / c)
+        elsif v == g then
+          ((b - r) / c) + 2
+        elsif v == b then
+          ((r - g) / c) + 4
+        end
 
     h /= 6
 
     h += 1 if h < 0
 
     s = if v == 0 then
-      0
-    else
-      c / v
-    end
+          0
+        else
+          c / v
+        end
 
-
-    @colors = [h, s, v].map do |v| '%.3f' % v end
+    @colors = [h, s, v].map do |v| "%.3f" % v end
 
     @type = "hsv"
 
@@ -110,7 +108,6 @@ class Paradoxical::Elements::Primitives::Color
 
     self
   end
-
 
   # https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
   def rgb!
@@ -129,18 +126,18 @@ class Paradoxical::Elements::Primitives::Color
     x = c * (1 - ((h_prime % 2) - 1).abs)
 
     r1, g1, b1 = if h_prime >= 0 and h_prime < 1 then
-      [c, x, 0]
-    elsif h_prime >= 1 and h_prime < 2
-      [x, c, 0]
-    elsif h_prime >= 2 and h_prime < 3
-      [0, c, x]
-    elsif h_prime >= 3 and h_prime < 4
-      [0, x, c]
-    elsif h_prime >= 4 and h_prime < 5
-      [x, 0, c]
-    elsif h_prime >= 5 and h_prime < 6
-      [c, 0, x]
-    end
+                   [c, x, 0]
+                 elsif h_prime >= 1 and h_prime < 2
+                   [x, c, 0]
+                 elsif h_prime >= 2 and h_prime < 3
+                   [0, c, x]
+                 elsif h_prime >= 3 and h_prime < 4
+                   [0, x, c]
+                 elsif h_prime >= 4 and h_prime < 5
+                   [x, 0, c]
+                 elsif h_prime >= 5 and h_prime < 6
+                   [c, 0, x]
+                 end
 
     m = v - c
 

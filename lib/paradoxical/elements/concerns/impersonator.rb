@@ -12,19 +12,19 @@ module Paradoxical::Elements::Concerns::Impersonator
   end
 
   module NativeComparisons
-    %i{ < > <=> <= >= == === equal? != eql?}.each do |method|
+    %i{< > <=> <= >= == === equal? != eql?}.each do |method|
       define_method method do |other|
         other = other.to_real if other.is_a? Paradoxical::Elements::Concerns::Impersonator
 
-        super( other)
+        super(other)
       end
     end
   end
 
   module ClassMethods
-    def impersonate impersonated_class, conversion_method=nil
+    def impersonate impersonated_class, conversion_method = nil
       @impersonated_class = impersonated_class
-      @conversion_method = ( conversion_method or ( 'to_' + impersonated_class.name[0].downcase ) ).to_sym
+      @conversion_method = (conversion_method or ("to_#{impersonated_class.name[0].downcase}")).to_sym
     end
 
     def conversion_method
@@ -77,7 +77,7 @@ module Paradoxical::Elements::Concerns::Impersonator
   end
 
   def to_real
-    @value.send( self.class.conversion_method )
+    @value.send(self.class.conversion_method)
   end
 
   def is_a? klass
@@ -86,7 +86,7 @@ module Paradoxical::Elements::Concerns::Impersonator
     klass == impersonated_class or impersonated_class.ancestors.include? klass or super
   end
 
-  %i{ < > <=> <= >= == === equal? != eql?}.each do |method|
+  %i{< > <=> <= >= == === equal? != eql?}.each do |method|
     define_method method do |other|
       other = other.to_real if other.is_a? Paradoxical::Elements::Concerns::Impersonator
 
@@ -98,17 +98,17 @@ module Paradoxical::Elements::Concerns::Impersonator
     %{#{@value.inspect}@pdx}
   end
 
-  def respond_to? sym, include_private=false
-    super or @value.respond_to?( sym, include_private )
+  def respond_to? sym, include_private = false
+    super or @value.respond_to?(sym, include_private)
   end
 
   def method_missing sym, *args, &block
-    super unless @value.respond_to?( sym )
+    super unless @value.respond_to?(sym)
 
     self.class.send :define_method, sym do |*args, &block|
       @value.send sym, *args, &block
     end
 
-    self.send( sym, *args, &block )
+    self.send(sym, *args, &block)
   end
 end

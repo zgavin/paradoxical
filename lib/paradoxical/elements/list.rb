@@ -15,7 +15,8 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
 
     @children.each do |object|
       raise ArgumentError.new "Must be Paradoxical::Elements::Node: #{object.inspect}" unless object.is_a? Paradoxical::Elements::Node
-      object.send( :parent=, self )
+
+      object.send(:parent=, self)
     end
   end
 
@@ -40,15 +41,15 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   end
 
   def dup children: nil, key: nil
-    self.class.new( (key or @key).dup, ( children or @children ).map( &:dup ), whitespace: @whitespace.dup )
+    self.class.new((key or @key).dup, (children or @children).map(&:dup), whitespace: @whitespace.dup)
   end
 
   def eql? other
-    other.is_a?( Paradoxical::Elements::List ) and @key.eql?( other.key ) and @children.eql?( other.send( :children ) )
+    other.is_a?(Paradoxical::Elements::List) and @key.eql?(other.key) and @children.eql?(other.send(:children))
   end
 
   def == other
-    other.is_a?( Paradoxical::Elements::List ) and @key == other.key and @children == other.send( :children )
+    other.is_a?(Paradoxical::Elements::List) and @key == other.key and @children == other.send(:children)
   end
 
   def hash
@@ -61,27 +62,27 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
 
   def to_pdx indent: 0, buffer: ""
     iter = (self.whitespace or []).each
-    next_ws = -> (default=" ") { (iter.next or default) rescue default }
+    next_ws = ->(default = " ") { (iter.next or default) rescue default }
 
     current_indent = line_break + ("\t" * indent)
 
     buffer << next_ws.call(current_indent)
 
     unless key == false then
-      buffer << ( "type" + next_ws.call ) if gui_type?
-      buffer << ( kind + next_ws.call ) if kind && !@kind_after_key
+      buffer << ("type#{next_ws.call}") if gui_type?
+      buffer << (kind + next_ws.call) if kind && !@kind_after_key
       buffer << key.to_pdx
       buffer << next_ws.call
-      buffer << ( operator + next_ws.call ) unless operator.nil?
-      buffer << ( kind + next_ws.call ) if kind && @kind_after_key
+      buffer << (operator + next_ws.call) unless operator.nil?
+      buffer << (kind + next_ws.call) if kind && @kind_after_key
     end
 
-    buffer << '{'
+    buffer << "{"
 
     render_children indent: indent, current_indent: current_indent, buffer: buffer
 
     buffer << next_ws.call(current_indent)
-    buffer << '}'
+    buffer << "}"
 
     buffer
   end
@@ -113,17 +114,17 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   end
 
   def single_line! indent: nil
-    self.whitespace = [ indent, ' ', ' ', ' ' ]
+    self.whitespace = [indent, " ", " ", " "]
 
     @children.each do |object|
       if object.is_a? Paradoxical::Elements::List then
-        object.single_line! indent: ' '
+        object.single_line! indent: " "
       elsif object.is_a? Paradoxical::Elements::Property then
-        object.whitespace = [' '] * 3
+        object.whitespace = [" "] * 3
       elsif object.is_a? Paradoxical::Elements::Value then
-        object.whitespace = [' ']
+        object.whitespace = [" "]
       elsif object.respond_to? :whitespace= then
-        object.whitespace = [' ']
+        object.whitespace = [" "]
       end
     end
 

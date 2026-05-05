@@ -4,9 +4,9 @@ module Paradoxical::FileParser
   end
 
   def add_correction path, &block
-    corrections[ path ] ||= []
+    corrections[path] ||= []
 
-    corrections[ path ] << block
+    corrections[path] << block
   end
 
   def exists? relative_path
@@ -14,7 +14,7 @@ module Paradoxical::FileParser
   end
 
   def glob relative_path
-    Dir[ full_path_for relative_path ].map do |path| path.reverse.chomp( (root.to_s + '/').reverse ).reverse end
+    Dir[full_path_for relative_path].map do |path| path.reverse.chomp(("#{root.to_s}/").reverse).reverse end
   end
 
   # When the caller doesn't specify an `encoding:`, read as UTF-8
@@ -37,7 +37,7 @@ module Paradoxical::FileParser
   end
 
   def full_path_for path
-    path.to_s.start_with?('/') ? path : root.join( path )
+    path.to_s.start_with?("/") ? path : root.join(path)
   end
 
   def parse_file path, mutex: nil, ignore_cache: false, encoding: nil
@@ -56,8 +56,8 @@ module Paradoxical::FileParser
     encoding ||= data.encoding
 
     bom = false
-    
-    if encoding == Encoding::UTF_8 then 
+
+    if encoding == Encoding::UTF_8 then
       bom_marker = "\xEF\xBB\xBF"
       bom = data.start_with? bom_marker
       # Strip BOMs anywhere in the file. Imperator ships at least two
@@ -66,7 +66,7 @@ module Paradoxical::FileParser
       data.gsub!(bom_marker, "")
     end
 
-    ( corrections[ path ] or [] ).each do |block|
+    (corrections[path] or []).each do |block|
       block.call data
     end
 
@@ -82,15 +82,15 @@ module Paradoxical::FileParser
   def parse data, path: nil, bom: false, encoding: nil
     document = Paradoxical::Parser.parse data
 
-    document.instance_variable_set( :@owner, self )
-    document.instance_variable_set( :@path, path )
-    document.instance_variable_set( :@line_break, data.include?("\r") ? "\r\n" : "\n")
-    document.instance_variable_set( :@bom, bom )
-    document.instance_variable_set( :@encoding, encoding )
+    document.instance_variable_set(:@owner, self)
+    document.instance_variable_set(:@path, path)
+    document.instance_variable_set(:@line_break, data.include?("\r") ? "\r\n" : "\n")
+    document.instance_variable_set(:@bom, bom)
+    document.instance_variable_set(:@encoding, encoding)
 
     document
   rescue Paradoxical::Parser::ParseError => error
-    prefix = path ? "#{path}#{ self.is_a?(Paradoxical::Mod) ? " (#{name})" : '' }: " : ""
+    prefix = path ? "#{path}#{self.is_a?(Paradoxical::Mod) ? " (#{name})" : ""}: " : ""
     raise Paradoxical::Parser::ParseError, "#{prefix}#{error.message}"
   end
 
@@ -103,8 +103,7 @@ module Paradoxical::FileParser
 
     data.force_encoding Encoding::WINDOWS_1252
     raise EncodingError, "Unknown encoding for file: #{path}" unless data.valid_encoding?
+
     data
   end
-
-
 end
