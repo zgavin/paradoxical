@@ -1,0 +1,46 @@
+# Files in this allowlist are real .txt/.gui/.gfx script files in
+# this game whose parsing currently fails — known parser/grammar gaps.
+# spec/integration/parse_smoke_spec.rb treats entries here as expected
+# failures; the smoke fails only on UNexpected failures (regressions).
+# A previously-failing file that now passes is positive signal — remove
+# it from this list.
+#
+# HOI4 baseline: ~37 files, mostly clusterable. Triage candidate.
+
+- buildings_nudger_markers.txt
+- common/doctrines/subdoctrines/sea/navy_submarine_doctrines.txt
+- common/ideas/SOV.txt
+- common/ideas/persia.txt
+- common/ideas/switzerland.txt
+- common/military_industrial_organization/organizations/BRA_organization.txt
+- common/names/00_names.txt
+- common/national_focus/TSR_lingguang_incident_joint_branch.txt
+- common/scorers/country/generic_platonic_scorers.txt
+- common/units/names/00_ITA_names.txt
+- common/units/names_divisions/BRA_names_divisions.txt
+- common/units/names_divisions/SOV_names_divisions.txt
+- common/units/names_ships/BUL_ship_names.txt
+- events/WUW_Germany.txt
+- fake.txt
+- fake2.txt
+- gfx/entities/empty.gfx
+- gfx/entities/flame_tanks.gfx
+- gfx/fonts/korean/Isamanru.txt
+- gfx/fonts/korean/OFL_Nanum_MaruBuri.txt
+- gfx/fonts/korean/OFL_Noto_Sans.txt
+- gfx/fonts/korean/OFL_Noto_Serif.txt
+- gfx/fonts/korean/OFL_iropke.txt
+- gfx/particles/particle_repository.txt
+- history/countries/NOR - Norway.txt
+- history/units/FRA_1936.txt
+- history/units/FRA_1936_nsb.txt
+- history/units/FRA_1939_naval_legacy.txt
+- history/units/FRA_1939_naval_mtg.txt
+- interface/backend.gui
+- interface/ger_monroe_doctrine_scripted_gui.gui
+- interface/powerbalanceview.gfx
+- interface/sov_propaganda_campaigns_scripted_gui.gui
+- licenses.txt
+- pdx_online_assets/interface/online_accountcreate.gui
+- unit_nudger_markers.txt
+- wiki/robots.txt

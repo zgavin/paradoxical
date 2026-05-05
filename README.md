@@ -17,19 +17,30 @@ state:
 - Round-trip preserves the original bytes — whitespace, comments, BOMs,
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
-  Stellaris / Imperator (16,378 files total). 16,373 parse cleanly; the
-  five exceptions are upstream-malformed files (extra/missing `}`).
+  Stellaris / Imperator and their engine-default sibling dirs (16,727
+  files total) — all parse cleanly. HOI4 parses ~99.3% of its 5,342
+  files; the 37 known gaps are baselined in
+  `spec/fixtures/parse_smoke_allow_hoi4.yml` for incremental triage.
 - See [`MODERNIZATION.md`](MODERNIZATION.md) for the phased plan and
   decision log.
 
 ## Supported games
 
-- **Europa Universalis IV** (jomini v1)
-- **Stellaris** (jomini v1)
-- **Imperator: Rome** (jomini v1)
-- **Europa Universalis V** (jomini v2)
+The "validated versions" column lists every patch level the parse
+smoke has been run against without regression. New entries get added
+as Paradox ships patches; older entries stay so users on a back
+version can still tell if they're covered.
 
-Other PDS titles may work but aren't part of the regression suite.
+| game | validated versions | regression-suite coverage |
+|---|---|---|
+| **Europa Universalis IV** | 1.37.5 | full |
+| **Stellaris** | 4.3.5 | full |
+| **Imperator: Rome** | 2.0.5 | full |
+| **Europa Universalis V** | 1.1.0 | full |
+| **Hearts of Iron IV** | 1.18.1.0 | ~99.3% (37 known gaps allowlisted) |
+| **Crusader Kings II** | 3.3.5.1 (EOL since Sep 2021) | parser-only; ~10% files fail (older pre-Jomini script conventions, not triaged). CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
+| **Crusader Kings III** | — | placeholder — game module exists, no install validation yet |
+| **Victoria 3** | — | placeholder — game module exists, no install validation yet |
 
 ## Installation
 
@@ -86,9 +97,11 @@ What this does:
    The `~` prefix matters — PDS reads files in lexical order, so a
    `~` filename takes effect last.
 
-Supported game slugs: `eu4`, `eu5`, `stellaris`, `imperator`, `ck2`,
-`ck3`, `v3`, `hoi4`. Pass `root:` and/or `user_directory:` to
-`paradoxical!` to override the default install / user paths.
+Supported game slugs: `eu4`, `eu5`, `stellaris`, `imperator`, `hoi4`,
+`ck2`, `ck3`, `v3`. Pass `root:` and/or `user_directory:` to
+`paradoxical!` to override the default install / user paths. CK2's
+legacy launcher format isn't supported, so passing `mod:` / `playset:`
+silently no-ops on that game.
 
 ## Parser-only usage
 
