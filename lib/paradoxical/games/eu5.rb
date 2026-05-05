@@ -27,19 +27,41 @@ module Paradoxical::Games::EU5
   # See `Paradoxical::Games::Corrections.resolve` for the inheritance
   # semantics.
   #
-  # All three of these gui files end with one extra column-0 `}`
-  # past the structural close — brace counts are 47/48 (or similar).
-  # The substitution targets a `}` at start-of-line followed only by
-  # whitespace through EOF, so it only fires on the trailing
-  # extra brace. Per-path scoping keeps the loose regex from
-  # touching legitimately-balanced files.
-  STRIP_TRAILING_BRACE = ->(data) { data.sub!(/^\}\s*\z/, '') }
-
+  # Each correction anchors on a unique substring near the defect
+  # rather than a line number — line numbers shift if Paradox edits
+  # earlier in the file, but the surrounding context tends to stay
+  # stable through patches.
   CORRECTIONS = {
     "1.1.0" => {
-      "in_game/gui/panels/organization/coalition.gui" => STRIP_TRAILING_BRACE,
-      "in_game/gui/panels/organization/crusade.gui"   => STRIP_TRAILING_BRACE,
-      "in_game/gui/shared/city_tooltips.gui"          => STRIP_TRAILING_BRACE,
+      # Stray `}` directly after the self-closing
+      # `country_flag_small = {}`. Removing it leaves the surrounding
+      # structure balanced. `country_flag_small = {}` is unique to
+      # this file so anchoring on it is sufficient.
+      "in_game/gui/panels/organization/crusade.gui" =>
+        ->(data) {
+          data.sub!(
+            "\t\t\tcountry_flag_small = {}\n\t\t\t}\n\t\t}",
+            "\t\t\tcountry_flag_small = {}\n\t\t}",
+          )
+        },
+
+      # Two `blockoverride "ios_header_content_divider" {}` sites
+      # exist; only the first has a stray `\t}` line after it. The
+      # following block's name (`ios_information_header_content_extra_2`)
+      # is unique to the broken site, so we anchor on the divider →
+      # stray-brace → next-block sequence to disambiguate.
+      "in_game/gui/panels/organization/coalition.gui" =>
+        ->(data) {
+          data.sub!(
+            "        blockoverride \"ios_header_content_divider\" {}\n\t}\n\n\tblockoverride \"ios_information_header_content_extra_2\"",
+            "        blockoverride \"ios_header_content_divider\" {}\n\n\tblockoverride \"ios_information_header_content_extra_2\"",
+          )
+        },
+
+      # Genuine trailing-brace case: 75 opens vs. 76 closes, with
+      # one extra column-0 `}` at EOF past the structural close.
+      "in_game/gui/shared/city_tooltips.gui" =>
+        ->(data) { data.sub!(/^\}\s*\z/, "") },
     },
   }
 
