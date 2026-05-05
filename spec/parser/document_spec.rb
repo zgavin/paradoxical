@@ -113,6 +113,20 @@ RSpec.describe Paradoxical::Parser do
       expect(comment.text.to_s).to eq("")
     end
 
+    it "absorbs mid-head comments into surrounding whitespace" do
+      # HOI4's `SOV_names_divisions.txt` has lines like
+      # `SOV_CAV_02 = #COSSACK CAVALRY\n{` — a comment between an
+      # operator and the opening `{`. EU5's `gui_base.gui` has the
+      # similar `block "Foo" #note\n{` shape. PDX engine accepts
+      # either; our `ws` absorbs the comment into the surrounding
+      # whitespace token so round-trip preserves the bytes.
+      input = "key = #note\n{\n\tx = 1\n}\n"
+      doc = parse(input)
+      expect(doc.first).to be_a(Paradoxical::Elements::List)
+      expect(doc.first.key.to_s).to eq("key")
+      expect(parse(input).to_pdx).to eq(input)
+    end
+
     it "accepts C-style `//` comments and preserves the marker" do
       # PDX accepts both `#` (native) and `//` (a C-style holdover in
       # some EU5 defines files). The marker is captured per-comment so
