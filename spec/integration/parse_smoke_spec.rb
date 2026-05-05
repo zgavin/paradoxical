@@ -129,10 +129,10 @@ RSpec.describe "parse smoke", :parse_smoke do
       }
       .sort
 
-    install_prefix = "#{install_root.to_s.chomp('/')}/"
-    game_prefix    = "#{game.root.to_s.chomp('/')}/"
+    install_prefix = "#{install_root.to_s.chomp("/")}/"
+    game_prefix    = "#{game.root.to_s.chomp("/")}/"
 
-    it "parses every #{parseable_exts.join('/')} file under #{slug} (root: #{game.root})" do
+    it "parses every #{parseable_exts.join("/")} file under #{slug} (root: #{game.root})" do
       ok = 0
       failures = []
       allowlisted_pass = []
@@ -176,7 +176,9 @@ RSpec.describe "parse smoke", :parse_smoke do
       end
 
       total = files.size
-      puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | #{failures.size} failed | #{allowlisted_fail} allowlisted-fail | #{allowlisted_pass.size} allowlisted-pass"
+      puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | " \
+           "#{failures.size} failed | #{allowlisted_fail} allowlisted-fail | " \
+           "#{allowlisted_pass.size} allowlisted-pass"
 
       unless allowlisted_pass.empty?
         puts "  Files in allowlist that now parse — consider removing:"

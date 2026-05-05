@@ -12,3 +12,7 @@
 /lib/paradoxical/paradoxical.so
 
 **/*.gem
+
+# Editor / IDE
+.vscode/
+*.code-workspace

@@ -20,3 +20,4 @@ jobs:
           workspaces: . -> target
       - run: bundle exec rake compile
       - run: bundle exec rspec
+      - run: bundle exec rubocop

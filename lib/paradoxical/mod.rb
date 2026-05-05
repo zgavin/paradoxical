@@ -1,4 +1,4 @@
-require 'json'
+require "json"
 
 class Paradoxical::Mod
   include Paradoxical::FileParser
@@ -33,7 +33,8 @@ class Paradoxical::Mod
       @config["supported_version"] = meta["supported_game_version"]
       @config["archive"] = false
     else
-      raise ArgumentError, "Mod construction not supported for #{game.game_module::LAUNCHER_FORMAT.inspect} launcher format"
+      raise ArgumentError,
+            "Mod construction not supported for #{game.game_module::LAUNCHER_FORMAT.inspect} launcher format"
     end
   end
 
@@ -44,7 +45,7 @@ class Paradoxical::Mod
   end
 
   def archive?
-    @config['archive'].present?
+    @config["archive"].present?
   end
 
   def enabled?
@@ -56,8 +57,8 @@ class Paradoxical::Mod
 
     result = nil
 
-    Zip::File.open( archive ) do |zip_file|
-      result = zip_file.glob( relative_path.to_s ).first.present?
+    Zip::File.open(archive) do |zip_file|
+      result = zip_file.glob(relative_path.to_s).first.present?
     end
 
     result
@@ -68,8 +69,8 @@ class Paradoxical::Mod
 
     result = nil
 
-    Zip::File.open( archive ) do |zip_file|
-      result = zip_file.glob( relative_path.to_s ).map(&:name)
+    Zip::File.open(archive) do |zip_file|
+      result = zip_file.glob(relative_path.to_s).map(&:name)
     end
 
     result
@@ -80,15 +81,15 @@ class Paradoxical::Mod
 
     result = nil
 
-    Zip::File.open( archive ) do |zip_file|
-      result = zip_file.glob( relative_path.to_s ).first.get_input_stream.read
+    Zip::File.open(archive) do |zip_file|
+      result = zip_file.glob(relative_path.to_s).first.get_input_stream.read
     end
 
     enforce_encoding! result, encoding: encoding, path: relative_path
   end
 
   def root
-    Pathname.new( path.to_s.start_with?('/') ? path :  File.join( game.user_directory, path ) )
+    Pathname.new(path.to_s.start_with?("/") ? path : File.join(game.user_directory, path))
   end
 
   def write file

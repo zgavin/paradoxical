@@ -1,0 +1,64 @@
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - vendor/**/*
+    - tmp/**/*
+    - target/**/*
+
+# Mechanical formatting — whitespace, indent, alignment.
+Layout:
+  Enabled: true
+
+# Chain `.method` calls indent one level from the parent line rather
+# than aligning with the receiver column. Avoids the wide-gulf
+# indentation that the default `aligned` style produces for
+# long-named receivers.
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+# TODO: revisit. Disabled wholesale for the first pass; toggle Lint
+# cops on individually in follow-up PRs so we can evaluate each
+# (e.g. Lint/AmbiguousBlockAssociation, Lint/UnusedMethodArgument)
+# in context before committing.
+Lint:
+  Enabled: false
+
+# Off by default — block delimiters, `if … then`, `and`/`or`/`not`,
+# paren-less defs, etc. Specific Style cops opted in below.
+Style:
+  Enabled: false
+
+Metrics:
+  Enabled: false
+
+Naming:
+  Enabled: false
+
+# --- opt-in Style cops ---
+
+Style/HashSyntax:
+  Enabled: true
+  EnforcedStyle: ruby19
+
+# standardrb's string rules
+Style/StringLiterals:
+  Enabled: true
+  EnforcedStyle: double_quotes
+Style/StringLiteralsInInterpolation:
+  Enabled: true
+  EnforcedStyle: double_quotes
+Style/RedundantInterpolation:
+  Enabled: true
+Style/StringConcatenation:
+  Enabled: true
+Style/StringChars:
+  Enabled: true
+Style/RedundantStringEscape:
+  Enabled: true
+
+# Off — we'll add `required_ruby_version` when we bump Ruby in a
+# follow-up PR.
+Gemspec/RequiredRubyVersion:
+  Enabled: false

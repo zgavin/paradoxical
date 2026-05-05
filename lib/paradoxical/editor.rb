@@ -5,17 +5,19 @@ class Paradoxical::Editor
       puts "Editing #{File.dirname path}"
       editor = self.new(path, game: game)
       done_parsing_at = Time.now
-      puts "Parsing: #{'%.2f' % (done_parsing_at - started_at)}"
+      puts "Parsing: #{"%.2f" % (done_parsing_at - started_at)}"
       editor.instance_exec(&block)
       editor.instance_exec do
         player = empires.first
         player.search("> &list&key-matches(/terra_incognita|hyperlane_systems|visited_objects/) &value").each(&:remove)
-        empires[1..-1].flat_map do |e| e.search("> &list&key-matches(/terra_incognita|hyperlane_systems|visited_objects/) &value") end.each(&:remove)
+        empires[1..-1].flat_map do |e|
+          e.search("> &list&key-matches(/terra_incognita|hyperlane_systems|visited_objects/) &value")
+        end.each(&:remove)
       end
       done_editing_at = Time.now
-      puts "Editing: #{'%.2f' % (done_editing_at - done_parsing_at)}"
+      puts "Editing: #{"%.2f" % (done_editing_at - done_parsing_at)}"
       editor.write
-      puts "Writing: #{'%.2f' % (Time.now - done_editing_at)}"
+      puts "Writing: #{"%.2f" % (Time.now - done_editing_at)}"
     rescue Exception => e
       puts e.inspect
       exit
@@ -26,12 +28,13 @@ class Paradoxical::Editor
 
   def initialize path, game: nil
     @path = path
-    @game = ( game or Paradoxical::Game.new('Stellaris') )
+    @game = (game or Paradoxical::Game.new("Stellaris"))
 
-    Zip::File.open( full_path ) do |zip_file|
-      @meta = Paradoxical::Parser.parse zip_file.glob( "meta" ).first.get_input_stream.read
+    Zip::File.open(full_path) do |zip_file|
+      meta, gamestate = ["meta", "gamestate"].map do |file| zip_file.glob(file).first.get_input_stream.read end
+      @meta = Paradoxical::Parser.parse meta
       # for some reason the intel manager section is not formatted correctly so we need to use a regex to fix it
-      @gamestate = Paradoxical::Parser.parse zip_file.glob( "gamestate" ).first.get_input_stream.read.gsub(/^(\d+)\s*\{$/, '\1 = {')
+      @gamestate = Paradoxical::Parser.parse gamestate.gsub(/^(\d+)\s*\{$/, '\1 = {')
     end
   end
 
@@ -57,12 +60,17 @@ class Paradoxical::Editor
     @gamestate.send(sym, *args, **opts, &block)
   end
 
-  { empires: "country", systems: "galactic_object", planets: "planets > planet", leaders: "leaders", clusters: "clusters" }.each do |sym, key|
+  {
+    empires: "country",
+    systems: "galactic_object",
+    planets: "planets > planet",
+    leaders: "leaders",
+    clusters: "clusters"
+  }.each do |sym, key|
     define_method sym do
       @gamestate.find("> #{key}").lists
     end
   end
-
 
   def initializers
     @initializers ||= begin
@@ -72,22 +80,22 @@ class Paradoxical::Editor
   end
 
   def swap_systems a, b, do_chain: true
-    systems = [a,b].map do |i| self.systems[i] end
+    systems = [a, b].map do |i| self.systems[i] end
 
     system_a, system_b = systems
 
-    coordinate_a, coordinate_b = systems.map do |s| s['coordinate'].remove end
+    coordinate_a, coordinate_b = systems.map do |s| s["coordinate"].remove end
 
     system_a.unshift coordinate_b
     system_b.unshift coordinate_a
 
-    hyperlane_a, hyperlane_b = systems.map do |s| s['hyperlane'].remove end
+    hyperlane_a, hyperlane_b = systems.map do |s| s["hyperlane"].remove end
 
-    system_a['star_class'].insert_after hyperlane_b
-    system_b['star_class'].insert_after hyperlane_a
+    system_a["star_class"].insert_after hyperlane_b
+    system_b["star_class"].insert_after hyperlane_a
 
     [[system_a, system_b], [system_b, system_a]].each do |from, to|
-      to['hyperlane'].lists.map do |lane|
+      to["hyperlane"].lists.map do |lane|
         # if a system has a hyperlane to itself, then we need to swap it back (eg, ratlings might have this)
         if lane["to"].value == from.key then
           lane["to"] = to.key
@@ -102,16 +110,26 @@ class Paradoxical::Editor
       end
     end
 
-    %w{empire_cluster marauder_cluster precursor_1 precursor_2 precursor_3 precursor_4 precursor_5 precursor_baol_1 precursor_zroni_1}.each do |flag|
+    %w{
+      empire_cluster
+      marauder_cluster
+      precursor_1
+      precursor_2
+      precursor_3
+      precursor_4
+      precursor_5
+      precursor_baol_1
+      precursor_zroni_1
+    }.each do |flag|
       flag_a, flag_b = systems.map do |s| s.find("> flags > #{flag}")&.remove end
 
       if flag_b then
-        system_a << build do l "flags" end if system_a['flags'].nil?
-        system_a['flags'] << flag_b
+        system_a << build do l "flags" end if system_a["flags"].nil?
+        system_a["flags"] << flag_b
       end
       if flag_a then
-        system_b << build do l "flags" end if system_b['flags'].nil?
-        system_b['flags'] << flag_a
+        system_b << build do l "flags" end if system_b["flags"].nil?
+        system_b["flags"] << flag_a
       end
     end
 
@@ -119,16 +137,17 @@ class Paradoxical::Editor
       [a, 123456789],
       [b, a],
       [123456789, b]
-    ].each do |(a,b)|
+    ].each do |(a, b)|
       gamestate["clusters"].search("> &list > objects").each do |objects|
         value = objects.all.find do |v| v.value == a end
         next if value.nil?
+
         value&.value = b
         objects.sort_by! do |v| v.value end if b != 123456789
       end
     end
 
-    init = initializers[system_a['initializer'].value]
+    init = initializers[system_a["initializer"].value]
 
     return [] if init.key == "pt_basic_init_01"
 
@@ -138,12 +157,14 @@ class Paradoxical::Editor
 
     return neighbors unless do_chain
 
-    has_flag = proc do |sys, flag| sys.present? and (sys['flags']&.properties&.map(&:key) or []).include? flag end
+    has_flag = proc do |sys, flag| sys.present? and (sys["flags"]&.properties&.map(&:key) or []).include? flag end
 
     eligible_systems = self.systems
       .reject do |sys| sys.key == a end
-      .reject do |sys| has_flag.call sys, "empire_home_system" end
-
+      .reject do |sys|
+      has_flag.call sys,
+                    "empire_home_system"
+    end
 
     until neighbors.empty? do
       origin, neighbor = neighbors.shift
@@ -154,21 +175,25 @@ class Paradoxical::Editor
         sys["initializer"].value == initializer_name and sys["init_parent"]&.value&.to_s == origin.to_s
       end
 
-      trigger = neighbor['trigger']
+      trigger = neighbor["trigger"]
 
       trigger_allowed = if trigger.nil? then
-        true
-      elsif %{ratling_1_2 ratling_1_3}.include? initializer_name then
-        true
-      elsif trigger.length == 1 and trigger["num_guaranteed_colonies"].present? then
-        num_guaranteed_colonies = @gamestate.find("> galaxy > num_guaranteed_colonies").value
-        operator = trigger["num_guaranteed_colonies"].operator
-        operator = "==" if operator == "="
-        eval "#{num_guaranteed_colonies} #{operator} #{trigger["num_guaranteed_colonies"].value}"
-      else
-        puts "warning: unhandled trigger in #{initializer_name}: #{neighbor['trigger'].to_pdx}"
-        true
-      end
+                          true
+                        elsif %{ratling_1_2 ratling_1_3}.include? initializer_name then
+                          true
+                        elsif trigger.length == 1 and trigger["num_guaranteed_colonies"].present? then
+                          num_guaranteed_colonies = @gamestate.find("> galaxy > num_guaranteed_colonies").value
+                          operator = trigger["num_guaranteed_colonies"].operator
+                          operator = "==" if operator == "="
+                          # Inputs come from parsed PDX game files (trusted source); the
+                          # eval evaluates a simple numeric comparison like `5 >= 3`.
+                          # rubocop:disable Security/Eval
+                          eval "#{num_guaranteed_colonies} #{operator} #{trigger["num_guaranteed_colonies"].value}"
+                          # rubocop:enable Security/Eval
+                        else
+                          puts "warning: unhandled trigger in #{initializer_name}: #{neighbor["trigger"].to_pdx}"
+                          true
+                        end
 
       next unless trigger_allowed
 
@@ -176,23 +201,32 @@ class Paradoxical::Editor
 
       jump_map = self.jump_map origin
 
-      d = neighbor['distance']
+      d = neighbor["distance"]
       h = neighbor["hyperlane_jumps"]
 
-      min_distance = d.present? ? d['min']&.value : 0
-      max_distance = d.present? ? d['max']&.value : Float::INFINITY
+      min_distance = d.present? ? d["min"]&.value : 0
+      max_distance = d.present? ? d["max"]&.value : Float::INFINITY
 
-      min_jumps = h.present? ? h['min']&.value : 0
-      max_jumps = h.present? ? h['max']&.value : Float::INFINITY
+      min_jumps = h.present? ? h["min"]&.value : 0
+      max_jumps = h.present? ? h["max"]&.value : Float::INFINITY
       max_jumps = 3 if max_jumps == "@jumps"
 
       target = eligible_systems
         .reject do |sys| has_flag.call sys, "hostile_system" end
-        .reject do |target| %w{neighbor_t1 neighbor_t2 neighbor_t1_first_colony neighbor_t2_second_colony}.any? do |flag| has_flag.call target, flag and not has_flag.call source, flag end end
-        .map do |target| [target, distance(origin, target.key), (jump_map[target.key] or Float::INFINITY)] end
+        .reject do |target|
+          %w{neighbor_t1 neighbor_t2 neighbor_t1_first_colony
+             neighbor_t2_second_colony}.any? do |flag|
+            has_flag.call target, flag and not has_flag.call source, flag
+          end
+        end
+        .map do |target|
+          [target, distance(origin, target.key),
+           (jump_map[target.key] or Float::INFINITY)]
+        end
         .filter do |(target, distance, jumps)|
           next false if min_distance > distance or max_distance < distance
           next false if min_jumps > jumps or max_jumps < jumps
+
           true
         end
         .min_by do |(target, distance, jumps)| distance end
@@ -203,11 +237,20 @@ class Paradoxical::Editor
 
       next if source.nil? or target.nil?
 
-      target_init = initializers[target['initializer'].value]
+      target_init = initializers[target["initializer"].value]
 
-      puts "warning: could not find existing system for \"#{neighbor["initializer"].value}\" but eligible system #{target} exists in new location" if source.nil? and target.present?
-      puts "warning: moving \"#{target["initializer"].value}\" which was chained from #{target["init_parent"].value}" unless target["init_parent"].nil?
-      puts "warning: moving \"#{target["initializer"].value}\" (#{target.key}) which has is_in_cluster" if target_init.find("> usage_odds > modifier is_in_cluster")
+      if source.nil? and target.present?
+        puts "warning: could not find existing system for \"#{neighbor["initializer"].value}\" " \
+             "but eligible system #{target} exists in new location"
+      end
+      unless target["init_parent"].nil?
+        puts "warning: moving \"#{target["initializer"].value}\" " \
+             "which was chained from #{target["init_parent"].value}"
+      end
+      if target_init.find("> usage_odds > modifier is_in_cluster")
+        puts "warning: moving \"#{target["initializer"].value}\" (#{target.key}) " \
+             "which has is_in_cluster"
+      end
 
       puts "#{neighbor["initializer"].value}: #{source.key} -> #{target.key}"
 
@@ -223,11 +266,11 @@ class Paradoxical::Editor
   end
 
   def jumps a, b
-    (@jumps ||= Jumps.new self).distance a,b
+    (@jumps ||= Jumps.new self).distance a, b
   end
 
   def remove_hyperlane from, to
-    a,b = [from,to].map do |i| systems[i] end
+    a, b = [from, to].map do |i| systems[i] end
 
     a.find("> hyperlane > [to=#{b.key}]").remove
     b.find("> hyperlane > [to=#{a.key}]").remove
@@ -237,10 +280,12 @@ class Paradoxical::Editor
   end
 
   def add_hyperlane from, to
-    a,b = [from,to].map do |i| self.systems[i] end
+    a, b = [from, to].map do |i| self.systems[i] end
 
     distance = self.distance(from, to).floor
-    [a,b].reject do |s| s["hyperlane"].present? end.each do |s| s << Paradoxical::Elements::List.new("hyperlane", []) end
+    [a, b].reject do |s|
+      s["hyperlane"].present?
+    end.each do |s| s << Paradoxical::Elements::List.new("hyperlane", []) end
     a["hyperlane"] << build do
       list false do
         to b.key.dup
@@ -257,12 +302,12 @@ class Paradoxical::Editor
   end
 
   def distance from, to
-    a,b = [from,to].map do |i| self.systems[i] end
+    a, b = [from, to].map do |i| self.systems[i] end
 
-    x_a, x_b = [a,b].map do |n| n['coordinate']['x'].value end
-    y_a, y_b = [a,b].map do |n| n['coordinate']['y'].value end
+    x_a, x_b = [a, b].map do |n| n["coordinate"]["x"].value end
+    y_a, y_b = [a, b].map do |n| n["coordinate"]["y"].value end
 
-    ( (x_a - x_b)**2 + (y_a - y_b)**2 ) ** 0.5
+    ((x_a - x_b)**2 + (y_a - y_b)**2)**0.5
   end
 
   def move id, x, y
@@ -284,7 +329,7 @@ class Paradoxical::Editor
   end
 
   def jump_map source
-    data = { }
+    data = {}
     queue = [[systems[source], 0]]
 
     until queue.empty? do
@@ -300,6 +345,7 @@ class Paradoxical::Editor
         to = h["to"].value
         next if data[to].present?
         next puts "warning can't find #{to}" if systems[to].nil?
+
         queue.push [systems[to], jumps]
       end
     end
@@ -307,7 +353,7 @@ class Paradoxical::Editor
     data
   end
 
-  #implemented as a separate class to not pollute the namespace
+  # implemented as a separate class to not pollute the namespace
   class Jumps
     class Node < Struct.new(:sys, :prev, :g, :f, :neighbors)
       def == other
@@ -333,16 +379,16 @@ class Paradoxical::Editor
 
     def average_hyperlane_distance
       @average_hyperlane_distance ||= begin
-       hyperlanes = nodes.map do |n| n.sys['hyperlane']&.lists end.compact.flatten
-       total_length = hyperlanes.sum do |h| h["length"].value end
-       total_length / hyperlanes.length
+        hyperlanes = nodes.map do |n| n.sys["hyperlane"]&.lists end.compact.flatten
+        total_length = hyperlanes.sum do |h| h["length"].value end
+        total_length / hyperlanes.length
       end
     end
 
     def distance from, to
       nodes.each &:reset!
 
-      start, target = [from,to].map do |i| nodes[i] end
+      start, target = [from, to].map do |i| nodes[i] end
 
       return Float::INFINITY if start.neighbors.empty? or target.neighbors.empty?
 
@@ -369,7 +415,7 @@ class Paradoxical::Editor
           if tentative_g < n.g then
             n.prev = current
             n.g = tentative_g
-            n.f = tentative_g + ( editor.distance( n.sys.key, target.sys.key ) / average_hyperlane_distance )
+            n.f = tentative_g + (editor.distance(n.sys.key, target.sys.key) / average_hyperlane_distance)
 
             open_set.push n unless open_set.include? n
           end
@@ -382,8 +428,3 @@ class Paradoxical::Editor
     end
   end
 end
-
-
-
-
-

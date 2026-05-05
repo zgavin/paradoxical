@@ -2,7 +2,7 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   attr_accessor :value
 
   def self.empty_line
-    empty_line = self.new Paradoxical::Elements::Primitives::String.new '', quoted: false
+    empty_line = self.new Paradoxical::Elements::Primitives::String.new "", quoted: false
 
     empty_line.instance_variable_set :@empty_line, true
 
@@ -19,11 +19,11 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   end
 
   def eql? other
-    other.is_a?( self.class ) and @value.eql?( other.value )
+    other.is_a?(self.class) and @value.eql?(other.value)
   end
 
   def == other
-    other.is_a?( self.class ) and @value == other.value
+    other.is_a?(self.class) and @value == other.value
   end
 
   def hash
@@ -31,7 +31,7 @@ class Paradoxical::Elements::Value < Paradoxical::Elements::Node
   end
 
   def to_pdx indent: nil, buffer: ""
-    buffer << ( whitespace&.first or indent or '' ) << value.to_pdx
+    buffer << (whitespace&.first or indent or "") << value.to_pdx
   end
 
   def inspect

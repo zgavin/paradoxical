@@ -59,13 +59,13 @@ module Paradoxical::Elements::Concerns::Arrayable
 
     @children << object
 
-    object.send( :parent=, self )
+    object.send(:parent=, self)
 
     self
   end
 
   def [] *args
-    if [::String, Symbol, Paradoxical::Elements::Primitives::String].any? do |klass| args.first.is_a?(klass) end  then
+    if [::String, Symbol, Paradoxical::Elements::Primitives::String].any? do |klass| args.first.is_a?(klass) end then
       key = args.first.to_s.downcase
 
       @children.find do |obj| obj.respond_to?(:key) and obj.key.to_s.downcase == key end
@@ -82,7 +82,7 @@ module Paradoxical::Elements::Concerns::Arrayable
 
       if property.nil? then
         child = @children.reverse_each.find do |child| child.is_a? Paradoxical::Elements::Property end
-        property = Paradoxical::Elements::Property.new( key, '=', value )
+        property = Paradoxical::Elements::Property.new(key, "=", value)
         if child.present? then
           child.insert_after property
         else
@@ -99,7 +99,7 @@ module Paradoxical::Elements::Concerns::Arrayable
       Array(value).each do |object|
         raise ArgumentError.new "Must be Paradoxical::Elements::Node" unless object.is_a? Paradoxical::Elements::Node
 
-        object.send( :parent=, self )
+        object.send(:parent=, self)
       end
 
       @children[*args] = value
@@ -107,7 +107,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   end
 
   def clear
-    @children.each do |object| object.send( :parent=, nil ) end
+    @children.each do |object| object.send(:parent=, nil) end
 
     @children.clear
 
@@ -119,7 +119,7 @@ module Paradoxical::Elements::Concerns::Arrayable
       objects.each do |object|
         raise ArgumentError.new "Must be Paradoxical::Elements::Node" unless object.is_a? Paradoxical::Elements::Node
 
-        object.send( :parent=, self )
+        object.send(:parent=, self)
       end
     end
 
@@ -129,14 +129,14 @@ module Paradoxical::Elements::Concerns::Arrayable
   end
 
   def delete object, &block
-    @children.delete( object, &block ).tap do |result|
-      object.send( :parent=, nil ) if result.equal? object
+    @children.delete(object, &block).tap do |result|
+      object.send(:parent=, nil) if result.equal? object
     end
   end
 
   def delete_at index
-    @children.delete_at( index ).tap do |result|
-      result.send( :parent=, nil ) unless result.nil?
+    @children.delete_at(index).tap do |result|
+      result.send(:parent=, nil) unless result.nil?
     end
   end
 
@@ -144,8 +144,8 @@ module Paradoxical::Elements::Concerns::Arrayable
     return self.to_enum :delete_if if block.nil?
 
     @children.delete_if do |object|
-      block.call( object ).tap do |result|
-        object.send( :parent=, nil ) if result
+      block.call(object).tap do |result|
+        object.send(:parent=, nil) if result
       end
     end
 
@@ -155,7 +155,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   def dig *indexes
     result = at indexes.shift
 
-    ( indexes.empty? or result.nil? ) ? result : result.dig( *indexes )
+    (indexes.empty? or result.nil?) ? result : result.dig(*indexes)
   end
 
   def fill *args, &block
@@ -167,7 +167,7 @@ module Paradoxical::Elements::Concerns::Arrayable
       @children.fill *rest do
         result = object.dup
 
-        result.send( :parent=, self )
+        result.send(:parent=, self)
 
         result
       end
@@ -179,7 +179,7 @@ module Paradoxical::Elements::Concerns::Arrayable
 
         result = object.dup
 
-        result.send( :parent=, self )
+        result.send(:parent=, self)
 
         result
       end
@@ -196,7 +196,7 @@ module Paradoxical::Elements::Concerns::Arrayable
     objects.each do |object|
       raise ArgumentError.new "Must be Paradoxical::Elements::Node" unless object.is_a? Paradoxical::Elements::Node
 
-      object.send( :parent=, self )
+      object.send(:parent=, self)
     end
 
     @children.insert index, *objects
@@ -208,8 +208,8 @@ module Paradoxical::Elements::Concerns::Arrayable
     return self.to_enum :keep_if if block.nil?
 
     @children.keep_if do |object|
-      block.call( object ).tap do |result|
-        object.send( :parent=, nil ) unless result
+      block.call(object).tap do |result|
+        object.send(:parent=, nil) unless result
       end
     end
 
@@ -220,9 +220,9 @@ module Paradoxical::Elements::Concerns::Arrayable
     return self.to_enum :map! if block.nil?
 
     @children.map! do |original_object|
-      new_object = block.call( original_object )
+      new_object = block.call(original_object)
 
-      new_object.send( :parent=, self ) and original_object.send( :parent=, nil ) unless new_object == original_object
+      new_object.send(:parent=, self) and original_object.send(:parent=, nil) unless new_object == original_object
 
       new_object
     end
@@ -232,10 +232,10 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   alias_method :collect!, :map!
 
-  def pop n=1
+  def pop n = 1
     @children.pop(n)&.tap do |result|
       Array(result).each do |object|
-        object.send( :parent=, nil )
+        object.send(:parent=, nil)
       end
     end
   end
@@ -244,7 +244,7 @@ module Paradoxical::Elements::Concerns::Arrayable
     objects.each do |object|
       raise ArgumentError.new "Must be Paradoxical::Elements::Node" unless object.is_a? Paradoxical::Elements::Node
 
-      object.send( :parent=, self )
+      object.send(:parent=, self)
     end
 
     @children.push *objects
@@ -258,8 +258,8 @@ module Paradoxical::Elements::Concerns::Arrayable
     return self.to_enum :reject! if block.nil?
 
     @children.reject! do |object|
-      block.call( object ).tap do |result|
-        object.send( :parent=, nil ) if result
+      block.call(object).tap do |result|
+        object.send(:parent=, nil) if result
       end
     end
 
@@ -268,34 +268,34 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   def replace new_children
     @children.each do |object|
-      object.send( :parent=, nil )
+      object.send(:parent=, nil)
     end
 
     @children.replace new_children
 
     @children.each do |object|
-      object.send( :parent=, self )
+      object.send(:parent=, self)
     end
 
     self
   end
 
-  def select!  &block
+  def select! &block
     return self.to_enum :select! if block.nil?
 
     @children.select! do |object|
-      block.call( object ).tap do |result|
-        object.send( :parent=, nil ) unless result
+      block.call(object).tap do |result|
+        object.send(:parent=, nil) unless result
       end
     end
 
     self
   end
 
-  def shift n=1
+  def shift n = 1
     @children.shift(n)&.tap do |result|
       Array(result).each do |object|
-        object.send( :parent=, nil )
+        object.send(:parent=, nil)
       end
     end
   end
@@ -303,7 +303,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   def slice! *args
     @children.slice!(*args).tap do |objects|
       objects.each do |object|
-        object.send( :parent=, nil )
+        object.send(:parent=, nil)
       end
     end
   end
@@ -312,7 +312,7 @@ module Paradoxical::Elements::Concerns::Arrayable
     objects.each do |object|
       raise ArgumentError.new "Must be Paradoxical::Elements::Node" unless object.is_a? Paradoxical::Elements::Node
 
-      object.send( :parent=, self )
+      object.send(:parent=, self)
     end
 
     @children.unshift *objects

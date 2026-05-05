@@ -3,11 +3,11 @@ class Paradoxical::Elements::Primitives::String
 
   impersonate ::String
 
-  impersonate_infix_methods %i{ !~ % * + =~ << }
+  impersonate_infix_methods %i{!~ % * + =~ <<}
 
   def initialize string, quoted: nil
     if quoted.nil? then
-      @quoted = ( string.start_with? '"' and string.end_with? '"' )
+      @quoted = (string.start_with? '"' and string.end_with? '"')
 
       super @quoted ? string[1..-2] : string
     else

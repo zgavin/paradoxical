@@ -21,7 +21,16 @@ end
 class String
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
 
-  IS_VALID_RAW_STRING_REGEXP = /^(hidden:event_target:|event_target:|trigger:|modifier:|value:|hidden:|parameter:|@|\w|-?\d+\.?\d*%+$)[\w\.]*$/
+  IS_VALID_RAW_STRING_REGEXP = %r{
+    ^
+    (
+      hidden:event_target: | event_target: |
+      trigger: | modifier: | value: | hidden: | parameter: |
+      @ | \w | -?\d+\.?\d*%+$
+    )
+    [\w\.]*
+    $
+  }x
 
   def to_pdx
     IS_VALID_RAW_STRING_REGEXP =~ self ? self : %{"#{self}"}
@@ -40,7 +49,7 @@ class Float
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
 
   def to_pdx
-    '%.3f' % self
+    "%.3f" % self
   end
 end
 
@@ -66,10 +75,10 @@ end
 
 class Array
   def to_pdx
-    Paradoxical::Elements::Document.new( self, whitespace: [''] ).to_pdx
+    Paradoxical::Elements::Document.new(self, whitespace: [""]).to_pdx
   end
 
   def pdx_add_padding_lines
-    self.map do |v| [ v, Paradoxical::Elements::Value.empty_line ] end.flatten(1)[0..-2]
+    self.map do |v| [v, Paradoxical::Elements::Value.empty_line] end.flatten(1)[0..-2]
   end
 end

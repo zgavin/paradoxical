@@ -6,7 +6,7 @@ class Paradoxical::Elements::Node
   def document
     return nil if @parent.nil?
 
-    @parent.is_a?( Paradoxical::Elements::Document ) ? @parent : @parent.document
+    @parent.is_a?(Paradoxical::Elements::Document) ? @parent : @parent.document
   end
 
   def remove
@@ -52,7 +52,7 @@ class Paradoxical::Elements::Node
   end
 
   def ancestors up_to: nil
-    (parent.is_a?( Paradoxical::Elements::Document ) or parent == up_to) ? [@parent] : [@parent, *@parent.ancestors]
+    (parent.is_a?(Paradoxical::Elements::Document) or parent == up_to) ? [@parent] : [@parent, *@parent.ancestors]
   end
 
   def siblings
@@ -60,7 +60,7 @@ class Paradoxical::Elements::Node
   end
 
   def line_break
-    @line_break ||= ( parent&.line_break or "\n" )
+    @line_break ||= (parent&.line_break or "\n")
   end
 
   private
@@ -70,7 +70,8 @@ class Paradoxical::Elements::Node
   end
 
   def parent= parent
-    raise ArgumentError.new "must be Paradoxical::Elements::List, Paradoxical::Elements::Document, or nil" unless parent.nil? or parent.is_a? Paradoxical::Elements::List or parent.is_a? Paradoxical::Elements::Document
+    valid = (parent.nil? or parent.is_a?(Paradoxical::Elements::List) or parent.is_a?(Paradoxical::Elements::Document))
+    raise ArgumentError.new("must be Paradoxical::Elements::List, Paradoxical::Elements::Document, or nil") unless valid
 
     @parent.delete self unless @parent.nil? or parent.nil?
 

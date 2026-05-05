@@ -8,3 +8,9 @@
 # Bulk reformat: tabs → 2 spaces, trim trailing whitespace.
 # Sets the project's whitespace contract pinned in .editorconfig.
 f96ee9fe75b67c1b18cd5806388418d610341cf1
+
+# Bulk rubocop autocorrect against the new .rubocop.yml.
+d8878be132fa2c55273e6930a811e9ffb241bcca
+
+# Hand-reflow of lines >120 chars rubocop couldn't break automatically.
+65b44ae898f91adb621134f87cb85548428405c6

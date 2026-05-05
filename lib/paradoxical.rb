@@ -1,7 +1,7 @@
-require 'active_support/all'
-require 'pathname'
-require 'yaml'
-require 'zip'
+require "active_support/all"
+require "pathname"
+require "yaml"
+require "zip"
 
 Zip.warn_invalid_date = false
 
@@ -83,7 +83,7 @@ end
   require "paradoxical/games/#{slug}"
 end
 
-require 'paradoxical/paradoxical'
+require "paradoxical/paradoxical"
 
 # Single entry point for mod scripts. Resolves the game slug to its
 # `Paradoxical::Games::*` module, builds the Game (which pulls in the
@@ -114,7 +114,7 @@ def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
   # second-key semantics for non-numeric values) takes effect.
   Paradoxical::Builder.prepend(game_module::DSL)
 
-  TOPLEVEL_BINDING.eval('self').extend(Paradoxical::Helper)
+  TOPLEVEL_BINDING.eval("self").extend(Paradoxical::Helper)
 
   Paradoxical.game
 end

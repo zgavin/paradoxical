@@ -4,13 +4,13 @@ class Paradoxical::Elements::Document
 
   attr_reader :path, :whitespace, :owner, :encoding
 
-  def initialize children=[], whitespace: nil, path: nil, owner: nil, bom: false, encoding: nil
+  def initialize children = [], whitespace: nil, path: nil, owner: nil, bom: false, encoding: nil
     @children = children
     @whitespace = whitespace
     @bom = bom
     @encoding = encoding
 
-    @children.each do |obj| obj.send( :parent=, self ) end
+    @children.each do |obj| obj.send(:parent=, self) end
 
     @path = path
 
@@ -18,15 +18,15 @@ class Paradoxical::Elements::Document
   end
 
   def dup children: nil, path: nil
-    self.class.new ( children or @children ).map( &:dup ), whitespace: @whitespace.dup, path: path, bom: @bom
+    self.class.new ( children or @children).map(&:dup), whitespace: @whitespace.dup, path: path, bom: @bom
   end
 
   def eql? other
-    other.is_a?( Document ) and @children.eql?( other.send( :children ) )
+    other.is_a?(Document) and @children.eql?(other.send(:children))
   end
 
   def == other
-    other.is_a?( Document ) and @children == other.send( :children )
+    other.is_a?(Document) and @children == other.send(:children)
   end
 
   def hash
@@ -38,19 +38,19 @@ class Paradoxical::Elements::Document
   end
 
   def to_pdx
-    buffer =  ""
+    buffer = ""
 
-    @children.each_with_index do |obj,i|
-      indent = i == 0 ? '' : line_break
-      obj.whitespace ||=  [indent, nil, nil, nil]
+    @children.each_with_index do |obj, i|
+      indent = i == 0 ? "" : line_break
+      obj.whitespace ||= [indent, nil, nil, nil]
       obj.to_pdx buffer: buffer
     end
 
-    buffer << ( whitespace&.first or '' )
+    buffer << (whitespace&.first or "")
   end
 
   def defines
-    properties.select do |p| p.key.starts_with? '@' end.map do |p| [p.key, p.value] end.to_h
+    properties.select do |p| p.key.starts_with? "@" end.map do |p| [p.key, p.value] end.to_h
   end
 
   def vanilla?
