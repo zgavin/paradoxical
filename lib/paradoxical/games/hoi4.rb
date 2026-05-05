@@ -45,6 +45,12 @@ module Paradoxical::Games::HOI4
 
       # 1 file has one extra trailing `}` — strip it.
       "common/national_focus/TSR_lingguang_incident_joint_branch.txt"   => STRIP_TRAILING_BRACE,
+
+      # `events/WUW_Germany.txt` has multiple `base = ´45` lines
+      # (acute accent typo, presumably meant `45` — `base` takes a
+      # numeric weight in `ai_chance` blocks). Strip the stray
+      # accent character before parsing.
+      "events/WUW_Germany.txt" => ->(data) { data.gsub!("base = ´45", "base = 45") },
     },
   }
 
