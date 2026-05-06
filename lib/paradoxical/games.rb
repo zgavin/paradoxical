@@ -59,14 +59,37 @@ module Paradoxical::Games
     end
 
     # Reads a branch file (e.g. `caesar_branch.txt`) and pulls a
-    # version out via the supplied regex. Used by EU5 (no
-    # launcher-settings.json available); other games go through
-    # `read_launcher_version`.
+    # version out via the supplied regex.
+    #
+    # Note: branch files are unreliable as a sole version source —
+    # both their format and their content are at Paradox's whim.
+    # Example, EU5: 1.1.10 (real version) reports as `release/1.1.0`
+    # (patch component lost), and a later patch changed the format
+    # entirely to a build-id prefix scheme without any semver in it.
+    # Prefer `read_build_checksum` + a per-game BUILD_VERSION_MAP
+    # for any game where branch-file parsing has proven fragile.
     def read_branch_version game, filename, pattern
       path = locate_in_install(game, filename)
       return nil unless path
 
       File.read(path).match(pattern)&.then { |m| Gem::Version.new(m[1]) }
+    end
+
+    # Reads the 32-character build checksum from
+    # `binaries/checksum.txt`. Build-time-stamped, also embedded
+    # inline in the game's executable, changes per Paradox release —
+    # so it's a reliable per-build discriminator.
+    #
+    # Pair with a per-game `BUILD_VERSION_MAP` to translate the hex
+    # to a human-readable Gem::Version. Unknown builds (e.g. dev
+    # branches, future releases not yet in the map) return nil; the
+    # corrections module then applies all corrections unconditionally
+    # since they're anchor-based and safely no-op on mismatch.
+    def read_build_checksum game
+      path = locate_in_install(game, "binaries/checksum.txt")
+      return nil unless path
+
+      File.read(path).strip.then { |s| s.empty? ? nil : s }
     end
 
     # Returns the first existing path for any of the given relative

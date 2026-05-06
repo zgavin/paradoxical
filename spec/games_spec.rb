@@ -117,6 +117,34 @@ RSpec.describe Paradoxical::Games do
         expect(described_class.read_launcher_version(fake_game)).to be_nil
       end
     end
+
+    describe ".read_build_checksum" do
+      it "reads the 32-char hex from binaries/checksum.txt at game.root" do
+        Dir.mkdir(File.join(tmpdir, "binaries"))
+        File.write(File.join(tmpdir, "binaries", "checksum.txt"), "100d3a2d09859b9d014d17804f25f98c\n")
+        expect(described_class.read_build_checksum(fake_game))
+          .to eq("100d3a2d09859b9d014d17804f25f98c")
+      end
+
+      it "falls back to game.root.parent for jomini-v2 layouts where binaries/ lives above game/" do
+        Dir.mkdir(File.join(tmpdir, "binaries"))
+        Dir.mkdir(File.join(tmpdir, "game"))
+        File.write(File.join(tmpdir, "binaries", "checksum.txt"), "c2d8a693a5fafd59ed2ed5761ccf2a62")
+        inner = Struct.new(:root).new(Pathname.new(File.join(tmpdir, "game")))
+        expect(described_class.read_build_checksum(inner))
+          .to eq("c2d8a693a5fafd59ed2ed5761ccf2a62")
+      end
+
+      it "returns nil when the file is missing" do
+        expect(described_class.read_build_checksum(fake_game)).to be_nil
+      end
+
+      it "returns nil when the file is empty" do
+        Dir.mkdir(File.join(tmpdir, "binaries"))
+        File.write(File.join(tmpdir, "binaries", "checksum.txt"), "")
+        expect(described_class.read_build_checksum(fake_game)).to be_nil
+      end
+    end
   end
 
   describe ".executable_for" do

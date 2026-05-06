@@ -13,7 +13,7 @@ This is a personal long-term project, not a published library. The gem
 isn't on RubyGems — install it locally (instructions below). Current
 state:
 
-- Runs on Ruby 3.2.0 + Rust 1.95.0 (pinned in `.tool-versions`).
+- Runs on Ruby 4.0.3 + Rust 1.95.0 (pinned in `.tool-versions`).
 - Round-trip preserves the original bytes — whitespace, comments, BOMs,
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
@@ -24,21 +24,20 @@ state:
 
 ## Supported games
 
-The "validated versions" column lists every patch level the parse
-smoke has been run against without regression. New entries get added
-as Paradox ships patches; older entries stay so users on a back
-version can still tell if they're covered.
+The "supported versions" column lists every patch level we know
+about. New entries get added as Paradox ships patches; older entries
+stay so users on a back version can still tell if they're covered.
 
-| game | validated versions | regression-suite coverage |
-|---|---|---|
-| **Europa Universalis IV** | 1.37.5 | full |
-| **Stellaris** | 4.3.5 | full |
-| **Imperator: Rome** | 2.0.5 | full |
-| **Europa Universalis V** | 1.1.0 | full |
-| **Hearts of Iron IV** | 1.18.1.0 | full |
-| **Crusader Kings II** | 3.3.5.1 (EOL since Sep 2021) | parser-only; ~10% files fail (older pre-Jomini script conventions, not triaged). CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
-| **Crusader Kings III** | — | placeholder — game module exists, no install validation yet |
-| **Victoria 3** | — | placeholder — game module exists, no install validation yet |
+| game | supported versions | coverage | notes |
+|---|---|---|---|
+| **Europa Universalis IV** | 1.37.5 | 100% | |
+| **Stellaris** | 4.3.5 | 100% | |
+| **Imperator: Rome** | 2.0.5 | 100% | |
+| **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0 | 100% | smoke validated against 1.0.4, 1.1.10, and 1.2.0; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
+| **Hearts of Iron IV** | 1.18.1.0 | 100% | |
+| **Crusader Kings II** | 3.3.5.1 | ~90% | EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
+| **Crusader Kings III** | — | unknown | placeholder — game module exists, no install validation yet |
+| **Victoria 3** | — | unknown | placeholder — game module exists, no install validation yet |
 
 ## Installation
 
