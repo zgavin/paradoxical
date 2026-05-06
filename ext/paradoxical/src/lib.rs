@@ -13,7 +13,10 @@ use pest_derive::Parser;
 #[grammar = "script.pest"]
 struct ScriptParser;
 
+mod nogvl;
 mod search;
+
+use nogvl::nogvl;
 
 fn paradoxical(ruby: &Ruby) -> RModule {
     ruby.class_object().const_get("Paradoxical").unwrap()
@@ -54,7 +57,14 @@ static STRING_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("String").unwrap());
 
 fn parse(ruby: &Ruby, data: String) -> Result<Value, Error> {
-    let pairs = ScriptParser::parse(Rule::document, &data).map_err(|e| {
+    // Phase 1: pest parse is pure Rust (no Ruby calls), so we can
+    // release the GVL for the duration. This lets concurrent Ruby
+    // threads parse different files in parallel on multi-core CPUs.
+    //
+    // Phase 2 (`document`, below) constructs Ruby objects, so it
+    // needs the GVL — that re-acquires automatically when nogvl
+    // returns.
+    let pairs = nogvl(|| ScriptParser::parse(Rule::document, &data)).map_err(|e| {
         let parser: RModule = paradoxical(ruby).const_get("Parser").unwrap();
         let parse_error: ExceptionClass = parser.const_get("ParseError").unwrap();
         Error::new(parse_error, e.to_string())

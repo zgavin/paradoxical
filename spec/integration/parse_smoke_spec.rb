@@ -6,6 +6,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       skip "PARADOXICAL_PARSE_SMOKE unset (e.g. eu5, stellaris, eu4 — see Paradoxical::Games)"
     end
   else
+    require "etc"
     require "paradoxical"
 
     parseable_exts = %w[.txt .gui .gfx].freeze
@@ -132,48 +133,84 @@ RSpec.describe "parse smoke", :parse_smoke do
     install_prefix = "#{install_root.to_s.chomp("/")}/"
     game_prefix    = "#{game.root.to_s.chomp("/")}/"
 
+    # Workers default to the box's core count. Override with
+    # PARADOXICAL_PARSE_SMOKE_WORKERS=1 to bisect failures
+    # serially. The pest parse phase runs without the GVL (see
+    # `ext/paradoxical/src/nogvl.rs`), so workers parallelize across
+    # cores up to roughly the pest:document time ratio (~2-3x in
+    # practice; document() reacquires the GVL to construct Ruby
+    # objects).
+    n_workers = (ENV["PARADOXICAL_PARSE_SMOKE_WORKERS"] || ::Etc.nprocessors).to_i
+
     it "parses every #{parseable_exts.join("/")} file under #{slug} (root: #{game.root})" do
       ok = 0
       failures = []
       allowlisted_pass = []
       allowlisted_fail = 0
 
-      files.each do |full_path|
-        # Display path is install-root-relative so engine and game/
-        # files share a prefix scheme; allowlists are keyed off it.
-        display = full_path.sub(/\A#{Regexp.escape(install_prefix)}/, "")
-        on_allowlist = allowlist_set.include?(display)
+      queue = Queue.new
+      files.each { |f| queue << f }
 
-        # Use Game.parse_file for both game/ and engine paths so BOM
-        # stripping, per-game corrections, and the FileParser-level
-        # Windows-1252 fallback flow through uniformly. Game files use
-        # a relative path (so per-game corrections fire); engine files
-        # use an absolute path (FileParser#full_path_for returns
-        # absolute as-is) — corrections key off relative paths and
-        # don't apply at the engine layer, which is fine since engine
-        # files ship clean.
-        arg = full_path.start_with?(game_prefix) ?
-          full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "") :
-          full_path
-        parsed = false
-        last_error = nil
-        begin
-          game.parse_file(arg, encoding: forced_encoding)
-          parsed = true
-        rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
-          last_error = e
-        end
+      # `parse_mutex` shares Game's `@file_cache` across workers
+      # (FileParser#parse_file synchronizes only the cache lookups,
+      # not the parse itself, so workers parallelize where it matters).
+      # `results_mutex` guards the per-file accumulators below.
+      parse_mutex = Mutex.new
+      results_mutex = Mutex.new
 
-        if parsed
-          on_allowlist ? allowlisted_pass << display : ok += 1
-        elsif on_allowlist
-          allowlisted_fail += 1
-        else
-          label = last_error.is_a?(Paradoxical::Parser::ParseError) ? "" : "[#{last_error.class}] "
-          first_line = last_error.message.lines.first&.chomp.to_s
-          failures << { path: display, error: "#{label}#{first_line}" }
+      threads = n_workers.times.map do
+        Thread.new do
+          loop do
+            full_path =
+              begin
+                queue.pop(true)
+              rescue ThreadError
+                break
+              end
+
+            # Display path is install-root-relative so engine and game/
+            # files share a prefix scheme; allowlists are keyed off it.
+            display = full_path.sub(/\A#{Regexp.escape(install_prefix)}/, "")
+            on_allowlist = allowlist_set.include?(display)
+
+            # Use Game.parse_file for both game/ and engine paths so BOM
+            # stripping, per-game corrections, and the FileParser-level
+            # Windows-1252 fallback flow through uniformly. Game files
+            # use a relative path (so per-game corrections fire); engine
+            # files use an absolute path (FileParser#full_path_for
+            # returns absolute as-is) — corrections key off relative
+            # paths and don't apply at the engine layer, which is fine
+            # since engine files ship clean.
+            arg =
+              if full_path.start_with?(game_prefix) then
+                full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "")
+              else
+                full_path
+              end
+            parsed = false
+            last_error = nil
+            begin
+              game.parse_file(arg, mutex: parse_mutex, encoding: forced_encoding)
+              parsed = true
+            rescue Paradoxical::Parser::ParseError, EncodingError, ArgumentError => e
+              last_error = e
+            end
+
+            results_mutex.synchronize do
+              if parsed
+                on_allowlist ? allowlisted_pass << display : ok += 1
+              elsif on_allowlist
+                allowlisted_fail += 1
+              else
+                label = last_error.is_a?(Paradoxical::Parser::ParseError) ? "" : "[#{last_error.class}] "
+                first_line = last_error.message.lines.first&.chomp.to_s
+                failures << { path: display, error: "#{label}#{first_line}" }
+              end
+            end
+          end
         end
       end
+      threads.each(&:join)
 
       total = files.size
       puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | " \

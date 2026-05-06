@@ -204,6 +204,7 @@ dependencies = [
  "magnus",
  "pest",
  "pest_derive",
+ "rb-sys",
  "regex",
 ]
 
