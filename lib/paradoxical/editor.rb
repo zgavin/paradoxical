@@ -177,23 +177,24 @@ class Paradoxical::Editor
 
       trigger = neighbor["trigger"]
 
-      trigger_allowed = if trigger.nil? then
-                          true
-                        elsif %{ratling_1_2 ratling_1_3}.include? initializer_name then
-                          true
-                        elsif trigger.length == 1 and trigger["num_guaranteed_colonies"].present? then
-                          num_guaranteed_colonies = @gamestate.find("> galaxy > num_guaranteed_colonies").value
-                          operator = trigger["num_guaranteed_colonies"].operator
-                          operator = "==" if operator == "="
-                          # Inputs come from parsed PDX game files (trusted source); the
-                          # eval evaluates a simple numeric comparison like `5 >= 3`.
-                          # rubocop:disable Security/Eval
-                          eval "#{num_guaranteed_colonies} #{operator} #{trigger["num_guaranteed_colonies"].value}"
-                          # rubocop:enable Security/Eval
-                        else
-                          puts "warning: unhandled trigger in #{initializer_name}: #{neighbor["trigger"].to_pdx}"
-                          true
-                        end
+      trigger_allowed =
+        if trigger.nil? then
+          true
+        elsif %{ratling_1_2 ratling_1_3}.include? initializer_name then
+          true
+        elsif trigger.length == 1 and trigger["num_guaranteed_colonies"].present? then
+          num_guaranteed_colonies = @gamestate.find("> galaxy > num_guaranteed_colonies").value
+          operator = trigger["num_guaranteed_colonies"].operator
+          operator = "==" if operator == "="
+          # Inputs come from parsed PDX game files (trusted source); the
+          # eval evaluates a simple numeric comparison like `5 >= 3`.
+          # rubocop:disable Security/Eval
+          eval "#{num_guaranteed_colonies} #{operator} #{trigger["num_guaranteed_colonies"].value}"
+          # rubocop:enable Security/Eval
+        else
+          puts "warning: unhandled trigger in #{initializer_name}: #{neighbor["trigger"].to_pdx}"
+          true
+        end
 
       next unless trigger_allowed
 

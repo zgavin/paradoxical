@@ -209,20 +209,21 @@ module SqliteConfig
 
   def _enabled_mods
     @enabled_mods ||= begin
-      enabled_mods = if @playset.present? then
-                       sql = <<~SQL
-                         SELECT m.id FROM mods m
-                         JOIN playsets_mods pm ON pm.modId = m.id
-                         JOIN playsets p ON pm.playsetId = p.id
-                         WHERE pm.enabled AND p.name = '#{@playset}'
-                         ORDER BY pm.position ASC;
-                       SQL
-                       db
-                         .execute(sql)
-                         .map do |(id)| _mods.find do |mod| mod.id == id end end
-                     else
-                       _mods.dup
-                     end
+      enabled_mods =
+        if @playset.present? then
+          sql = <<~SQL
+            SELECT m.id FROM mods m
+            JOIN playsets_mods pm ON pm.modId = m.id
+            JOIN playsets p ON pm.playsetId = p.id
+            WHERE pm.enabled AND p.name = '#{@playset}'
+            ORDER BY pm.position ASC;
+          SQL
+          db
+            .execute(sql)
+            .map do |(id)| _mods.find do |mod| mod.id == id end end
+        else
+          _mods.dup
+        end
 
       enabled_mods.delete_if do |other| other.id == @mod.id end if @mod.present?
 
@@ -248,18 +249,19 @@ module JsonConfig
 
   def _enabled_mods
     @enabled_mods ||= begin
-      enabled_mods = if @playset.present? then
-                       playsets = JSON.parse(File.read(File.join(user_directory, "playsets.json"),
-                                                       encoding: "bom|utf-8"))["playsets"]
-                       playset = playsets.find do |p| p["name"] === self.playset end
-                       _mods.filter do |mod|
-                         playset["orderedListMods"].any? do |entry|
-                           entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path)
-                         end
-                       end
-                     else
-                       _mods.dup
-                     end
+      enabled_mods =
+        if @playset.present? then
+          playsets_path = File.join(user_directory, "playsets.json")
+          playsets = JSON.parse(File.read(playsets_path, encoding: "bom|utf-8"))["playsets"]
+          playset = playsets.find do |p| p["name"] === self.playset end
+          _mods.filter do |mod|
+            playset["orderedListMods"].any? do |entry|
+              entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path)
+            end
+          end
+        else
+          _mods.dup
+        end
 
       enabled_mods.delete_if do |other| other.name == @mod.name end if @mod.present?
 
