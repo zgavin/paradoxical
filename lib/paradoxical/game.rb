@@ -1,3 +1,4 @@
+require "etc"
 require "sqlite3"
 require "json"
 require "os"
@@ -119,20 +120,57 @@ class Paradoxical::Game
     mod.parse_file relative_path, mutex: mutex, ignore_cache: ignore_cache, encoding: encoding
   end
 
+  # Parse multiple files in parallel using a bounded thread pool.
+  # Workers default to `Etc.nprocessors`; the pool caps at the number
+  # of files when fewer files are passed than there are CPUs. Single
+  # files skip threading entirely. Results come back in the same
+  # order they were passed in (queue jobs are indexed; workers write
+  # into a pre-sized array slot).
+  #
+  # The Rust pest parse phase runs without the GVL (see
+  # `ext/paradoxical/src/nogvl.rs`), so workers parallelize across
+  # cores up to the pest:document time ratio. Ruby AST construction
+  # in `document()` reacquires the GVL and serializes — practical
+  # ceiling is ~2x for typical file mixes.
   def parse_files *files, mod: nil, encoding: nil
+    files = files.flatten
+    return nil if files.empty?
+
+    if files.length == 1 then
+      first = files.first
+      return parse_file first, mod: mod_for_path(first, mod: mod), encoding: encoding
+    end
+
     mutex = Mutex.new
 
-    results = files.flatten.map do |relative_path|
-      _mod = mod_for_path relative_path, mod: mod
+    # Resolve mods up-front (single-threaded; mod_for_path walks
+    # _enabled_mods and we don't want that work happening N times
+    # under thread contention).
+    jobs = files.each_with_index.map do |path, i|
+      [i, path, mod_for_path(path, mod: mod)]
+    end
 
+    queue = Queue.new
+    jobs.each do |job| queue << job end
+
+    results = Array.new(files.length)
+    n_workers = [::Etc.nprocessors, files.length].min
+    threads = n_workers.times.map do
       Thread.new do
-        document = parse_file relative_path, mod: _mod, mutex: mutex, encoding: encoding
-
-        Thread.current[:document] = document
+        loop do
+          i, path, _mod =
+            begin
+              queue.pop(true)
+            rescue ThreadError
+              break
+            end
+          results[i] = parse_file path, mod: _mod, mutex: mutex, encoding: encoding
+        end
       end
-    end.map do |thread| thread.join[:document] end
+    end
+    threads.each(&:join)
 
-    results.count > 1 ? results : results.first
+    results
   end
 
   private
