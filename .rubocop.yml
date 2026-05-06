@@ -18,6 +18,21 @@ Layout:
 Layout/MultilineMethodCallIndentation:
   EnforcedStyle: indented
 
+# Off — for value-form `x = if … end` expressions, both cops want
+# `else`/`elsif`/`end` aligned with the `if` keyword (which sits at
+# `x`'s RHS column for a long-named LHS), producing wide-gulf
+# indentation between parent statement and the if's body. We
+# prefer hand-formatted blocks where `else`/`end` sit at the parent
+# statement's column and the body is one level in. Layout/ElseAlignment
+# has no configuration knob; Layout/EndAlignment with
+# `EnforcedStyleAlignWith: variable` autocorrects `end` only and
+# leaves `else` at the if column, producing inconsistent results.
+# Disable both and format by hand.
+Layout/ElseAlignment:
+  Enabled: false
+Layout/EndAlignment:
+  Enabled: false
+
 # TODO: revisit. Disabled wholesale for the first pass; toggle Lint
 # cops on individually in follow-up PRs so we can evaluate each
 # (e.g. Lint/AmbiguousBlockAssociation, Lint/UnusedMethodArgument)
