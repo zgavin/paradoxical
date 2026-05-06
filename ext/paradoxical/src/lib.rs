@@ -2,7 +2,7 @@ use magnus::{
     function, kwargs,
     prelude::*,
     value::{Lazy, ReprValue},
-    Error, ExceptionClass, IntoValue, RArray, RClass, RModule, RString, Ruby, Value,
+    Error, ExceptionClass, IntoValue, RClass, RModule, RString, Ruby, Value,
 };
 
 use pest::iterators::{Pair, Pairs};
@@ -64,8 +64,8 @@ fn parse(ruby: &Ruby, data: String) -> Result<Value, Error> {
 }
 
 fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
-    let children = RArray::new();
-    let whitespace = RArray::new();
+    let children = ruby.ary_new();
+    let whitespace = ruby.ary_new();
 
     for pair in pairs {
         match pair.as_rule() {
@@ -88,7 +88,7 @@ fn document(ruby: &Ruby, pairs: Pairs<Rule>) -> Value {
 }
 
 fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let whitespace = RArray::new();
+    let whitespace = ruby.ary_new();
     let mut key = s(ruby, "");
     let mut marker = s(ruby, "#");
 
@@ -111,7 +111,7 @@ fn comment(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let whitespace = RArray::new();
+    let whitespace = ruby.ary_new();
     let mut val: Value = s(ruby, "").as_value();
 
     for inner in pair.into_inner() {
@@ -128,7 +128,7 @@ fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let whitespace = RArray::new();
+    let whitespace = ruby.ary_new();
 
     let mut key: Value = s(ruby, "").as_value();
     let mut val: Value = s(ruby, "").as_value();
@@ -158,8 +158,8 @@ fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let children = RArray::new();
-    let whitespace = RArray::new();
+    let children = ruby.ary_new();
+    let whitespace = ruby.ary_new();
 
     let mut kind: Value = ruby.qfalse().as_value();
     let mut key: Value = s(ruby, "").as_value();
@@ -217,8 +217,8 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let children = RArray::new();
-    let whitespace = RArray::new();
+    let children = ruby.ary_new();
+    let whitespace = ruby.ary_new();
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
@@ -245,8 +245,8 @@ fn keyless_list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn parameter_block(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let children = RArray::new();
-    let whitespace = RArray::new();
+    let children = ruby.ary_new();
+    let whitespace = ruby.ary_new();
 
     let mut name: RString = s(ruby, "");
     let mut negated = false;
@@ -276,8 +276,8 @@ fn parameter_block(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn code_block(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let children = RArray::new();
-    let whitespace = RArray::new();
+    let children = ruby.ary_new();
+    let whitespace = ruby.ary_new();
     let mut prefix: RString = s(ruby, "");
 
     for inner in pair.into_inner() {
@@ -333,12 +333,12 @@ fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         .unwrap()
 }
 
-fn p(_ruby: &Ruby, pair: Pair<Rule>) -> RString {
-    RString::new(pair.as_str())
+fn p(ruby: &Ruby, pair: Pair<Rule>) -> RString {
+    ruby.str_new(pair.as_str())
 }
 
-fn s(_ruby: &Ruby, text: &str) -> RString {
-    RString::new(text)
+fn s(ruby: &Ruby, text: &str) -> RString {
+    ruby.str_new(text)
 }
 
 #[magnus::init]

@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use magnus::{
     prelude::*,
     value::{Lazy, ReprValue},
-    Error, ExceptionClass, IntoValue, RArray, RClass, RHash, RModule, RString, Ruby, Symbol, Value,
+    Error, ExceptionClass, IntoValue, RArray, RClass, RModule, RString, Ruby, Symbol, Value,
 };
 
 use pest::iterators::{Pair, Pairs};
@@ -46,7 +46,7 @@ pub fn parse(ruby: &Ruby, data: String) -> Result<RArray, Error> {
 }
 
 fn ruleset(ruby: &Ruby, pairs: Pairs<Rule>) -> RArray {
-    let rules = RArray::new();
+    let rules = ruby.ary_new();
 
     for pair in pairs {
         match pair.as_rule() {
@@ -60,25 +60,25 @@ fn ruleset(ruby: &Ruby, pairs: Pairs<Rule>) -> RArray {
 }
 
 fn rule(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let options = RHash::new();
-    let mut key: Value = s("*").as_value();
-    let property_matchers = RArray::new();
-    let function_matchers = RArray::new();
+    let options = ruby.hash_new();
+    let mut key: Value = s(ruby, "*").as_value();
+    let property_matchers = ruby.ary_new();
+    let function_matchers = ruby.ary_new();
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::key => {
                 if inner.as_str() != "*" {
                     let next = inner.into_inner().next().unwrap();
-                    key = string(next).as_value();
+                    key = string(ruby, next).as_value();
                 }
             }
             Rule::name | Rule::id => {
                 let r = inner.as_rule();
                 let next = inner.into_inner().next().unwrap();
-                let val = string(next);
+                let val = string(ruby, next);
                 let key_name = if r == Rule::name { "name" } else { "id" };
-                options.aset(k(key_name), val).unwrap();
+                options.aset(k(ruby, key_name), val).unwrap();
             }
             Rule::property_matcher => {
                 property_matchers
@@ -91,17 +91,17 @@ fn rule(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                     .unwrap();
             }
             Rule::combinator => {
-                options.aset(k("combinator"), p(inner)).unwrap();
+                options.aset(k(ruby, "combinator"), p(ruby, inner)).unwrap();
             }
             r => unreachable!("unexpected rule: {:?}", r),
         }
     }
 
     options
-        .aset(k("property_matchers"), property_matchers)
+        .aset(k(ruby, "property_matchers"), property_matchers)
         .unwrap();
     options
-        .aset(k("function_matchers"), function_matchers)
+        .aset(k(ruby, "function_matchers"), function_matchers)
         .unwrap();
 
     ruby.get_inner(&RULE_CLASS)
@@ -111,20 +111,20 @@ fn rule(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn property_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let options = RHash::new();
+    let options = ruby.hash_new();
     let mut key: Option<RString> = None;
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::string => key = Some(string(inner)),
+            Rule::string => key = Some(string(ruby, inner)),
             Rule::pm_operator => {
-                options.aset(k("operator"), p(inner)).unwrap();
+                options.aset(k(ruby, "operator"), p(ruby, inner)).unwrap();
             }
             Rule::pm_sensitivity => {
-                options.aset(k("case_sensitivity"), p(inner)).unwrap();
+                options.aset(k(ruby, "case_sensitivity"), p(ruby, inner)).unwrap();
             }
             Rule::value => {
-                options.aset(k("value"), value(ruby, inner)).unwrap();
+                options.aset(k(ruby, "value"), value(ruby, inner)).unwrap();
             }
             r => unreachable!("unexpected rule: {:?}", r),
         }
@@ -137,13 +137,13 @@ fn property_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 }
 
 fn function_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
-    let options = RHash::new();
+    let options = ruby.hash_new();
     let mut name: Option<RString> = None;
-    let function_arguments = RArray::new();
+    let function_arguments = ruby.ary_new();
 
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::function_name => name = Some(p(inner)),
+            Rule::function_name => name = Some(p(ruby, inner)),
             Rule::value => {
                 function_arguments.push(value(ruby, inner)).unwrap();
             }
@@ -151,7 +151,7 @@ fn function_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         }
     }
 
-    options.aset(k("arguments"), function_arguments).unwrap();
+    options.aset(k(ruby, "arguments"), function_arguments).unwrap();
 
     ruby.get_inner(&FUNCTION_MATCHER_CLASS)
         .new_instance((name.unwrap(), options))
@@ -163,7 +163,7 @@ fn value(ruby: &Ruby, pair: Pair<Rule>) -> Value {
     let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
-        Rule::string => string(inner).as_value(),
+        Rule::string => string(ruby, inner).as_value(),
         Rule::integer => inner.as_str().parse::<i64>().unwrap().into_value_with(ruby),
         Rule::float => inner.as_str().parse::<f64>().unwrap().into_value_with(ruby),
         Rule::boolean => {
@@ -183,7 +183,7 @@ fn regexp(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         match inner.as_rule() {
             Rule::regexp_content => {
                 let replaced = REGEXP_ESCAPED_SLASH.replace_all(inner.as_str(), "/");
-                contents = Some(s(&replaced));
+                contents = Some(s(ruby, &replaced));
             }
             Rule::regexp_flag => {
                 let text = inner.as_str();
@@ -204,29 +204,29 @@ fn regexp(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         .as_value()
 }
 
-fn string(pair: Pair<Rule>) -> RString {
+fn string(ruby: &Ruby, pair: Pair<Rule>) -> RString {
     let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
-        Rule::unquoted_string => p(inner),
+        Rule::unquoted_string => p(ruby, inner),
         Rule::single_quoted_string | Rule::double_quoted_string => {
             let text = inner.as_str();
             let trimmed = &text[1..(text.len() - 1)];
             let replaced = STRING_ESCAPE.replace_all(trimmed, "$1");
-            s(&replaced)
+            s(ruby, &replaced)
         }
         r => unreachable!("unexpected rule: {:?}", r),
     }
 }
 
-fn p(pair: Pair<Rule>) -> RString {
-    RString::new(pair.as_str())
+fn p(ruby: &Ruby, pair: Pair<Rule>) -> RString {
+    ruby.str_new(pair.as_str())
 }
 
-fn s(text: &str) -> RString {
-    RString::new(text)
+fn s(ruby: &Ruby, text: &str) -> RString {
+    ruby.str_new(text)
 }
 
-fn k(name: &str) -> Symbol {
-    Symbol::new(name)
+fn k(ruby: &Ruby, name: &str) -> Symbol {
+    ruby.to_symbol(name)
 }
