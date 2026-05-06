@@ -11,10 +11,40 @@ module Paradoxical::Games::EU5
   # launcher-v2 SQLite database.
   LAUNCHER_FORMAT    = :json
 
-  # EU5 ships no launcher-settings.json. The version sits in
-  # `caesar_branch.txt` at the install root: `release/X.Y.Z`.
+  # EU5 ships no launcher-settings.json. `caesar_branch.txt` is also
+  # unreliable: its format is at Paradox's whim and patch components
+  # have been silently dropped (1.1.10 reported as `release/1.1.0`),
+  # so we ignore it. We use the 32-char build checksum from
+  # `binaries/checksum.txt` instead — it's build-time-stamped, also
+  # embedded inline in eu5.exe, and changes per Paradox release.
+  #
+  # `BUILD_VERSION_MAP` keys on the *last 4 chars* of the disk
+  # checksum rather than the full hex. Through 1.1.x, those 4 chars
+  # are exactly the publicly-displayed checksum Paradox prints in
+  # the launcher and uses for achievement gating — so the map can
+  # be populated for past releases from public patchnotes alone, no
+  # install required. 1.2.0 introduced some kind of transformation
+  # (the public checksum no longer matches the disk suffix), so
+  # those entries have to be populated by hand from an actual
+  # install. 4 hex chars = 16 bits = ~65k space; Paradox treats
+  # that as adequately unique so we do too.
+  BUILD_VERSION_MAP = {
+    "f98c" => "1.0.4",   # "Lepanto", earliest publicly-released build
+    "e7e4" => "1.0.7",
+    "6cba" => "1.0.9",
+    "1cb4" => "1.0.10",
+    "6166" => "1.0.11",
+    "d718" => "1.1.9",   # "Rossbach", first official 1.1.x release (1.1.0–1.1.8 were beta-only)
+    "b0ac" => "1.1.10",
+    "2a62" => "1.2.0",   # "Echinades"; publicly-displayed checksum (obfuscated) is 5be7
+  }.freeze
+
   def self.installed_version game
-    Paradoxical::Games.read_branch_version(game, "caesar_branch.txt", /release\/(\S+)/)
+    checksum = Paradoxical::Games.read_build_checksum(game)
+    return nil if checksum.nil? || checksum.length < 4
+
+    version = BUILD_VERSION_MAP[checksum[-4..]]
+    version && Gem::Version.new(version)
   end
 
   module DSL
@@ -32,7 +62,11 @@ module Paradoxical::Games::EU5
   # earlier in the file, but the surrounding context tends to stay
   # stable through patches.
   CORRECTIONS = {
-    "1.1.0" => {
+    # Earliest publicly-released build is 1.0.4. All three defects
+    # below are present from that release through the latest (1.2.0
+    # at time of writing), so keying at 1.0.4 covers every known
+    # build via `Corrections.resolve`'s `<= installed` selection.
+    "1.0.4" => {
       # Stray `}` directly after the self-closing
       # `country_flag_small = {}`. `country_flag_small = {}` is unique
       # to this file so anchoring on it is sufficient. The capture
