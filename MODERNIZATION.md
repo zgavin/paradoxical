@@ -101,16 +101,16 @@ Build-system-only swap. `helix_runtime` Rakefile and `Rutie.new(:paradoxical).in
 - Search submodule kwargs migration. `ext/paradoxical/src/search.rs` still passes a positional `RHash` to `Paradoxical::Search::{Rule,PropertyMatcher,FunctionMatcher}` — the same rutie-era pattern. Each Ruby-side `initialize` carries the workaround `def initialize key, opts = {}, **kwargs` and a `defaults.merge(opts).merge(kwargs)` deconstruction, with a comment that still mentions rutie. Migrating cleans up both the Rust caller and those three Ruby files. Phase 1c is now landed but Search itself still lacks dedicated unit tests (PancakeTaco round-trip doesn't exercise `Paradoxical::Search`); add coverage there first, then migrate.
 - The "false-as-no-operator/no-kind" placeholder in `List`. The `operator`/`kind` getters on `Paradoxical::Elements::List` translate `false` to `nil` per a comment that blames rutie segfaults on nil. magnus handles nil fine, so the workaround is vestigial — but flipping it touches the Ruby side and warrants its own PR.
 
-### 3. Dependency bumps
+### 3. Dependency bumps (landed)
 
 One PR per dependency, in roughly increasing order of risk:
 
-1. `rake` 10 → 13
-2. `sqlite3` 1.3 → current
-3. `rubyzip` 1.x → 2.x
-4. `activesupport` 5 → 7/8 (highest deprecation surface; do last with everything else green).
+1. `rake` 10 → 13 ✓
+2. `sqlite3` 1.3 → 2.0 ✓
+3. `rubyzip` 1.x → 2.3 ✓ (rubyzip 3.0 imminent — gemspec is pinned `~> 2.3` to avoid surprise breakage)
+4. `activesupport` 5 → 8.0 ✓
 
-Bundler and Ruby itself bump alongside as needed.
+Ruby 3.2.0 → 4.0.3 and bundler 2.4.1 → 4.0 landed alongside once magnus 0.7 → 0.8 cleared the FFI side. `required_ruby_version >= 4.0` set in the gemspec; `.rubocop.yml` `TargetRubyVersion` follows. Rust pinned at 1.95.0 (lifted from 1.67.1 during phase 2b). Performance for the parser smoke is unchanged — it's GVL-bound on Rust-side parsing, not interpreter-bound — but Ruby-side code paths (search, builder DSL) gain Ruby 4's allocation improvements.
 
 ### 4. Bug fixes, dead code, and parser-gap triage
 

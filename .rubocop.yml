@@ -1,5 +1,5 @@
 AllCops:
-  TargetRubyVersion: 3.2
+  TargetRubyVersion: 4.0
   NewCops: disable
   SuggestExtensions: false
   Exclude:
@@ -57,8 +57,3 @@ Style/StringChars:
   Enabled: true
 Style/RedundantStringEscape:
   Enabled: true
-
-# Off — we'll add `required_ruby_version` when we bump Ruby in a
-# follow-up PR.
-Gemspec/RequiredRubyVersion:
-  Enabled: false

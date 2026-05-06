@@ -97,7 +97,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  bundler (~> 2.4.1)
+  bundler (~> 4.0)
   paradoxical!
   rake (~> 13.0)
   rake-compiler (~> 1.2)
@@ -105,4 +105,4 @@ DEPENDENCIES
   rubocop (~> 1.81)
 
 BUNDLED WITH
-   2.4.1
+  4.0.11
