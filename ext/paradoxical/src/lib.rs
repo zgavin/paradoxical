@@ -353,6 +353,18 @@ fn s(ruby: &Ruby, text: &str) -> RString {
 
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
+    // Flag subsequently-defined methods as Ractor-safe. The actual
+    // safety is on us: parse() and search::parse() must not touch
+    // shared mutable state. magnus' Lazy<RClass> caches are fine —
+    // class objects are inherently shareable across Ractors.
+    //
+    // Lets users call `Paradoxical::Parser.parse` from non-main
+    // Ractors in their own code (e.g. mod scripts experimenting
+    // with parallelism). The framework itself does not currently
+    // use Ractors — see `experiment/ractor-pool` branch and the
+    // decision-log entry in MODERNIZATION.md for the rationale.
+    unsafe { rb_sys::rb_ext_ractor_safe(true); }
+
     let paradoxical: RModule = ruby.class_object().const_get("Paradoxical")?;
 
     let parser: RModule = paradoxical.const_get("Parser")?;
