@@ -48,7 +48,7 @@ RSpec.describe "PancakeTaco round-trip", :integration do
           original_bytes = File.binread(full_path)
           # Parse via the active mod (the same path `parse_files` from
           # a mod script would take).
-          document = Paradoxical.game.mod.parse_file(relative)
+          document = Paradoxical.game.mod.parse_file_sync(relative)
 
           data = document.bom? ? "\xEF\xBB\xBF".dup : String.new
           data << document.to_pdx

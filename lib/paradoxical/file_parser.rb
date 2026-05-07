@@ -40,16 +40,24 @@ module Paradoxical::FileParser
     path.to_s.start_with?("/") ? path : root.join(path)
   end
 
-  def parse_file path, mutex: nil, ignore_cache: false, encoding: nil
-    document = nil
-
-    mutex ||= Object.new.tap do |o| o.define_singleton_method :synchronize do |&block| block.call end end
-
-    mutex.synchronize do
-      document = @file_cache[path]
+  # Parse a file. Returns a `Paradoxical::Future` that resolves with
+  # the parsed `Document`. Submit many files first, then await — that
+  # gives parallelism via the parser pool's worker Ractors. For a
+  # single sync call: `parse_file(path).value`.
+  #
+  # Reads, BOM stripping, encoding fallback, and corrections all run
+  # synchronously on the calling thread (microsecond-scale work). Only
+  # the actual `Paradoxical::Parser.parse` call is dispatched to a
+  # worker Ractor — that's where the GVL-bound time was. Document
+  # ivar setting and `@file_cache` writes happen in the pool's
+  # collector thread (single-threaded — no mutex needed).
+  def parse_file path, ignore_cache: false, encoding: nil
+    cached = @file_cache[path]
+    if !ignore_cache && !cached.nil? then
+      f = Paradoxical::Future.new
+      f.fulfill(cached)
+      return f
     end
-
-    return document unless ignore_cache or document.nil?
 
     data = read path, encoding: encoding
 
@@ -70,15 +78,31 @@ module Paradoxical::FileParser
       block.call data
     end
 
-    document = parse data, path: path, bom: bom, encoding: encoding
-
-    mutex.synchronize do
+    parser_pool.submit(data) do |document|
+      document.instance_variable_set(:@owner, self)
+      document.instance_variable_set(:@path, path)
+      document.instance_variable_set(:@line_break, data.include?("\r") ? "\r\n" : "\n")
+      document.instance_variable_set(:@bom, bom)
+      document.instance_variable_set(:@encoding, encoding)
       @file_cache[path] = document
+      document
     end
-
-    return document
+  rescue Paradoxical::Parser::ParseError => error
+    prefix = path ? "#{path}#{self.is_a?(Paradoxical::Mod) ? " (#{name})" : ""}: " : ""
+    raise Paradoxical::Parser::ParseError, "#{prefix}#{error.message}"
   end
 
+  # Synchronous variant: blocks on parse_file's Future. Callers that
+  # don't care about parallelism (single-file parses, REPL use, etc.)
+  # can stay on this and ignore the Future machinery.
+  def parse_file_sync path, ignore_cache: false, encoding: nil
+    parse_file(path, ignore_cache: ignore_cache, encoding: encoding).value
+  end
+
+  # Synchronous parse of raw bytes, with the same ivar stamping and
+  # ParseError-prefixing behavior parse_file applies. For callers
+  # that already have bytes (tests, in-memory data, save-game
+  # handling in `Editor`).
   def parse data, path: nil, bom: false, encoding: nil
     document = Paradoxical::Parser.parse data
 

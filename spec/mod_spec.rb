@@ -19,7 +19,8 @@ RSpec.describe Paradoxical::Mod do
     def fake_game(format)
       mod_struct = Module.new
       mod_struct.const_set(:LAUNCHER_FORMAT, format)
-      Struct.new(:game_module, :user_directory).new(mod_struct, tmpdir)
+      pool = Paradoxical::Parser::Pool.new(n_workers: 1)
+      Struct.new(:game_module, :user_directory, :parser_pool).new(mod_struct, tmpdir, pool)
     end
 
     context "with LAUNCHER_FORMAT = :sqlite" do

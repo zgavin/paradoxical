@@ -23,7 +23,7 @@ class Paradoxical::Mod
     # game's launcher format rather than re-deriving it.
     case game.game_module::LAUNCHER_FORMAT
     when :sqlite
-      parse_file(path).properties.each do |p|
+      parse_file_sync(path).properties.each do |p|
         @config[p.key] = p.value
       end
     when :json
@@ -90,6 +90,12 @@ class Paradoxical::Mod
 
   def root
     Pathname.new(path.to_s.start_with?("/") ? path : File.join(game.user_directory, path))
+  end
+
+  # Mods share their parent Game's parser pool so all parses across
+  # the framework go through one bounded set of worker Ractors.
+  def parser_pool
+    game.parser_pool
   end
 
   def write file

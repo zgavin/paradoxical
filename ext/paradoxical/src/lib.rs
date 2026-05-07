@@ -57,14 +57,12 @@ static STRING_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("String").unwrap());
 
 fn parse(ruby: &Ruby, data: String) -> Result<Value, Error> {
-    // Phase 1: pest parse is pure Rust (no Ruby calls), so we can
-    // release the GVL for the duration. This lets concurrent Ruby
-    // threads parse different files in parallel on multi-core CPUs.
-    //
-    // Phase 2 (`document`, below) constructs Ruby objects, so it
-    // needs the GVL — that re-acquires automatically when nogvl
-    // returns.
-    let pairs = nogvl(|| ScriptParser::parse(Rule::document, &data)).map_err(|e| {
+    // nogvl is dropped in this branch — when this function runs
+    // inside a worker Ractor (one of `Paradoxical::Parser::Pool`'s
+    // workers), each Ractor has its own GVL, so releasing it for the
+    // pest phase no longer parallelizes anything across workers; it's
+    // just per-call overhead.
+    let pairs = ScriptParser::parse(Rule::document, &data).map_err(|e| {
         let parser: RModule = paradoxical(ruby).const_get("Parser").unwrap();
         let parse_error: ExceptionClass = parser.const_get("ParseError").unwrap();
         Error::new(parse_error, e.to_string())
@@ -353,6 +351,12 @@ fn s(ruby: &Ruby, text: &str) -> RString {
 
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
+    // Flag subsequently-defined methods as Ractor-safe. The actual
+    // safety is on us: parse() and search::parse() must not touch
+    // shared mutable state. magnus' Lazy<RClass> caches are fine —
+    // class objects are inherently shareable across Ractors.
+    unsafe { rb_sys::rb_ext_ractor_safe(true); }
+
     let paradoxical: RModule = ruby.class_object().const_get("Paradoxical")?;
 
     let parser: RModule = paradoxical.const_get("Parser")?;

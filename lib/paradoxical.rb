@@ -29,12 +29,14 @@ end
 
   builder
   editor
+  future
   game
   games
   games/corrections
   helper
   mod
   parser
+  parser/pool
   search
 
   elements/concerns/arrayable
