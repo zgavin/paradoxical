@@ -101,5 +101,7 @@ module Paradoxical::Games::EU5
     },
   }
 
+  SLOW_FILES = [].freeze
+
   Paradoxical::Games.register(self)
 end

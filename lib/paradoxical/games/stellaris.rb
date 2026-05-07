@@ -75,5 +75,7 @@ module Paradoxical::Games::Stellaris
     },
   }
 
+  SLOW_FILES = [].freeze
+
   Paradoxical::Games.register(self)
 end

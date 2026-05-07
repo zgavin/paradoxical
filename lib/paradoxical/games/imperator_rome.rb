@@ -36,5 +36,7 @@ module Paradoxical::Games::ImperatorRome
     },
   }
 
+  SLOW_FILES = [].freeze
+
   Paradoxical::Games.register(self)
 end

@@ -16,5 +16,7 @@ module Paradoxical::Games::CK3
 
   CORRECTIONS = {}
 
+  SLOW_FILES = [].freeze
+
   Paradoxical::Games.register(self)
 end

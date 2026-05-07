@@ -114,6 +114,15 @@ RSpec.describe "parse smoke", :parse_smoke do
       end
     end
 
+    # Per-game `SLOW_FILES` are paths that parse correctly but trigger
+    # pathologically slow paths (usually pest backtracking on deeply
+    # nested constructs we haven't grammar-optimized yet). Skipped by
+    # default; include with PARADOXICAL_PARSE_SMOKE_THOROUGH=1 when
+    # you need to verify everything still works (release tagging,
+    # post grammar changes, etc.).
+    skip_slow = ENV["PARADOXICAL_PARSE_SMOKE_THOROUGH"].to_s.empty?
+    slow_files = skip_slow ? game_module::SLOW_FILES : []
+
     files = script_roots.flat_map { |root| Dir.glob(File.join(root, "**/*")) }
       .uniq
       .select { |f| File.file?(f) && parseable_exts.include?(File.extname(f)) }
@@ -127,6 +136,17 @@ RSpec.describe "parse smoke", :parse_smoke do
         owning_root = script_roots.find { |r| f.start_with?("#{r}/") }
         rel = f.sub("#{owning_root}/", "")
         excluded_root_dirs.any? { |d| rel.start_with?(d) }
+      }
+      .reject { |f|
+        # SLOW_FILES paths are relative to the game/ root (matching
+        # how CORRECTIONS keys work). Engine-dir scripts (jomini/,
+        # clausewitz/) are absolute under script_roots and never on
+        # the slow list.
+        next false if slow_files.empty?
+        next false unless f.start_with?("#{game.root}/")
+
+        rel = f.sub("#{game.root}/", "")
+        slow_files.any? { |s| rel == s }
       }
       .sort
 
