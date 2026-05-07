@@ -53,5 +53,7 @@ module Paradoxical::Games::HOI4
     },
   }
 
+  SLOW_FILES = [].freeze
+
   Paradoxical::Games.register(self)
 end

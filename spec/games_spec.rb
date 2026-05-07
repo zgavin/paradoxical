@@ -31,7 +31,7 @@ RSpec.describe Paradoxical::Games do
     # `Game.new`/`paradoxical!` can rely on the constants being there.
     Paradoxical::Games.all.each do |game_module|
       describe game_module.name do
-        %i[NAME SLUG STEAM_ID NATIVE_PLATFORMS HAS_GAME_SUBDIR LAUNCHER_FORMAT].each do |const|
+        %i[NAME SLUG STEAM_ID NATIVE_PLATFORMS HAS_GAME_SUBDIR LAUNCHER_FORMAT SLOW_FILES].each do |const|
           it "defines #{const}" do
             expect(game_module.const_defined?(const)).to be(true)
           end
@@ -51,6 +51,13 @@ RSpec.describe Paradoxical::Games do
 
         it "defines a CORRECTIONS hash" do
           expect(game_module::CORRECTIONS).to be_a(Hash)
+        end
+
+        it "defines a SLOW_FILES array of relative paths" do
+          expect(game_module::SLOW_FILES).to be_a(Array)
+          game_module::SLOW_FILES.each do |path|
+            expect(path).to be_a(String), "#{game_module.name}::SLOW_FILES contains non-string: #{path.inspect}"
+          end
         end
 
         it "responds to installed_version(game)" do

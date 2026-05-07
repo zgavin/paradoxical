@@ -28,5 +28,7 @@ module Paradoxical::Games::CK2
   # surface from the parse smoke.
   CORRECTIONS = {}
 
+  SLOW_FILES = [].freeze
+
   Paradoxical::Games.register(self)
 end
