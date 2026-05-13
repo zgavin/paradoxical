@@ -32,8 +32,5 @@ module Paradoxical::Games::Stellaris::Helper
     puts "Editing: #{"%.2f" % (done_editing_at - done_parsing_at)}"
     editor.write
     puts "Writing: #{"%.2f" % (Time.now - done_editing_at)}"
-  rescue Exception => e
-    puts e.inspect
-    exit
   end
 end
