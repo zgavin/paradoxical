@@ -28,20 +28,6 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     @gui_type = value
   end
 
-  def operator
-    # Using nil multiple times in rust seems to cause a segfault, so we
-    # use false as a placeholder and replace it the first time we see it.
-    @operator = nil if @operator == false
-    @operator
-  end
-
-  def kind
-    # Using nil multiple times in rust seems to cause a segfault, so we
-    # use false as a placeholder and replace it the first time we see it.
-    @kind = nil if @kind == false
-    @kind
-  end
-
   def dup children: nil, key: nil
     self.class.new((key or @key).dup, (children or @children).map(&:dup), whitespace: @whitespace.dup)
   end
