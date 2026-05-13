@@ -1,10 +1,7 @@
 class Paradoxical::Search::FunctionMatcher
   attr_accessor :name, :arguments
 
-  # rutie seemingly has no way to pass keyword arguments to ruby 3,
-  # so we expose an optional opts argument and a splat then merge them.
-  def initialize name, opts = {}, **kwargs
-    { arguments: [] }.merge(opts).merge(kwargs) => { arguments: }
+  def initialize name, arguments: []
     @name = name
     @arguments = arguments
   end

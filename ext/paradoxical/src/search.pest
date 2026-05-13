@@ -22,7 +22,12 @@ name                  =  { string }
 
 property_matcher      =  { "[" ~ ws ~ string ~ ws ~ ( pm_operator ~ ws ~ value ~ ws )?  ~ ( pm_sensitivity ~ ws )? ~ "]" }
 
-pm_operator           =  { "=" | ">=" | ">" | "<" | "<=" | "~=" | "^=" | "$=" | "*=" }
+// Two-char operators must come before their one-char prefixes — pest
+// is left-to-right, so listing `<` before `<=` would let `<` greedily
+// match and leave `<=` unreachable. Same shape as the existing `>=` / `>`
+// ordering. `=` is a one-char operator but uniquely first-char-positioned,
+// so it doesn't collide with the others.
+pm_operator           =  { "=" | ">=" | "<=" | "~=" | "^=" | "$=" | "*=" | ">" | "<" }
 
 pm_sensitivity        =  { "i" | "s" }
 
