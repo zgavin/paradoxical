@@ -33,7 +33,7 @@ stay so users on a back version can still tell if they're covered.
 | **Europa Universalis IV** | 1.37.5 | 100% | |
 | **Stellaris** | 4.3.5 | 100% | |
 | **Imperator: Rome** | 2.0.5 | 100% | |
-| **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0, 1.2.1 | 100% | smoke validated against 1.0.4, 1.1.10, and 1.2.1; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
+| **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0, 1.2.1, 1.2.2 | 100% | smoke validated against 1.0.4, 1.1.10, and 1.2.2; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
 | **Hearts of Iron IV** | 1.18.1.0 | 100% | |
 | **Crusader Kings II** | 3.3.5.1 | ~90% | EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
 | **Crusader Kings III** | — | unknown | placeholder — game module exists, no install validation yet |
