@@ -171,9 +171,9 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
     let children = ruby.ary_new();
     let whitespace = ruby.ary_new();
 
-    let mut kind: Value = ruby.qfalse().as_value();
+    let mut kind: Value = ruby.qnil().as_value();
     let mut key: Value = s(ruby, "").as_value();
-    let mut operator: Value = ruby.qfalse().as_value();
+    let mut operator: Value = ruby.qnil().as_value();
     let mut gui_type = false;
     // True when the kind keyword sits after the key/operator in the
     // source (gui_type_kind / keyed_kind / list_kind). False for

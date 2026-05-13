@@ -111,9 +111,17 @@ Discoveries along the way (folded into the same PR since they were surfaced by t
 
 Test coverage added at `spec/search/`: 105 examples across 5 files (parser end-to-end, Rule, PropertyMatcher, FunctionMatcher, Searchable integration). Full suite 288 → 393 examples post-PR.
 
-#### Out of scope for 2d, deferred
+#### 2f. List `false→nil` shim removal (landed)
 
-- The "false-as-no-operator/no-kind" placeholder in `List`. The `operator`/`kind` getters on `Paradoxical::Elements::List` translate `false` to `nil` per a comment that blames rutie segfaults on nil. magnus handles nil fine, so the workaround is vestigial — but flipping it touches the Ruby side and warrants its own PR.
+`Paradoxical::Elements::List` carried a getter shim that translated `@operator == false` and `@kind == false` to `nil` on first read, per a comment blaming rutie segfaults on `Qnil` being reused as a Value. magnus has handled `nil` cleanly since 2b, so the workaround was vestigial.
+
+Migration shape:
+- Rust: `ext/paradoxical/src/lib.rs` initialized both locals as `ruby.qfalse().as_value()` and overwrote only when the source had a `kind` keyword or explicit operator. Swapped both to `ruby.qnil().as_value()` so the kwargs! call passes `nil` directly when the source omits them.
+- Ruby: removed the `def operator` / `def kind` getter overrides in `lib/paradoxical/elements/list.rb`. `attr_accessor :key, :operator, :kind` provides the plain readers.
+
+External behavior unchanged — `list.operator` / `list.kind` still return `nil` for absent and the parsed string when present. Round-trip preservation verified by `spec/parser/{list,document}_spec.rb` and the EU5 parse smoke (3415 files, 0 failures).
+
+Phase 2's deferred list is now empty.
 
 ### 3. Dependency bumps (landed)
 
