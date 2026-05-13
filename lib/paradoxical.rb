@@ -28,7 +28,6 @@ end
   file_parser
 
   builder
-  editor
   game
   games
   games/corrections
@@ -83,6 +82,26 @@ end
   require "paradoxical/games/#{slug}"
 end
 
+# Per-game game-namespaced submodules. Each game has a DSL (prepended
+# onto Builder by `paradoxical!`); Stellaris additionally has a Helper
+# (extended onto `main` by `paradoxical!`) and the save-file Editor it
+# delegates to. Required after the main game files so reopening their
+# parent modules works.
+%w{
+  ck2/dsl
+  ck3/dsl
+  eu4/dsl
+  eu5/dsl
+  hoi4/dsl
+  imperator_rome/dsl
+  stellaris/dsl
+  stellaris/editor
+  stellaris/helper
+  v3/dsl
+}.each do |path|
+  require "paradoxical/games/#{path}"
+end
+
 require "paradoxical/paradoxical"
 
 # Single entry point for mod scripts. Resolves the game slug to its
@@ -114,7 +133,14 @@ def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
   # second-key semantics for non-numeric values) takes effect.
   Paradoxical::Builder.prepend(game_module::DSL)
 
-  TOPLEVEL_BINDING.eval("self").extend(Paradoxical::Helper)
+  main = TOPLEVEL_BINDING.eval("self")
+  main.extend(Paradoxical::Helper)
+  # Game-namespaced top-level helpers (e.g. Stellaris's `edit` for
+  # save-file editing). DSL handles Builder-context methods; Helper
+  # handles methods that take paths/blocks and run at the script's
+  # top level. Only defined when a game actually has top-level
+  # helpers, so the const lookup is gated.
+  main.extend(game_module::Helper) if game_module.const_defined?(:Helper, false)
 
   Paradoxical.game
 end

@@ -1,4 +1,4 @@
-class Paradoxical::Editor
+class Paradoxical::Games::Stellaris::Editor
   class << self
     def edit path, game: nil, &block
       started_at = Time.now
@@ -28,7 +28,13 @@ class Paradoxical::Editor
 
   def initialize path, game: nil
     @path = path
-    @game = (game or Paradoxical::Game.new("Stellaris"))
+    # Defaults to the active game set up by `paradoxical!`. The pre-5c
+    # `Paradoxical::Game.new("Stellaris")` fallback this used to carry
+    # no longer compiles — Game.new takes a module now — and the
+    # editor was only ever exercised after `paradoxical!` ran anyway.
+    @game = game || Paradoxical.game
+
+    raise ArgumentError, "No active game; call `paradoxical! game: \"stellaris\"` first or pass `game:`" if @game.nil?
 
     Zip::File.open(full_path) do |zip_file|
       meta, gamestate = ["meta", "gamestate"].map do |file| zip_file.glob(file).first.get_input_stream.read end

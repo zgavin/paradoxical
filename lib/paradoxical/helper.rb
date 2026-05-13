@@ -83,10 +83,6 @@ module Paradoxical::Helper
     game.parse(...)
   end
 
-  def edit path, &block
-    Paradoxical::Editor.edit path, &block
-  end
-
   def run_directly?
     caller_locations.first.path == $PROGRAM_NAME
   end

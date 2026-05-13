@@ -14,9 +14,6 @@ module Paradoxical::Games::ImperatorRome
     Paradoxical::Games.read_launcher_version(game)
   end
 
-  module DSL
-  end
-
   CORRECTIONS = {
     "2.0.5" => {
       # Stray `\t}` mid-file just before the

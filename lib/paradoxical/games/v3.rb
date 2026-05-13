@@ -11,9 +11,6 @@ module Paradoxical::Games::V3
     Paradoxical::Games.read_launcher_version(game)
   end
 
-  module DSL
-  end
-
   CORRECTIONS = {}
 
   SLOW_FILES = [].freeze
