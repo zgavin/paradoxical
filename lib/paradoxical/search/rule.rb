@@ -1,20 +1,14 @@
 class Paradoxical::Search::Rule
   attr_accessor :key, :property_matchers, :function_matchers, :combinator
 
-  # rutie seemingly has no way to pass keyword arguments to ruby 3,
-  # so we expose an optional opts argument and a splat then merge them.
-  def initialize key, opts = {}, **kwargs
-    defaults = { id: nil, name: nil, property_matchers: [], function_matchers: [], combinator: nil }
-    defaults.merge(opts).merge(kwargs) =>
-      { id:, name:, property_matchers:, function_matchers:, combinator: }
+  def initialize key, id: nil, name: nil, property_matchers: [], function_matchers: [], combinator: nil
     @combinator = combinator
     @key = key.blank? ? "*" : key.downcase
     @property_matchers = property_matchers
     @function_matchers = function_matchers
 
     @property_matchers << Paradoxical::Search::PropertyMatcher.new("id", operator: "=", value: id) unless id.nil?
-    @property_matchers << Paradoxical::Search::PropertyMatcher.new("name", operator: "=",
-                                                                           value: name) unless name.nil?
+    @property_matchers << Paradoxical::Search::PropertyMatcher.new("name", operator: "=", value: name) unless name.nil?
   end
 
   def matches? node

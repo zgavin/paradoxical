@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use magnus::{
     prelude::*,
     value::{Lazy, ReprValue},
-    Error, ExceptionClass, IntoValue, RArray, RClass, RModule, RString, Ruby, Symbol, Value,
+    Error, ExceptionClass, IntoValue, KwArgs, RArray, RClass, RModule, RString, Ruby, Symbol, Value,
 };
 
 use pest::iterators::{Pair, Pairs};
@@ -105,7 +105,7 @@ fn rule(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         .unwrap();
 
     ruby.get_inner(&RULE_CLASS)
-        .new_instance((key, options))
+        .new_instance((key, KwArgs(options)))
         .unwrap()
         .as_value()
 }
@@ -131,7 +131,7 @@ fn property_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
     }
 
     ruby.get_inner(&PROPERTY_MATCHER_CLASS)
-        .new_instance((key.unwrap(), options))
+        .new_instance((key.unwrap(), KwArgs(options)))
         .unwrap()
         .as_value()
 }
@@ -154,7 +154,7 @@ fn function_matcher(ruby: &Ruby, pair: Pair<Rule>) -> Value {
     options.aset(k(ruby, "arguments"), function_arguments).unwrap();
 
     ruby.get_inner(&FUNCTION_MATCHER_CLASS)
-        .new_instance((name.unwrap(), options))
+        .new_instance((name.unwrap(), KwArgs(options)))
         .unwrap()
         .as_value()
 }

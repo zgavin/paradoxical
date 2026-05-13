@@ -96,9 +96,23 @@ Build-system-only swap. `helix_runtime` Rakefile and `Rutie.new(:paradoxical).in
 - Drop the `rutie` Ruby gem dependency from `paradoxical.gemspec` (inert since 2a).
 - Refresh stale rutie-era comments in `spec/spec_helper.rb`.
 
+#### 2e. Search submodule kwargs migration (landed)
+
+The Rust caller in `ext/paradoxical/src/search.rs` was still passing a positional `RHash` to `Paradoxical::Search::{Rule,PropertyMatcher,FunctionMatcher}` — the rutie-era pattern preserved through 2d. Each Ruby-side `initialize` carried the workaround `def initialize key, opts = {}, **kwargs` plus a `defaults.merge(opts).merge(kwargs)` deconstruction and a rutie-blaming comment.
+
+Migration shape:
+- Rust caller wraps the existing dynamically-built `RHash` in `KwArgs(options)` at each of the three `new_instance` sites. Conditional-presence semantics (e.g. `id` only set when there's an `#id` selector) preserved unchanged — Ruby-side defaults kick in via `id: nil` keyword defaults.
+- Ruby `initialize` signatures replaced with native keyword args. Shape-mismatch errors now fire loudly via Ruby's `ArgumentError: unknown keyword` at construction time, per [[feedback_construct_via_initializer]].
+- `Paradoxical::Search::PropertyMatcher` gained `attr_accessor :case_sensitivity` — the grammar parses the trailing `i`/`s` flag inside `[ … ]` and the Rust caller has been passing it for years, but the old Ruby initializer was silently dropping it (only destructured `operator:` and `value:`). Storing the field preserves the parsed information and keeps the Rust kwargs and Ruby signature in sync. `#matches?` still doesn't branch on it; case-folding lookups are a separate concern.
+
+Discoveries along the way (folded into the same PR since they were surfaced by the new test coverage):
+- **`pm_operator` grammar ordering bug.** `<=` was unreachable because pest tried `<` first in the alternation and greedily matched. Reordered so all two-char operators precede their one-char prefixes; mirrored the existing `>=` / `>` ordering. Caught by `spec/search/parser_spec.rb`.
+- **`Paradoxical::Search.parse` `puts/exit` scaffolding removed.** Same shape that `FileParser#parse` carried until phase 1c — ParseError swallowed and `exit` called. Now re-raises. The integration tests rely on this to assert ArgumentError from `Searchable#search` with bad input.
+
+Test coverage added at `spec/search/`: 105 examples across 5 files (parser end-to-end, Rule, PropertyMatcher, FunctionMatcher, Searchable integration). Full suite 288 → 393 examples post-PR.
+
 #### Out of scope for 2d, deferred
 
-- Search submodule kwargs migration. `ext/paradoxical/src/search.rs` still passes a positional `RHash` to `Paradoxical::Search::{Rule,PropertyMatcher,FunctionMatcher}` — the same rutie-era pattern. Each Ruby-side `initialize` carries the workaround `def initialize key, opts = {}, **kwargs` and a `defaults.merge(opts).merge(kwargs)` deconstruction, with a comment that still mentions rutie. Migrating cleans up both the Rust caller and those three Ruby files. Phase 1c is now landed but Search itself still lacks dedicated unit tests (PancakeTaco round-trip doesn't exercise `Paradoxical::Search`); add coverage there first, then migrate.
 - The "false-as-no-operator/no-kind" placeholder in `List`. The `operator`/`kind` getters on `Paradoxical::Elements::List` translate `false` to `nil` per a comment that blames rutie segfaults on nil. magnus handles nil fine, so the workaround is vestigial — but flipping it touches the Ruby side and warrants its own PR.
 
 ### 3. Dependency bumps (landed)
@@ -170,9 +184,9 @@ The 5 remaining are all malformed-input files (extra/missing `}` in source) — 
 
 PDX engine tolerates these; the right home for them is `Paradoxical::FileParser#corrections`, expanded with per-game-version default fix-ups that mutate the raw bytes before parsing — keeping the grammar strict rather than silently absorbing typos. That work is Phase-5-ish; not a phase-4 concern.
 
-#### 4e. README rewrite
+#### 4e. README rewrite (landed)
 
-Still pending. Independent of grammar work; can land any time. Replace the boilerplate gem template with a real README covering installation, supported games, a small worked example, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`).
+Boilerplate gem template replaced. README now covers what Paradoxical is, current state and pinned toolchain versions, a per-game support table (versions / coverage / notes), installation, a small worked example with `paradoxical!`, and pointers to deeper docs (`AGENTS.md`, `MODERNIZATION.md`). Kept short — ~140 lines — since this is a personal-project gem with one consumer, not a published library that needs exhaustive reference docs.
 
 #### 4f. HOI4 onboarding + encoding simplification (landed)
 
@@ -237,17 +251,15 @@ Stellaris, Imperator: Rome, CK3, Victoria 3, EU5. CK2/CK3/V3/HOI4 are
 placeholders — constants only — to round out the past ~15 years of
 PDS titles.
 
-#### 5b. DSL helpers per game
+#### 5b. DSL helpers per game (landed)
 
-- Move game-specific DSL helpers off the shared `Paradoxical::Builder`
-  into the matching `Paradoxical::Games::*::DSL` modules.
-- The Builder's per-game include is wired up by `paradoxical!`,
-  mirroring the existing `extend(jomini_version == 1 ? SqliteConfig : JsonConfig)`
-  pattern in `lib/paradoxical/game.rb:33`.
-- `check_galaxy_setup_value`, `resource_stockpile_compare`,
-  `add_resource`/`remove_resource` (Stellaris); the `is? "eu4"` branch
-  in the `set_variable` family (EU4); etc., move into their respective
-  game modules. Builder stops carrying every game's vocabulary.
+Game-specific DSL helpers moved off the shared `Paradoxical::Builder` into the matching `Paradoxical::Games::*::DSL` modules. `paradoxical!` wires the active game's DSL onto Builder via `prepend` (not `include`) so per-game methods *override* the base ones — load-bearing for the EU4 `set_variable` override, where the override needs to win over the game-agnostic definition for the same method name.
+
+Concrete moves:
+- **Stellaris** — `get_galaxy_setup_value`, `check_galaxy_setup_value`, `resource_stockpile_compare`, `add_resource`, `remove_resource`.
+- **EU4** — the variable family (`set_variable` / `check_variable` / `change_variable` / `subtract_variable` / `multiply_variable` / `divide_variable` / `modulo_variable` / `round_variable_to_closest`) overrides the Builder base to emit `which = X` instead of `value = X` for non-numeric values. `export_to_variable` stayed on Builder — it always uses `value` so there's no per-game wrinkle.
+
+Builder no longer carries any game's vocabulary; what remains is the game-agnostic base plus a brief comment at the variable-family override site pointing to where EU4's wrinkle lives.
 
 #### 5c. Corrections registry + Game.new lockdown (landed)
 

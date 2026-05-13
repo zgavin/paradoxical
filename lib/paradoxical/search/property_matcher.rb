@@ -1,13 +1,16 @@
 class Paradoxical::Search::PropertyMatcher
-  attr_accessor :key, :operator, :value
+  # `case_sensitivity` carries the trailing `i`/`s` flag the grammar
+  # captures inside `[ … ]`. `#matches?` doesn't branch on it yet, but
+  # storing it preserves the parsed information so a future case-folding
+  # implementation has the data it needs and so the Rust caller's
+  # keyword set matches the Ruby signature exactly.
+  attr_accessor :key, :operator, :value, :case_sensitivity
 
-  # rutie seemingly has no way to pass keyword arguments to ruby 3,
-  # so we expose an optional opts argument and a splat then merge them.
-  def initialize key, opts = {}, **kwargs
-    { operator: nil, value: nil }.merge(opts).merge(kwargs) => { operator:, value: }
+  def initialize key, operator: nil, value: nil, case_sensitivity: nil
     @key = key.downcase
     @operator = operator
     @value = value
+    @case_sensitivity = case_sensitivity
   end
 
   def matches? node
