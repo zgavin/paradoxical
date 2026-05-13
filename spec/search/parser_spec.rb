@@ -57,24 +57,45 @@ RSpec.describe Paradoxical::Search do
     end
 
     describe "selectors" do
-      it "compiles %name into a name property_matcher" do
-        rule = parse("*%alice").first
+      it "compiles a %name into a name property_matcher" do
+        rule = parse("foo%alice").first
+        expect(rule.key).to eq("foo")
         m = rule.property_matchers.first
         expect(m.key).to eq("name")
         expect(m.operator).to eq("=")
         expect(m.value).to eq("alice")
       end
 
-      it "compiles #id into an id property_matcher" do
-        rule = parse("*#42").first
+      it "compiles a bare %name into a name property_matcher" do
+        rule = parse("%alice").first
+        m = rule.property_matchers.first
+        expect(m.key).to eq("name")
+        expect(m.operator).to eq("=")
+        expect(m.value).to eq("alice")
+      end
+
+      it "compiles an #id into an id property_matcher" do
+        rule = parse("foo#42").first
+        expect(rule.key).to eq("foo")
         m = rule.property_matchers.first
         expect(m.key).to eq("id")
         expect(m.operator).to eq("=")
         expect(m.value).to eq("42")
       end
 
-      it "accepts both selectors on one rule" do
-        rule = parse("*%alice#7").first
+      it "compiles a bare #id into an id property_matcher" do
+        rule = parse("#42").first
+        m = rule.property_matchers.first
+        expect(m.key).to eq("id")
+        expect(m.operator).to eq("=")
+        expect(m.value).to eq("42")
+      end
+
+      it "accepts both selectors on one rule in any order" do
+        rule = parse("%alice#7").first
+        keys = rule.property_matchers.map(&:key)
+        expect(keys).to contain_exactly("name", "id")
+        rule = parse("#7%alice").first
         keys = rule.property_matchers.map(&:key)
         expect(keys).to contain_exactly("name", "id")
       end

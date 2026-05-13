@@ -43,9 +43,9 @@ RSpec.describe Paradoxical::Elements::Concerns::Searchable do
     end
 
     it "follows a chained selector path (descendent)" do
-      results = doc.find_all("country province")
+      results = doc.find_all("country province name")
       expect(results.size).to eq(1)
-      expect(results.first["name"].value.to_s).to eq("paris")
+      expect(results.first.value.to_s).to eq("paris")
     end
 
     it "honors the > combinator (immediate children only)" do
@@ -53,6 +53,15 @@ RSpec.describe Paradoxical::Elements::Concerns::Searchable do
       # top level — the `> province` rule starts at doc and looks for
       # province as a direct child, which doesn't exist.
       expect(doc.find_all("> province")).to be_empty
+      expect(doc.find_all("country > name").map { |p| p.value.to_s }).to eq(["alice", "bob"])
+    end
+
+    it "honors the ~ combinator (immediate children only)" do
+      # The `province` node lives inside the first `country`, not at the
+      # same level — the `country ~ province` rule starts at country and looks for
+      # province as a direct sibling, which doesn't exist.
+      expect(doc.find_all("country ~ province")).to be_empty
+      expect(doc.find_all("province ~ rank").first.value).to eq(3)
     end
 
     it "accepts a pre-built array of Rule objects" do
