@@ -1,34 +1,24 @@
-class Paradoxical::Editor
-  class << self
-    def edit path, game: nil, &block
-      started_at = Time.now
-      puts "Editing #{File.dirname path}"
-      editor = self.new(path, game: game)
-      done_parsing_at = Time.now
-      puts "Parsing: #{"%.2f" % (done_parsing_at - started_at)}"
-      editor.instance_exec(&block)
-      editor.instance_exec do
-        player = empires.first
-        player.search("> &list&key-matches(/terra_incognita|hyperlane_systems|visited_objects/) &value").each(&:remove)
-        empires[1..-1].flat_map do |e|
-          e.search("> &list&key-matches(/terra_incognita|hyperlane_systems|visited_objects/) &value")
-        end.each(&:remove)
-      end
-      done_editing_at = Time.now
-      puts "Editing: #{"%.2f" % (done_editing_at - done_parsing_at)}"
-      editor.write
-      puts "Writing: #{"%.2f" % (Time.now - done_editing_at)}"
-    rescue Exception => e
-      puts e.inspect
-      exit
-    end
-  end
-
+# WARNING: this editor hasn't been exercised in several years. It was
+# written against an older Stellaris save format and is almost
+# certainly no longer functional against modern releases — field
+# names, section shapes, and the intel-manager malformedness shim
+# below all reflect a snapshot of Stellaris that's long since drifted.
+# Kept for namespace shape; treat as a starting point rather than a
+# working tool. The lifecycle entry point lives at
+# `Paradoxical::Games::Stellaris::Helper#edit` (top-level `edit` in
+# mod scripts).
+class Paradoxical::Games::Stellaris::Editor
   attr_reader :path, :game, :gamestate, :meta
 
   def initialize path, game: nil
     @path = path
-    @game = (game or Paradoxical::Game.new("Stellaris"))
+    # Defaults to the active game set up by `paradoxical!`. The pre-5c
+    # `Paradoxical::Game.new("Stellaris")` fallback this used to carry
+    # no longer compiles — Game.new takes a module now — and the
+    # editor was only ever exercised after `paradoxical!` ran anyway.
+    @game = game || Paradoxical.game
+
+    raise ArgumentError, "No active game; call `paradoxical! game: \"stellaris\"` first or pass `game:`" if @game.nil?
 
     Zip::File.open(full_path) do |zip_file|
       meta, gamestate = ["meta", "gamestate"].map do |file| zip_file.glob(file).first.get_input_stream.read end

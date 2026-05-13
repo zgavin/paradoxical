@@ -18,11 +18,6 @@ module Paradoxical::Games::CK2
     Gem::Version.new("3.3.5.1")
   end
 
-  # Game-specific DSL helpers (mixed into Builder when this game is
-  # active). Empty for now; populate as concrete needs surface.
-  module DSL
-  end
-
   # path → [block, …] of corrections to apply to the raw file bytes
   # before parsing. Empty for now; populate as malformed-input cases
   # surface from the parse smoke.

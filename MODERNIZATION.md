@@ -288,11 +288,19 @@ Builder no longer carries any game's vocabulary; what remains is the game-agnost
 
 **All four game smokes are now empty-allowlist clean: 16,380 / 16,380 files parse.** Future malformed-input cases live in the matching game module's `CORRECTIONS` rather than getting allowlisted.
 
-#### 5d. Game-namespaced code follow-up (deferred)
+#### 5d. Game-namespaced code follow-up (landed)
 
-`lib/paradoxical/editor.rb` is Stellaris-specific despite living at the top of `Paradoxical::`: it manipulates `intel_manager`, `clusters`, `galactic_object`, etc., none of which exist in other PDS titles. It also defaults `@game = (game or Paradoxical::Game.new("Stellaris"))` and reads/writes `meta` + `gamestate` from a `.sav` zip — a Stellaris save format. Should move under `Paradoxical::Games::Stellaris::` (file path `lib/paradoxical/games/stellaris/editor.rb`) when game-namespacing is revisited; the namespace already has a DSL submodule, this would be a sibling.
+Closing out phase 5. Three structural changes:
 
-While there: the `@gamestate` parser includes a regex fix-up for the intel-manager section (`gsub(/^(\d+)\s*\{$/, '\1 = {')`). Stellaris save games deliberately ship that section in malformed PDX (the engine special-cases it on load), and the corresponding `write` path forces the same `intel > &list > &list` operators back to `""` so the round-trip preserves the engine's expected format. Worth recording: not all PDX malformedness is a bug — sometimes the engine itself emits non-conforming script. Same category as the HOI4 `online_accountcreate.gui` Windows-1252 markup bytes — engine-specific quirks the parser has to humor.
+- **Editor moved under Stellaris.** `lib/paradoxical/editor.rb` was Stellaris-specific despite living at the top of `Paradoxical::` — it manipulates `intel_manager` / `clusters` / `galactic_object`, defaulted `@game = (game or Paradoxical::Game.new("Stellaris"))` (broken since 5c's `Game.new` lockdown took a module, not a string), and reads/writes `meta` + `gamestate` from `.sav` zips. Moved to `lib/paradoxical/games/stellaris/editor.rb`; renamed class to `Paradoxical::Games::Stellaris::Editor`. The pre-5c broken constructor default now resolves via `Paradoxical.game` (set by `paradoxical!`) with a clear ArgumentError if unset.
+- **Per-game DSL files in subfolders.** Each game's DSL submodule now lives in its own file at `lib/paradoxical/games/<slug>/dsl.rb` rather than inline in `<slug>.rb`. Empty for CK2 / CK3 / EU5 / HOI4 / Imperator / V3 (placeholders for symmetry, populated as game-specific Builder helpers surface). Non-empty for EU4 (variable family override) and Stellaris (galaxy-setup + resource family).
+- **DSL / Helper split.** `edit` was on the global `Paradoxical::Helper` (extended onto `main`). It's Stellaris-specific and shouldn't be visible from a non-Stellaris `paradoxical!`. Moved to a new `Paradoxical::Games::Stellaris::Helper` submodule at `lib/paradoxical/games/stellaris/helper.rb`. `paradoxical!` extends `game_module::Helper` onto `main` when defined (gated via `const_defined?(:Helper, false)`), alongside the existing `game_module::DSL` prepend onto Builder. The split mirrors callable-context: DSL methods (`add_resource`, `check_galaxy_setup_value`, etc.) need Builder context (`l()`, `p()`), so they go on Builder; Helper methods (`edit`) take a path and yield a block — they run at script top level, so they go on `main`. Conflating them in one module would expose Builder-context methods at the top level where they'd error on the missing `l()`/`p()` helpers.
+
+The `@gamestate` intel-manager regex fix-up (`gsub(/^(\d+)\s*\{$/, '\1 = {')`) and the matching `intel > &list > &list` operator-clearing in `write` stay as-is — Stellaris save games deliberately ship that section in malformed PDX (the engine special-cases it on load), and the round-trip needs to preserve the engine's expected format. Worth recording: not all PDX malformedness is a bug; sometimes the engine itself emits non-conforming script. Same category as HOI4's `online_accountcreate.gui` Windows-1252 markup bytes — engine-specific quirks the parser has to humor.
+
+Verified: 396 unit tests pass; EU5 + Stellaris parse smokes clean; `paradoxical! game: "stellaris"` exposes `edit` at top level, `paradoxical! game: "eu4"` does not.
+
+Phases 1–5 are now complete.
 
 ### 6. RBS types
 

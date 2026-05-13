@@ -11,9 +11,6 @@ module Paradoxical::Games::HOI4
     Paradoxical::Games.read_launcher_version(game)
   end
 
-  module DSL
-  end
-
   # 17 of HOI4's allowlisted-fail files are upstream-malformed by a
   # single brace: 16 are missing one `}` (engine implicitly closes
   # at EOF), 1 has one extra `}`. Engine tolerates either; our

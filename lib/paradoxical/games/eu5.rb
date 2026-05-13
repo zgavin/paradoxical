@@ -49,9 +49,6 @@ module Paradoxical::Games::EU5
     version && Gem::Version.new(version)
   end
 
-  module DSL
-  end
-
   # Each correction is a per-path proc that mutates the raw file
   # bytes before the parser sees them. Versions key the corrections
   # by their first-known-broken release; an explicit `nil` at a
