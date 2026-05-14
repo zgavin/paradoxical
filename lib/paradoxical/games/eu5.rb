@@ -10,6 +10,7 @@ module Paradoxical::Games::EU5
   # (`.metadata/metadata.json` per mod) instead of the shared
   # launcher-v2 SQLite database.
   LAUNCHER_FORMAT    = :json
+  CALENDAR           = Paradoxical::Calendars::Calendar365
 
   # EU5 ships no launcher-settings.json. `caesar_branch.txt` is also
   # unreliable: its format is at Paradox's whim and patch components

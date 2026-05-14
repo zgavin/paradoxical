@@ -37,6 +37,7 @@ class Paradoxical::Game
     end
 
     register_corrections
+    register_calendar
   end
 
   private
@@ -58,6 +59,14 @@ class Paradoxical::Game
     Paradoxical::Games::Corrections.resolve(@game_module::CORRECTIONS, installed).each do |path, block|
       add_correction(path, &block)
     end
+  end
+
+  # Set the active game's calendar as the default on
+  # `Primitives::Date`. Parser-built dates pick this up so callers
+  # don't have to thread the calendar through every parse_file call —
+  # one Game-per-process is the typical mod-script shape.
+  def register_calendar
+    Paradoxical::Elements::Primitives::Date.default_calendar = @game_module::CALENDAR
   end
 
   public

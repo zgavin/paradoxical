@@ -90,13 +90,17 @@ RSpec.describe Paradoxical::Parser do
       it "parses a four-digit-year date" do
         prop = parse("foo = 1444.11.11").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_date).to eq(::Date.new(1444, 11, 11))
+        expect(prop.value.year).to eq(1444)
+        expect(prop.value.month).to eq(11)
+        expect(prop.value.day).to eq(11)
       end
 
       it "parses a single-digit-year date" do
         prop = parse("foo = 9.1.1").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_date).to eq(::Date.new(9, 1, 1))
+        expect(prop.value.year).to eq(9)
+        expect(prop.value.month).to eq(1)
+        expect(prop.value.day).to eq(1)
       end
 
       it "parses a BC (negative-year) date" do
@@ -105,7 +109,74 @@ RSpec.describe Paradoxical::Parser do
         # accepts an optional leading `-` sign.
         prop = parse("date = -2500.01.01").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_date).to eq(::Date.new(-2500, 1, 1))
+        expect(prop.value.year).to eq(-2500)
+      end
+
+      it "carries the default calendar (Calendar365) and round-trips bytes" do
+        prop = parse("foo = 1444.11.11").first
+        expect(prop.value.calendar).to eq(Paradoxical::Calendars::Calendar365)
+        expect(prop.value.to_pdx).to eq("1444.11.11")
+      end
+
+      it "permissively accepts sentinel dates (e.g. 0000.00.00) without raising" do
+        # Real game data ships `0000.00.00` and `1.0.1` as engine-
+        # accepted sentinels. We round-trip them faithfully — calendar
+        # validity is for arithmetic, not construction.
+        expect { parse("foo = 0000.00.00") }.not_to raise_error
+        expect { parse("foo = 1.0.1") }.not_to raise_error
+      end
+
+      describe "arithmetic" do
+        let(:date) { parse("foo = 1444.11.11").first.value }
+
+        it "+ Integer adds days (Calendar365: no leap year)" do
+          # 1444.11.11 + 20 days -> 1444.12.1
+          result = date + 20
+          expect(result.year).to eq(1444)
+          expect(result.month).to eq(12)
+          expect(result.day).to eq(1)
+        end
+
+        it "- Integer subtracts days" do
+          result = date - 10
+          expect(result.year).to eq(1444)
+          expect(result.month).to eq(11)
+          expect(result.day).to eq(1)
+        end
+
+        it "Date - Date returns day count" do
+          earlier = parse("a = 1444.11.01").first.value
+          expect(date - earlier).to eq(10)
+        end
+
+        it "applies ActiveSupport::Duration with month-shift + day-clamp" do
+          # 1444.1.31 + 1.month -> 1444.2.28 (clamp to Feb's 28 days)
+          jan31 = parse("d = 1444.1.31").first.value
+          result = jan31 + 1.month
+          expect(result.month).to eq(2)
+          expect(result.day).to eq(28)
+        end
+
+        it "comparisons via <=> (Comparable)" do
+          earlier = parse("a = 1444.01.01").first.value
+          later   = parse("a = 1500.01.01").first.value
+          expect(earlier).to be < date
+          expect(date).to be < later
+        end
+
+        it "Stellaris (Calendar360) supports Feb 30" do
+          prev = Paradoxical::Elements::Primitives::Date.default_calendar
+          begin
+            Paradoxical::Elements::Primitives::Date.default_calendar = Paradoxical::Calendars::Calendar360
+            d = Paradoxical::Elements::Primitives::Date.new("2200.2.30")
+            # 2200.2.30 + 1.day -> 2200.3.1 in Calendar360
+            result = d + 1
+            expect(result.month).to eq(3)
+            expect(result.day).to eq(1)
+          ensure
+            Paradoxical::Elements::Primitives::Date.default_calendar = prev
+          end
+        end
       end
 
       it "BC date doesn't shadow negative integer parsing" do

@@ -28,6 +28,8 @@ end
   file_parser
 
   builder
+  calendars/calendar_365
+  calendars/calendar_360
   game
   games
   games/corrections
