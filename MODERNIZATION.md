@@ -376,20 +376,24 @@ HOI4 and EU5 have hour-level granularity in-game but the script language doesn't
 
 Verified: 423 unit tests pass (8 new — year/month/day accessors, sentinel-date acceptance, day arithmetic, AS::Duration month-shift with day-clamp, Date - Date, Comparable, Stellaris Feb 30 support). Parse smokes clean across all five games (22,229 / 22,229 files).
 
-#### 8d. Float → BigDecimal-backed precision (pending)
+#### 8d. Float → BigDecimal-backed precision (landed)
 
-`Paradoxical::Elements::Primitives::Float` currently impersonates Ruby `::Float` (binary FP). DSL math on parsed decimals can drift due to binary-FP rounding. Real-world DSL math is rare so it hasn't bitten in practice yet, but the precision pattern in newer games argues for fixing it before it does.
+`Primitives::Float` was impersonating Ruby `::Float` (binary FP). DSL math on parsed decimals would drift due to binary-FP rounding — the classic `0.1 + 0.2 = 0.30000000000000004` failure on every value modders actually care about.
 
-**Empirical precision finding (EU5):** older PDX games stored decimals as fixed-precision integers with 3 decimal places (`1.234` = internal `1234`). EU5 isn't that anymore — numerous game-data floats carry 4-6 digits of precision, with 6 looking like a soft limit (~20k 6-digit values across the install, only 49 with 7+ digits and at least one of those is in a comment). Best guess: 64-bit integers with 6-digit fixed precision for game logic, true float/double for some shader/rendering paths.
+**Empirical precision finding (EU5):** older PDX games stored decimals as fixed-precision integers with 3 decimal places (`1.234` = internal `1234`). EU5 isn't that anymore — numerous game-data floats carry 4-6 digits of precision, with 6 a soft limit (~20k 6-digit values across the install, only 49 with 7+ digits and at least one of those is in a comment). Best guess: 64-bit integers with 6-digit fixed precision for game logic, true float/double for some shader/rendering paths.
 
-**Decision: BigDecimal over Integer × scale.** With variable precision per file/field, fixed-scale Integer doesn't fit. BigDecimal is stdlib and the Impersonator concern handles infix and comparison delegation through `to_real`, so changing the impersonated class plus the conversion method (`:to_d`) propagates BigDecimal semantics to comparisons and arithmetic automatically.
+**Decision: BigDecimal over Integer × scale.** Variable precision per file/field rules out fixed-scale Integer. BigDecimal is stdlib; the `Impersonator` concern handles infix and comparison delegation through `to_real`, so switching the impersonated class to `::BigDecimal` and the conversion method to `:to_d` propagates BigDecimal semantics to comparisons and arithmetic automatically.
 
 Migration surface (small — PancakeTaco is the only consumer):
-- `Primitives::Float#to_real` returns `BigDecimal` instead of `Float`.
+- `Primitives::Float#to_real` returns `BigDecimal` instead of `Float`. Arithmetic results from `+`/`-`/`*`/`/`/`%`/`**` are `BigDecimal` instead of `Float`.
 - `prop.value.to_f` still works (BigDecimal responds to `to_f`).
-- `prop.value.is_a?(::Float)` becomes false. `PropertyMatcher#matches?` does this check at one line; needs updating. No other Ruby-side callers do `is_a? Float`.
+- `prop.value.is_a?(::Float)` becomes false; `is_a?(::BigDecimal)` becomes true. `PropertyMatcher#matches?`'s `is_a?(Float)` coercion check was updated to also recognize `BigDecimal`.
 
-Trigger: surfaces when DSL math drifts. Not urgent.
+Raw bytes still round-trip via `to_pdx` unchanged — round-trip is bytes-in / bytes-out, independent of how arithmetic interprets the value.
+
+Verified: 469 unit tests (5 new — `to_real` is BigDecimal, `0.1 + 0.2 == 0.3` exact, `is_a?` type contract, raw-bytes round-trip, `to_f` still works). Parse smokes clean across all five games (22,229 / 22,229).
+
+Note: the `Impersonator#is_a?` override doesn't alias to `kind_of?`, so RSpec's `be_a` matcher (which uses `kind_of?`) sees the standard class-hierarchy answer (Primitives::Float doesn't inherit from BigDecimal). Production code uses `is_a?` consistently, so this divergence isn't load-bearing. Aliasing `kind_of?` to `is_a?` in the Impersonator concern is a follow-up cleanup not specific to 8d.
 
 #### 8e. Distinct primitive types for string-like patterns
 
