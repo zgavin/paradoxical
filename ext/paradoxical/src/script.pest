@@ -125,7 +125,21 @@ primitive             =  { ( color | percentage | date | float | integer | boole
 
 operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
-color                 = @{ ( ( "hsv360" | "hsv" | "rgb" ) ~ ws ~ "{" ~ ( ws ~  ( integer | float ) ){3,4} ~ ws ~ "}" ) | ( "hex" ~ ws ~ "{" ~ ws ~ "0x" ~ ASCII_HEX_DIGIT+ ~ ws ~ "}" ) }
+// De-atomized so each color subtype + its components are individually
+// captured. Each subtype rule names the keyword inline; the Rust side
+// dispatches on the matched inner rule to construct the right Color
+// subclass (RGB/HSV/HSV360/Hex). HSV360 listed before HSV so PEG
+// doesn't waste backtracking matching "hsv" then failing on "360 {".
+// HSV360 restricted to exactly 3 components — empirically no PDX game
+// ships hsv360 alpha and the strictness principle says we shouldn't
+// invent it. RGB and HSV stay at 3-or-4 (alpha exists in real data).
+color                 =  { hsv360_color | hsv_color | rgb_color | hex_color }
+rgb_color             =  { "rgb"    ~ ws ~ "{" ~ ( ws ~ color_component ){3,4} ~ ws ~ "}" }
+hsv_color             =  { "hsv"    ~ ws ~ "{" ~ ( ws ~ color_component ){3,4} ~ ws ~ "}" }
+hsv360_color          =  { "hsv360" ~ ws ~ "{" ~ ( ws ~ color_component ){3}   ~ ws ~ "}" }
+hex_color             =  { "hex"    ~ ws ~ "{" ~ ws ~ hex_literal ~ ws ~ "}" }
+color_component       =  { float | integer }
+hex_literal           = @{ "0x" ~ ASCII_HEX_DIGIT+ }
 
 date                  = @{ "-"? ~ ASCII_DIGIT{1,4} ~ "." ~ ASCII_DIGIT{1,2} ~ "." ~ ASCII_DIGIT{1,2}  }
 

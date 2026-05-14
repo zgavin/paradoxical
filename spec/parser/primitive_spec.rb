@@ -170,29 +170,50 @@ RSpec.describe Paradoxical::Parser do
     describe "color" do
       it "parses an rgb color" do
         prop = parse("foo = rgb { 128 64 32 }").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::RGB)
         expect(prop.value).to be_rgb
-        expect(prop.value.colors).to eq(%w[128 64 32])
+        expect(prop.value.r.to_i).to eq(128)
+        expect(prop.value.g.to_i).to eq(64)
+        expect(prop.value.b.to_i).to eq(32)
+        expect(prop.value.alpha).to be_nil
+      end
+
+      it "stores typed integer components for rgb integer values" do
+        prop = parse("foo = rgb { 128 64 32 }").first
+        expect(prop.value.components.map(&:class)).to all(eq(Paradoxical::Elements::Primitives::Integer))
       end
 
       it "parses an hsv color" do
         prop = parse("foo = hsv { 0.5 0.7 0.9 }").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::HSV)
         expect(prop.value).to be_hsv
-        expect(prop.value.colors).to eq(%w[0.5 0.7 0.9])
+        expect(prop.value.h.to_f).to eq(0.5)
+        expect(prop.value.s.to_f).to eq(0.7)
+        expect(prop.value.v.to_f).to eq(0.9)
       end
 
-      it "parses a 4-component (alpha) rgb color" do
-        # Stellaris uses rgb { r g b a } in some color values.
+      it "stores typed float components for hsv float values" do
+        prop = parse("foo = hsv { 0.5 0.7 0.9 }").first
+        expect(prop.value.components.map(&:class)).to all(eq(Paradoxical::Elements::Primitives::Float))
+      end
+
+      it "parses a 4-component (alpha) rgb color and exposes #alpha" do
+        # EU5 / Stellaris use `rgb { r g b a }` in some color values.
         prop = parse("foo = rgb { 235 0 18 0 }").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
-        expect(prop.value).to be_rgb
-        expect(prop.value.colors).to eq(%w[235 0 18 0])
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::RGB)
+        expect(prop.value.r.to_i).to eq(235)
+        expect(prop.value.alpha.to_i).to eq(0)
+      end
+
+      it "parses a 4-component (alpha) hsv color" do
+        prop = parse("foo = hsv { 0.3 0.6 0.9 1.0 }").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::HSV)
+        expect(prop.value.alpha.to_f).to eq(1.0)
       end
 
       it "raises on conversion / justify of 4-component colors" do
         prop = parse("foo = rgb { 235 0 18 0 }").first
-        expect { prop.value.hsv! }.to raise_error(NotImplementedError, /4-component/)
+        expect { prop.value.to_hsv }.to raise_error(NotImplementedError, /4-component/)
         expect { prop.value.justify! }.to raise_error(NotImplementedError, /4-component/)
       end
 
@@ -200,17 +221,30 @@ RSpec.describe Paradoxical::Parser do
         # EU5 introduced hsv360 — hue in degrees (0..360), S/V as
         # integers (0..100), instead of hsv's 0..1 floats.
         prop = parse("foo = hsv360 { 49 35 71 }").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::HSV360)
         expect(prop.value).to be_hsv360
         expect(prop.value).not_to be_hsv
         expect(prop.value).not_to be_rgb
-        expect(prop.value.colors).to eq(%w[49 35 71])
+        expect(prop.value.h.to_i).to eq(49)
+      end
+
+      it "does not match a 4-component hsv360 source as a color" do
+        # No empirical examples in any installed PDX game ship hsv360
+        # alpha, and the grammar is strict per the parser-strictness
+        # principle. With color out of the running, primitive falls
+        # through to string and `{ … }` parses as a keyless list — so
+        # the parse succeeds in a different shape rather than producing
+        # an hsv360 Color with four components.
+        doc = parse("foo = hsv360 { 49 35 71 100 }")
+        prop = doc.first
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.value).not_to be_a(Paradoxical::Elements::Primitives::Color)
       end
 
       it "raises on hsv360 -> hsv / rgb conversion (phase 8 follow-up)" do
         prop = parse("foo = hsv360 { 49 35 71 }").first
-        expect { prop.value.hsv! }.to raise_error(NotImplementedError, /phase 8/)
-        expect { prop.value.rgb! }.to raise_error(NotImplementedError, /phase 8/)
+        expect { prop.value.to_hsv }.to raise_error(NotImplementedError, /phase 8/)
+        expect { prop.value.to_rgb }.to raise_error(NotImplementedError, /phase 8/)
       end
 
       it "parses a hex literal color" do
@@ -218,15 +252,60 @@ RSpec.describe Paradoxical::Parser do
         # component literal — different body shape than the multi-
         # component types.
         prop = parse("color_leather_whitened = hex{ 0xffffffff }").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color)
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::Hex)
         expect(prop.value).to be_hex
-        expect(prop.value.colors).to eq(["0xffffffff"])
+        expect(prop.value.literal).to eq("0xffffffff")
+      end
+
+      it "exposes per-channel #r/#g/#b/#alpha accessors on hex (4-channel literal)" do
+        hex = parse("c = hex{ 0xab12cd34 }").first.value
+        expect(hex.r).to eq("ab")
+        expect(hex.g).to eq("12")
+        expect(hex.b).to eq("cd")
+        expect(hex.alpha).to eq("34")
+        expect(hex.components).to eq(%w[ab 12 cd 34])
+      end
+
+      it "returns nil for #alpha on a 6-char hex literal (no alpha channel)" do
+        hex = parse("c = hex{ 0xab12cd }").first.value
+        expect(hex.r).to eq("ab")
+        expect(hex.alpha).to be_nil
+        expect(hex.components).to eq(%w[ab 12 cd])
+      end
+
+      it "allows per-channel setters that mutate the underlying literal" do
+        hex = parse("c = hex{ 0xffffffff }").first.value
+        hex.r = "00"
+        hex.alpha = "80"
+        expect(hex.literal).to eq("0x00ffff80")
+      end
+
+      it "rejects non-hex-pair component setters" do
+        hex = parse("c = hex{ 0xffffffff }").first.value
+        expect { hex.r = "zz" }.to raise_error(ArgumentError, /2 hex chars/)
+        expect { hex.r = "f" }.to raise_error(ArgumentError, /2 hex chars/)
+      end
+
+      it "rejects #alpha= on a 6-char hex (no auto-grow)" do
+        hex = parse("c = hex{ 0xab12cd }").first.value
+        expect { hex.alpha = "ff" }.to raise_error(ArgumentError, /too short/)
       end
 
       it "raises on hex conversions (phase 8 follow-up)" do
         hex = parse("x = hex{ 0xffffffff }").first.value
-        expect { hex.rgb! }.to raise_error(NotImplementedError, /phase 8/)
+        expect { hex.to_rgb }.to raise_error(NotImplementedError, /phase 8/)
         expect { hex.justify! }.to raise_error(NotImplementedError, /phase 8/)
+      end
+
+      it "round-trips byte-identically across all subtypes" do
+        # The whitespace-capture path is the round-trip guarantee for
+        # de-atomized colors; assert across each subtype.
+        ["rgb { 128 64 32 }", "rgb { 235 0 18 0 }", "hsv { 0.5 0.7 0.9 }",
+         "hsv { 0.3 0.6 0.9 1.0 }", "hsv360 { 49 35 71 }",
+         "hex{ 0xffffffff }"].each do |body|
+          input = "foo = #{body}\n"
+          expect(parse(input).to_pdx).to eq(input), "round-trip differed for #{body.inspect}"
+        end
       end
     end
 

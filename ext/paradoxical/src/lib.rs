@@ -45,8 +45,24 @@ static PARAMETER_BLOCK_CLASS: Lazy<RClass> =
 static CODE_BLOCK_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| elements(ruby).const_get("CodeBlock").unwrap());
 
-static COLOR_CLASS: Lazy<RClass> =
-    Lazy::new(|ruby| primitives(ruby).const_get("Color").unwrap());
+// Color is abstract — RGB/HSV/HSV360/Hex are the concrete subclasses
+// the parser instantiates. Resolved lazily, like the other primitives.
+static RGB_CLASS: Lazy<RClass> = Lazy::new(|ruby| {
+    let color: RClass = primitives(ruby).const_get("Color").unwrap();
+    color.const_get("RGB").unwrap()
+});
+static HSV_CLASS: Lazy<RClass> = Lazy::new(|ruby| {
+    let color: RClass = primitives(ruby).const_get("Color").unwrap();
+    color.const_get("HSV").unwrap()
+});
+static HSV360_CLASS: Lazy<RClass> = Lazy::new(|ruby| {
+    let color: RClass = primitives(ruby).const_get("Color").unwrap();
+    color.const_get("HSV360").unwrap()
+});
+static HEX_CLASS: Lazy<RClass> = Lazy::new(|ruby| {
+    let color: RClass = primitives(ruby).const_get("Color").unwrap();
+    color.const_get("Hex").unwrap()
+});
 static DATE_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("Date").unwrap());
 static FLOAT_CLASS: Lazy<RClass> =
@@ -318,10 +334,18 @@ fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
 
     for inner in pair.into_inner() {
         let rule = inner.as_rule();
+
+        // Color is structured (de-atomized) — dispatch via the
+        // color() helper so each subtype gets typed components
+        // and per-token whitespace rather than a single byte
+        // string the Ruby side would have to regex back apart.
+        if rule == Rule::color {
+            return color(ruby, inner);
+        }
+
         text = p(ruby, inner);
 
         let cls: Option<RClass> = match rule {
-            Rule::color => Some(ruby.get_inner(&COLOR_CLASS)),
             Rule::date => Some(ruby.get_inner(&DATE_CLASS)),
             Rule::float => Some(ruby.get_inner(&FLOAT_CLASS)),
             Rule::integer => Some(ruby.get_inner(&INTEGER_CLASS)),
@@ -341,6 +365,65 @@ fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         .expect("primitive had no inner rule")
         .new_instance((text,))
         .unwrap()
+}
+
+fn color(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::rgb_color => structured_color(ruby, inner, &RGB_CLASS),
+        Rule::hsv_color => structured_color(ruby, inner, &HSV_CLASS),
+        Rule::hsv360_color => structured_color(ruby, inner, &HSV360_CLASS),
+        Rule::hex_color => hex_color(ruby, inner),
+        r => unreachable!("unexpected rule: {:?}", r),
+    }
+}
+
+fn structured_color(ruby: &Ruby, pair: Pair<Rule>, cls: &Lazy<RClass>) -> Value {
+    let components = ruby.ary_new();
+    let whitespace = ruby.ary_new();
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::color_component => components.push(color_component(ruby, inner)).unwrap(),
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
+    }
+
+    ruby.get_inner(cls)
+        .new_instance((components, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
+        .as_value()
+}
+
+fn color_component(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let inner = pair.into_inner().next().unwrap();
+    let rule = inner.as_rule();
+    let text = p(ruby, inner);
+    let cls = match rule {
+        Rule::float => ruby.get_inner(&FLOAT_CLASS),
+        Rule::integer => ruby.get_inner(&INTEGER_CLASS),
+        r => unreachable!("unexpected rule: {:?}", r),
+    };
+    cls.new_instance((text,)).unwrap().as_value()
+}
+
+fn hex_color(ruby: &Ruby, pair: Pair<Rule>) -> Value {
+    let whitespace = ruby.ary_new();
+    let mut literal: RString = s(ruby, "");
+
+    for inner in pair.into_inner() {
+        match inner.as_rule() {
+            Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
+            Rule::hex_literal => literal = p(ruby, inner),
+            r => unreachable!("unexpected rule: {:?}", r),
+        }
+    }
+
+    ruby.get_inner(&HEX_CLASS)
+        .new_instance((literal, kwargs!(ruby, "whitespace" => whitespace)))
+        .unwrap()
+        .as_value()
 }
 
 fn p(ruby: &Ruby, pair: Pair<Rule>) -> RString {

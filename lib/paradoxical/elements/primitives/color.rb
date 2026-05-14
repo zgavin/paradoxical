@@ -1,205 +1,84 @@
 class Paradoxical::Elements::Primitives::Color
-  def initialize value
-    @value = value
-  end
+  # Abstract base. The parser instantiates one of the concrete
+  # subclasses (RGB / HSV / HSV360 / Hex) under this namespace based
+  # on which keyword the source used. `is_a?(Color)` stays true
+  # across all four.
+  #
+  # Components are stored as typed primitives (Integer / Float for
+  # RGB/HSV/HSV360; raw byte string for Hex's `0x......` literal).
+  # `whitespace` is the per-token byte capture for byte-identical
+  # round-trip, same shape as Elements::List's whitespace.
 
-  def dup
-    self.class.new @value.dup
-  end
+  attr_accessor :components, :whitespace
 
-  def to_pdx
-    value
-  end
-
-  def to_s
-    value.to_s
-  end
-
-  def type
-    maybe_parse!
-    @type
-  end
-
-  def colors
-    maybe_parse!
-    @colors
-  end
-
-  def whitespace
-    maybe_parse!
-    @whitespace
-  end
-
-  def rgb?
-    type == "rgb"
-  end
-
-  def hsv?
-    type == "hsv"
-  end
-
-  def hsv360?
-    type == "hsv360"
-  end
-
-  def hex?
-    type == "hex"
-  end
-
-  def justify!
-    if rgb? && colors.length == 3 then
-      @whitespace = [nil, *colors.map do |c| " " * (4 - c.length) end, nil]
-    elsif hsv? && colors.length == 3 then
-      @whitespace = []
-      @colors = @colors.map do |v| "%.3f" % v.to_f end
-    else
-      # hsv360 / hex / 4-component (alpha) — each would need its
-      # own justification rule. Phase 8 follow-up.
-      raise NotImplementedError, "justify! for #{type} (#{colors.length}-component) is a phase 8 follow-up"
+  # Declarative per-channel accessor macro. Each subclass calls
+  # `channels :a, :b, :c[, :alpha]` to get the matching reader/writer
+  # pairs. Storage delegates to `component`/`set_component`, which
+  # default to `@components[idx]` (the shape RGB/HSV/HSV360 use) and
+  # are overridden by `Hex` to slice the 2-char channels out of its
+  # `0x...` literal.
+  def self.channels *names
+    names.each_with_index do |name, idx|
+      define_method(name) { component(idx) }
+      define_method("#{name}=") { |v| set_component(idx, v) }
     end
-
-    @value = nil
-
-    self
   end
 
-  # https://en.wikipedia.org/wiki/HSL_and_HSV#From_RGB
-  def hsv!
-    return self if hsv?
-
-    unless rgb? && colors.length == 3
-      raise NotImplementedError, "#{type} (#{colors.length}-component) -> hsv conversion is a phase 8 follow-up"
-    end
-
-    r, g, b = @colors.map do |c| c.to_i / 255.0 end
-
-    x_max = [r, g, b].max
-    x_min = [r, g, b].min
-
-    v = x_max
-
-    c = x_max - x_min
-
-    h = if c == 0 then
-          0
-        elsif v == r then
-          ((g - b) / c)
-        elsif v == g then
-          ((b - r) / c) + 2
-        elsif v == b then
-          ((r - g) / c) + 4
-        end
-
-    h /= 6
-
-    h += 1 if h < 0
-
-    s = if v == 0 then
-          0
-        else
-          c / v
-        end
-
-    @colors = [h, s, v].map do |v| "%.3f" % v end
-
-    @type = "hsv"
-
-    @value = nil
-
-    self
-  end
-
-  # https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB
-  def rgb!
-    return self if rgb?
-
-    unless hsv? && colors.length == 3
-      raise NotImplementedError, "#{type} (#{colors.length}-component) -> rgb conversion is a phase 8 follow-up"
-    end
-
-    h, s, v = @colors.map(&:to_f)
-
-    c = v * s
-
-    h_prime = (h * 6) % 6
-
-    x = c * (1 - ((h_prime % 2) - 1).abs)
-
-    r1, g1, b1 = if h_prime >= 0 and h_prime < 1 then
-                   [c, x, 0]
-                 elsif h_prime >= 1 and h_prime < 2
-                   [x, c, 0]
-                 elsif h_prime >= 2 and h_prime < 3
-                   [0, c, x]
-                 elsif h_prime >= 3 and h_prime < 4
-                   [0, x, c]
-                 elsif h_prime >= 4 and h_prime < 5
-                   [x, 0, c]
-                 elsif h_prime >= 5 and h_prime < 6
-                   [c, 0, x]
-                 end
-
-    m = v - c
-
-    @colors = [r1, g1, b1].map do |c| ((c + m) * 255).to_i.to_s end
-
-    @type = "rgb"
-
-    @value = nil
-
-    self
+  def initialize components, whitespace: nil
+    @components = components
+    @whitespace = whitespace || []
   end
 
   private
 
-  def value
-    @value ||= begin
-      value = type.dup
-
-      value << (whitespace[0] or " ")
-      value << "{"
-
-      colors.each_with_index do |c, i|
-        value << (whitespace[1 + i] or " ")
-        value << c.to_s
-      end
-
-      value << (whitespace[colors.length + 1] or " ")
-      value << "}"
-
-      value
-    end
+  def component idx
+    @components[idx]
   end
 
-  def maybe_parse!
-    return unless @type.nil? or @colors.nil? or @whitespace.nil?
+  def set_component idx, value
+    @components[idx] = value
+  end
 
-    # Two body shapes:
-    #   - 3-or-4-component:  rgb | hsv | hsv360
-    #   - 1-component hex literal:  hex { 0x...... }
-    # Components allow optional leading `-` for symmetry; rgb/hsv
-    # typically don't use it but the grammar permits it.
-    if (m = @value.match(/^(?<type>hex)(?<ws_open>\s*)\{(?<ws_1>\s*)(?<color_0>0x[0-9a-fA-F]+)(?<ws_close>\s*)\}$/))
-      @type = m[:type]
-      @colors = [m[:color_0]]
-      @whitespace = [m[:ws_open], m[:ws_1], m[:ws_close]]
-    else
-      m = @value.match(%r{
-        ^
-        (?<type>hsv360|rgb|hsv)
-        (?<ws_open>\s*)\{(?<ws_1>\s*)
-        (?<color_0>-?\d+\.?\d*)(?<ws_2>\s+)
-        (?<color_1>-?\d+\.?\d*)(?<ws_3>\s+)
-        (?<color_2>-?\d+\.?\d*)
-        (?:(?<ws_pre_alpha>\s+)(?<color_3>-?\d+\.?\d*))?
-        (?<ws_close>\s*)\}
-        $
-      }x)
-      @type = m[:type]
-      @colors = [m[:color_0], m[:color_1], m[:color_2], m[:color_3]].compact
-      @whitespace = [m[:ws_open], m[:ws_1], m[:ws_2], m[:ws_3]]
-      @whitespace << m[:ws_pre_alpha] if m[:color_3]
-      @whitespace << m[:ws_close]
+  public
+
+  def dup
+    self.class.new @components.map(&:dup), whitespace: @whitespace.dup
+  end
+
+  def type
+    raise NotImplementedError, "subclass must define #type"
+  end
+
+  def rgb?     ; is_a? RGB     end
+  def hsv?     ; is_a? HSV     end
+  def hsv360?  ; is_a? HSV360  end
+  def hex?     ; is_a? Hex     end
+
+  # Back-compat surface: `colors` historically returned an array of
+  # stringified components. Keep that signature so existing call
+  # sites (and spec assertions) work; per-subclass getters
+  # (`#r`, `#g`, `#b`, `#alpha` for RGB, etc.) are the typed path.
+  def colors
+    @components.map(&:to_pdx)
+  end
+
+  def to_pdx
+    iter = @whitespace.each
+    next_ws = ->(default = " ") { iter.next rescue default }
+
+    buffer = String.new(type)
+    buffer << next_ws.call
+    buffer << "{"
+    @components.each do |c|
+      buffer << next_ws.call
+      buffer << c.to_pdx
     end
+    buffer << next_ws.call
+    buffer << "}"
+    buffer
+  end
+
+  def to_s
+    to_pdx
   end
 end
