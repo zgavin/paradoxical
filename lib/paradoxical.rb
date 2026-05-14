@@ -1,4 +1,6 @@
 require "active_support/all"
+require "bigdecimal"
+require "bigdecimal/util"
 require "pathname"
 require "yaml"
 require "zip"

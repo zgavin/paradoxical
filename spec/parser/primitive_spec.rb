@@ -72,6 +72,43 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
         expect(prop.value.to_s).to eq("0.5fix")
       end
+
+      describe "BigDecimal-backed precision (phase 8d)" do
+        it "to_real returns a BigDecimal" do
+          prop = parse("foo = 1.234567").first
+          expect(prop.value.to_real).to be_a(::BigDecimal)
+          expect(prop.value.to_real).to eq(BigDecimal("1.234567"))
+        end
+
+        it "arithmetic preserves base-10 precision (0.1 + 0.2 = 0.3 exactly)" do
+          # Ruby Float drifts here: 0.1 + 0.2 == 0.30000000000000004.
+          # BigDecimal is exact.
+          prop = parse("foo = 0.1").first
+          result = prop.value + 0.2
+          expect(result).to eq(BigDecimal("0.3"))
+        end
+
+        it "is_a? sees BigDecimal (not Float) as the impersonated type" do
+          # `is_a?` is what production code uses (PropertyMatcher etc.);
+          # `kind_of?` would skip the Impersonator override and return
+          # the standard class-hierarchy answer.
+          prop = parse("foo = 1.5").first
+          expect(prop.value.is_a?(::BigDecimal)).to be true
+          expect(prop.value.is_a?(::Float)).to be false
+        end
+
+        it "raw bytes still round-trip via to_pdx" do
+          # Round-trip is bytes-in / bytes-out — independent of how
+          # `to_real` interprets the value.
+          input = "foo = 0.123456\n"
+          expect(parse(input).to_pdx).to eq(input)
+        end
+
+        it "to_f still works (BigDecimal#to_f)" do
+          prop = parse("foo = 1.234").first
+          expect(prop.value.to_f).to be_within(0.0001).of(1.234)
+        end
+      end
     end
 
     describe "boolean" do

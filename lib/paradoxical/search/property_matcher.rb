@@ -27,7 +27,9 @@ class Paradoxical::Search::PropertyMatcher
     properties.any? do |property|
       tmp = value
       tmp = tmp.to_i if property.value.is_a? Integer
-      tmp = tmp.to_f if property.value.is_a?(Float) or property.value.is_a?(Paradoxical::Elements::Primitives::Float)
+      tmp = tmp.to_f if property.value.is_a?(Float) or
+                        property.value.is_a?(BigDecimal) or
+                        property.value.is_a?(Paradoxical::Elements::Primitives::Float)
 
       case operator
       when "="
