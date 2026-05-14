@@ -45,6 +45,12 @@ end
 class Paradoxical::Calendars::Calendar365
   MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31].freeze
   DAYS_PER_YEAR = 365
+  # Precomputed prefix sum — `DAYS_BEFORE_MONTH[m - 1]` is the number
+  # of days from Jan 1 to the first of month `m`. Saves recomputing
+  # `MONTH_LENGTHS[0, month - 1].sum` on every `to_day_count` call.
+  DAYS_BEFORE_MONTH = MONTH_LENGTHS.each_with_object([0]) do |len, acc|
+    acc << acc.last + len
+  end.tap(&:pop).freeze
 
   class << self
     def days_in_month month
@@ -73,8 +79,7 @@ class Paradoxical::Calendars::Calendar365
     def to_day_count year, month, day
       effective = year.zero? ? 1 : year
       year_offset = effective >= 1 ? effective - 1 : effective
-      days_before_month = MONTH_LENGTHS[0, month - 1].sum
-      year_offset * DAYS_PER_YEAR + days_before_month + (day - 1)
+      year_offset * DAYS_PER_YEAR + DAYS_BEFORE_MONTH[month - 1] + (day - 1)
     end
 
     # Inverse of `to_day_count`. Returns [year, month, day]. Skips year
