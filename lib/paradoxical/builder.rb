@@ -86,6 +86,34 @@ class Paradoxical::Builder
     Paradoxical::Elements::Primitives::String.new string, **opts
   end
 
+  # Construct a typed `Primitives::Date` for DSL output. Accepts
+  # either three explicit components (`date(1444, 11, 11)`) or a
+  # single string with any of `.`, `-`, `/` separators
+  # (`date("1444.11.11")` / `date("1444-11-11")` / `date("1444/11/11")`).
+  # BC years can be passed as negative integers or as a leading `-`
+  # in the string form (`date("-43.1.1")` / `date(-43, 1, 1)`).
+  def date *args
+    parts =
+      if args.length == 3 then
+        args.map(&:to_s)
+      elsif args.length == 1 then
+        pieces = args.first.to_s.split(%r{[.\-/]})
+        # A leading `-` (BC-year sign) gets treated as a separator by
+        # the split and adds an empty leading piece — reattach it.
+        if pieces.length == 4 and pieces.first.empty? then
+          ["-#{pieces[1]}", pieces[2], pieces[3]]
+        else
+          pieces
+        end
+      else
+        raise ArgumentError, "date expects 3 components or a single string; got #{args.length} args"
+      end
+
+    raise ArgumentError, "date expects 3 components; got #{parts.inspect}" if parts.length != 3
+
+    Paradoxical::Elements::Primitives::Date.new(parts.join("."))
+  end
+
   def empty_list k
     list k, []
   end
