@@ -20,6 +20,8 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
 
   channels :r, :g, :b, :alpha
 
+  def type; "hex"; end
+
   # 3-or-4 channels depending on whether alpha is present. Mirrors
   # the array shape of RGB/HSV/HSV360 (component count = channel count)
   # rather than the previous "literal as a 1-element array" shape.

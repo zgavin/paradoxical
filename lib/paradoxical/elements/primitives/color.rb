@@ -46,7 +46,7 @@ class Paradoxical::Elements::Primitives::Color
   end
 
   def type
-    self.class.name.split("::").last.downcase
+    raise NotImplementedError, "subclass must define #type"
   end
 
   def rgb?     ; is_a? RGB     end

@@ -1,6 +1,8 @@
 class Paradoxical::Elements::Primitives::Color::RGB < Paradoxical::Elements::Primitives::Color
   channels :r, :g, :b, :alpha
 
+  def type; "rgb"; end
+
   def justify!
     if @components.length == 3 then
       strs = @components.map(&:to_pdx)

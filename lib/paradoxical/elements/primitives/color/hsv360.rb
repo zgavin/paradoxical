@@ -1,6 +1,8 @@
 class Paradoxical::Elements::Primitives::Color::HSV360 < Paradoxical::Elements::Primitives::Color
   channels :h, :s, :v
 
+  def type; "hsv360"; end
+
   def justify!
     raise NotImplementedError, "justify! for hsv360 is a phase 8 follow-up"
   end

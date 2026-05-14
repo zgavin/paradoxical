@@ -1,6 +1,8 @@
 class Paradoxical::Elements::Primitives::Color::HSV < Paradoxical::Elements::Primitives::Color
   channels :h, :s, :v, :alpha
 
+  def type; "hsv"; end
+
   def justify!
     if @components.length == 3 then
       @whitespace = []
