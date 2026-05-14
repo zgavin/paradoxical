@@ -24,6 +24,25 @@ class Paradoxical::Elements::Primitives::Color
     end
   end
 
+  # Wrap a Ruby Integer / Float (or pre-built typed primitive) in
+  # the matching `Primitives::*` typed primitive. Pass-through for
+  # already-typed values. Used by Builder's color helpers so DSL
+  # callers can supply plain numbers without manual wrapping; lives
+  # on the Color class (not Builder) so it doesn't take up a
+  # reserved name in Builder's method_missing surface.
+  def self.component value
+    case value
+    when Paradoxical::Elements::Primitives::Integer, Paradoxical::Elements::Primitives::Float
+      value
+    when ::Float
+      Paradoxical::Elements::Primitives::Float.new(value.to_s)
+    when ::Integer
+      Paradoxical::Elements::Primitives::Integer.new(value.to_s)
+    else
+      raise ArgumentError, "color component must be Integer or Float, got #{value.class}"
+    end
+  end
+
   def initialize components, whitespace: nil
     @components = components
     @whitespace = whitespace || []

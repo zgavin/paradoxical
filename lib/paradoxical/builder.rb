@@ -114,6 +114,54 @@ class Paradoxical::Builder
     Paradoxical::Elements::Primitives::Date.new(parts.join("."))
   end
 
+  # Thin DSL wrappers around the `Color::*` class-method factories.
+  # The dispatch / parsing logic lives on the typed classes
+  # themselves (`Color::RGB.from`, `Color.component`) so this file
+  # stays free of private helper methods — Builder is extended
+  # into the DSL scope and `method_missing` falls through to
+  # `pdx_obj`, so any private name we'd add here would silently
+  # shadow that name as a DSL reserved word.
+
+  # See `Color::RGB.from` for the supported input shapes:
+  # hex string, raw integer, or 3-4 numeric components, with an
+  # optional `alpha:` kwarg override.
+  def rgb *args, alpha: nil
+    Paradoxical::Elements::Primitives::Color::RGB.from(*args, alpha: alpha)
+  end
+
+  # Same input shapes as `rgb`; returns a `Color::Hex` via the
+  # `to_hex` conversion that RGB owns.
+  def hex *args, **opts
+    rgb(*args, **opts).to_hex
+  end
+
+  # `hsv(h, s, v[, alpha])` or `hsv(h, s, v, alpha: a)`. Components
+  # can be any mix of Integer / Float per HSV's permissive shape
+  # (`hsv { 0 100 0.8 }` in real game data).
+  def hsv *args, alpha: nil
+    raise ArgumentError, "hsv expects 3 or 4 components; got #{args.length}" unless [3, 4].include?(args.length)
+
+    components = args
+    components = components[0, 3] + [alpha] unless alpha.nil?
+
+    Paradoxical::Elements::Primitives::Color::HSV.new(
+      components.map do |c| Paradoxical::Elements::Primitives::Color.component(c) end
+    )
+  end
+
+  # `hsv360(h, s, v)` — 3 integer components, no alpha. PDX itself
+  # doesn't emit 4-component hsv360 and the parser grammar rejects
+  # it, so DSL-emitting one would be write-only garbage. Components
+  # must be Integer (HSV360 rejects Float at construction per the
+  # empirical all-int rule).
+  def hsv360 *args
+    raise ArgumentError, "hsv360 expects 3 components; got #{args.length}" if args.length != 3
+
+    Paradoxical::Elements::Primitives::Color::HSV360.new(
+      args.map do |c| Paradoxical::Elements::Primitives::Color.component(c) end
+    )
+  end
+
   def empty_list k
     list k, []
   end
