@@ -1,12 +1,5 @@
 class Paradoxical::Elements::Primitives::Color::RGB < Paradoxical::Elements::Primitives::Color
-  def r       ; @components[0]      end
-  def r= v    ; @components[0] = v  end
-  def g       ; @components[1]      end
-  def g= v    ; @components[1] = v  end
-  def b       ; @components[2]      end
-  def b= v    ; @components[2] = v  end
-  def alpha   ; @components[3]      end
-  def alpha= v; @components[3] = v  end
+  channels :r, :g, :b, :alpha
 
   def justify!
     if @components.length == 3 then

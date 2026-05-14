@@ -18,14 +18,7 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
     self.class.new @literal.dup, whitespace: @whitespace.dup
   end
 
-  def r       ; component(0)            end
-  def r= v    ; set_component(0, v)     end
-  def g       ; component(1)            end
-  def g= v    ; set_component(1, v)     end
-  def b       ; component(2)            end
-  def b= v    ; set_component(2, v)     end
-  def alpha   ; component(3)            end
-  def alpha= v; set_component(3, v)     end
+  channels :r, :g, :b, :alpha
 
   # 3-or-4 channels depending on whether alpha is present. Mirrors
   # the array shape of RGB/HSV/HSV360 (component count = channel count)

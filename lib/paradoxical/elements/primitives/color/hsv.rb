@@ -1,12 +1,5 @@
 class Paradoxical::Elements::Primitives::Color::HSV < Paradoxical::Elements::Primitives::Color
-  def h       ; @components[0]      end
-  def h= v    ; @components[0] = v  end
-  def s       ; @components[1]      end
-  def s= v    ; @components[1] = v  end
-  def v       ; @components[2]      end
-  def v= v    ; @components[2] = v  end
-  def alpha   ; @components[3]      end
-  def alpha= v; @components[3] = v  end
+  channels :h, :s, :v, :alpha
 
   def justify!
     if @components.length == 3 then

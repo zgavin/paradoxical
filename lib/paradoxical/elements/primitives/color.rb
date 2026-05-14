@@ -11,10 +11,35 @@ class Paradoxical::Elements::Primitives::Color
 
   attr_accessor :components, :whitespace
 
+  # Declarative per-channel accessor macro. Each subclass calls
+  # `channels :a, :b, :c[, :alpha]` to get the matching reader/writer
+  # pairs. Storage delegates to `component`/`set_component`, which
+  # default to `@components[idx]` (the shape RGB/HSV/HSV360 use) and
+  # are overridden by `Hex` to slice the 2-char channels out of its
+  # `0x...` literal.
+  def self.channels *names
+    names.each_with_index do |name, idx|
+      define_method(name) { component(idx) }
+      define_method("#{name}=") { |v| set_component(idx, v) }
+    end
+  end
+
   def initialize components, whitespace: nil
     @components = components
     @whitespace = whitespace || []
   end
+
+  private
+
+  def component idx
+    @components[idx]
+  end
+
+  def set_component idx, value
+    @components[idx] = value
+  end
+
+  public
 
   def dup
     self.class.new @components.map(&:dup), whitespace: @whitespace.dup
