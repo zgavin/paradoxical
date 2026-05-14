@@ -164,6 +164,22 @@ RSpec.describe Paradoxical::Parser do
           expect(date).to be < later
         end
 
+        it "Feb 29 normalizes to Mar 1 via arithmetic round-trip (engine-matching)" do
+          # EU5 ships `Y.2.29` dates in historical content and the
+          # engine renders them as Mar 1 (verified in-game on PR #69).
+          # `to_pdx` on the parser product preserves the raw bytes
+          # so byte-identical round-trip holds; arithmetic round-trip
+          # through the calendar normalizes to Mar 1, matching the
+          # engine's resolved form.
+          feb29 = parse("d = 1756.2.29").first.value
+          expect(feb29.to_pdx).to eq("1756.2.29")
+          # `+ 0` walks through to_day_count / from_day_count and
+          # normalizes the Feb 29 to its day-of-year-59 ↔ Mar 1 form.
+          normalized = feb29 + 0
+          expect(normalized.month).to eq(3)
+          expect(normalized.day).to eq(1)
+        end
+
         it "Stellaris (Calendar360) supports Feb 30" do
           prev = Paradoxical::Elements::Primitives::Date.default_calendar
           begin

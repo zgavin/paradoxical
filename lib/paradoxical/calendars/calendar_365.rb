@@ -14,6 +14,21 @@ end
 # that the engine accepts; the calendar is an arithmetic engine, not
 # a validator.
 #
+# **Feb 29 → Mar 1 normalization.** EU5 game data includes Feb 29
+# dates (`1313.2.29`, `888.2.29`, `1756.2.29` etc.) in characters,
+# events, and historical timelines. In-game verification (PR #69
+# review) shows the engine renders these as Mar 1 of the same year —
+# so a "29th of Feb" in source is an alternative spelling of "1st of
+# March." Our day-count math implicitly does the same thing: day 59
+# of any year (where Feb's 28 days + 0 indexing leave you) walks
+# past Feb's 28-day length and lands on Mar 1 via `from_day_count`.
+# That means arithmetic on a parsed Feb 29 — even `date + 0` —
+# returns a date whose `to_pdx` is "Y.3.1" rather than "Y.2.29".
+# `Primitives::Date#to_pdx` on the *unmutated* parser product still
+# emits the raw bytes ("Y.2.29") so the byte-identical round-trip
+# property holds; the engine-normalized form is only observable
+# after an arithmetic operation, which is the right asymmetry.
+#
 # `to_day_count` and `from_day_count` are inverses across the full
 # integer range. Day 0 is year 1, January 1. Negative days walk back
 # through year 0, year -1, etc. (year 0 doesn't exist historically
