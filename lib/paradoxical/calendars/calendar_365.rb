@@ -56,18 +56,33 @@ class Paradoxical::Calendars::Calendar365
     end
 
     # (year, month, day) → absolute day count from year 1, January 1 = 0.
-    # Linear in year; negative years and out-of-range months/days flow
-    # through cleanly so arithmetic on permissively-parsed dates doesn't
-    # crash.
+    #
+    # Historical convention: there's no year 0. `-1.12.31` (1 BCE Dec 31)
+    # is immediately followed by `1.1.1` (1 CE Jan 1). Empirical
+    # backing: EU5's emerald_buddha has `creation_date = -43.1.1` and
+    # Wikipedia dates it to 43 BCE, so `-43` = 43 BCE — historical
+    # convention. CK2's `-1.1.1` artifact dates fit the same pattern.
+    #
+    # Year 0 in source is something else: a year-ignored placeholder
+    # in `seasons.txt` (Imperator / HOI4 / CK2 / EU4) and EU4's
+    # `region.txt` monsoon lists, used where the engine cares about
+    # month/day but not year. We round-trip `00` years faithfully via
+    # `Primitives::Date#to_pdx` (raw bytes preserved) but treat year 0
+    # as year 1 for arithmetic so the math doesn't carve out a
+    # 365-day gap that historically doesn't exist.
     def to_day_count year, month, day
+      effective = year.zero? ? 1 : year
+      year_offset = effective >= 1 ? effective - 1 : effective
       days_before_month = MONTH_LENGTHS[0, month - 1].sum
-      (year - 1) * DAYS_PER_YEAR + days_before_month + (day - 1)
+      year_offset * DAYS_PER_YEAR + days_before_month + (day - 1)
     end
 
-    # Inverse of `to_day_count`. Returns [year, month, day].
+    # Inverse of `to_day_count`. Returns [year, month, day]. Skips year
+    # 0 going backwards — count = 0 is `1.1.1`, count = -1 is
+    # `-1.12.31` (1 BCE Dec 31).
     def from_day_count count
       year, day_of_year = count.divmod(DAYS_PER_YEAR)
-      year += 1
+      year += 1 if year >= 0
 
       MONTH_LENGTHS.each_with_index do |len, idx|
         return [year, idx + 1, day_of_year + 1] if day_of_year < len

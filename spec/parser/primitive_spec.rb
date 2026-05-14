@@ -164,6 +164,41 @@ RSpec.describe Paradoxical::Parser do
           expect(date).to be < later
         end
 
+        it "BCE → CE arithmetic skips year 0 (historical convention)" do
+          # Paradox follows historical year numbering: there is no
+          # year 0. -1.12.31 (1 BCE) + 1 day → 1.1.1 (1 CE).
+          # Empirical backing: EU5's emerald_buddha has
+          # creation_date = -43.1.1 which Wikipedia dates to 43 BCE
+          # (so -N = N BCE, no year 0 offset).
+          end_of_bce = parse("d = -1.12.31").first.value
+          start_of_ce = end_of_bce + 1
+          expect(start_of_ce.year).to eq(1)
+          expect(start_of_ce.month).to eq(1)
+          expect(start_of_ce.day).to eq(1)
+        end
+
+        it "year 0 in source round-trips bytes but normalizes to year 1 via arithmetic" do
+          # `seasons.txt` files (Imperator / HOI4 / CK2 / EU4) and
+          # EU4's region.txt monsoons use `00.M.D` as a year-ignored
+          # placeholder — same byte-vs-arithmetic asymmetry as the
+          # Feb 29 case. Round-trip preserves the source year 0; the
+          # engine has no actual year 0 so arithmetic resolves it
+          # to year 1.
+          d = parse("d = 0.6.15").first.value
+          expect(d.to_pdx).to eq("0.6.15")
+          expect((d + 0).year).to eq(1)
+          expect((d + 0).month).to eq(6)
+          expect((d + 0).day).to eq(15)
+        end
+
+        it "preserves BCE dates round-trip via arithmetic (-43.1.1 + 0)" do
+          d = parse("d = -43.1.1").first.value
+          normalized = d + 0
+          expect(normalized.year).to eq(-43)
+          expect(normalized.month).to eq(1)
+          expect(normalized.day).to eq(1)
+        end
+
         it "Feb 29 normalizes to Mar 1 via arithmetic round-trip (engine-matching)" do
           # EU5 ships `Y.2.29` dates in historical content and the
           # engine renders them as Mar 1 (verified in-game on PR #69).

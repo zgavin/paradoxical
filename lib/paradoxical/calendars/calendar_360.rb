@@ -17,13 +17,20 @@ class Paradoxical::Calendars::Calendar360
       DAYS_PER_YEAR
     end
 
+    # No-year-0 historical convention applied uniformly across all PDX
+    # calendars; see `Calendar365#to_day_count` for the empirical
+    # backing. Stellaris itself doesn't ship BC dates (the campaign
+    # starts in 2200), but keeping the math symmetric across both
+    # calendars means user-constructed dates behave consistently.
     def to_day_count year, month, day
-      (year - 1) * DAYS_PER_YEAR + (month - 1) * MONTH_LENGTH + (day - 1)
+      effective = year.zero? ? 1 : year
+      year_offset = effective >= 1 ? effective - 1 : effective
+      year_offset * DAYS_PER_YEAR + (month - 1) * MONTH_LENGTH + (day - 1)
     end
 
     def from_day_count count
       year, rest = count.divmod(DAYS_PER_YEAR)
-      year += 1
+      year += 1 if year >= 0
       month, day = rest.divmod(MONTH_LENGTH)
       [year, month + 1, day + 1]
     end
