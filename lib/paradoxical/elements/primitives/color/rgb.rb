@@ -4,6 +4,60 @@ class Paradoxical::Elements::Primitives::Color::RGB < Paradoxical::Elements::Pri
   def type; "rgb"; end
   def rgb?; true; end
 
+  # Convenience factory accepting any of the shapes the Builder
+  # color helpers expose:
+  #   RGB.from("ff8000") / RGB.from("#ff8000") / RGB.from("0xff8000")
+  #   RGB.from(0xff8000) / RGB.from(0xff8000c0)
+  #   RGB.from(255, 128, 0[, 200])
+  #   RGB.from(255, 128, 0, alpha: 200)
+  # `alpha:` overrides any positional / hex-string-embedded /
+  # integer-embedded alpha when both are supplied. Integer dispatch
+  # is magnitude-based: n <= 0xffffff is RRGGBB, n > 0xffffff is
+  # RRGGBBAA.
+  def self.from *args, alpha: nil
+    components = resolve_from_args(args)
+    components = components[0, 3] + [alpha] unless alpha.nil?
+    new(components.map do |c| Paradoxical::Elements::Primitives::Color.component(c) end)
+  end
+
+  class << self
+    private
+
+    def resolve_from_args args
+      return args if [3, 4].include?(args.length)
+
+      if args.length != 1 then
+        raise ArgumentError, "rgb expects 1 (hex/int), 3, or 4 components; got #{args.length}"
+      end
+
+      case (raw = args.first)
+      when ::String  then components_from_hex_string(raw)
+      when ::Integer then components_from_integer(raw)
+      else raise ArgumentError, "rgb single-arg form expects String or Integer; got #{raw.class}"
+      end
+    end
+
+    def components_from_hex_string str
+      hex = str.delete_prefix("#").delete_prefix("0x")
+
+      unless hex.match?(/\A[0-9a-fA-F]+\z/) and [6, 8].include?(hex.length)
+        raise ArgumentError, "rgb hex string must be 6 or 8 hex digits, got #{str.inspect}"
+      end
+
+      hex.scan(/../).map do |pair| pair.to_i(16) end
+    end
+
+    def components_from_integer n
+      raise ArgumentError, "rgb integer must be 0..0xffffffff, got #{n}" unless n.between?(0, 0xffffffff)
+
+      if n > 0xffffff then
+        [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+      else
+        [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+      end
+    end
+  end
+
   def justify!
     strs = @components.map(&:to_pdx)
     @whitespace = [nil, *strs.map do |c| " " * (4 - c.length) end, nil]

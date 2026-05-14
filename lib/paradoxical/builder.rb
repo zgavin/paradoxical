@@ -114,47 +114,52 @@ class Paradoxical::Builder
     Paradoxical::Elements::Primitives::Date.new(parts.join("."))
   end
 
-  # Construct a typed `Primitives::Color::RGB` for DSL output.
-  # Accepts:
-  #   rgb("ff8000") / rgb("#ff8000") / rgb("0xff8000")  — hex string (6 or 8 hex digits)
-  #   rgb(0xff8000)                                     — raw integer (RGB or RRGGBBAA)
-  #   rgb(255, 128, 0)                                  — 3 numeric components
-  #   rgb(255, 128, 0, 200)                             — 4 numeric components (alpha)
-  #   rgb(255, 128, 0, alpha: 200)                      — alpha as a kwarg
-  # The `alpha:` kwarg overrides any alpha inferred from positional/
-  # hex/integer forms. Float components (`rgb(0.5, 0.3, 0.1)`) flow
-  # through to a Float RGB; mixing real Integer (>= 2) and Float
-  # components is rejected at construction per RGB homogeneity.
+  # Thin DSL wrappers around the `Color::*` class-method factories.
+  # The dispatch / parsing logic lives on the typed classes
+  # themselves (`Color::RGB.from`, `Color.component`) so this file
+  # stays free of private helper methods — Builder is extended
+  # into the DSL scope and `method_missing` falls through to
+  # `pdx_obj`, so any private name we'd add here would silently
+  # shadow that name as a DSL reserved word.
+
+  # See `Color::RGB.from` for the supported input shapes:
+  # hex string, raw integer, or 3-4 numeric components, with an
+  # optional `alpha:` kwarg override.
   def rgb *args, alpha: nil
-    components = rgb_components_from_args(args)
-    components = components[0, 3] + [alpha] unless alpha.nil?
-    Paradoxical::Elements::Primitives::Color::RGB.new(components.map do |c| color_component(c) end)
+    Paradoxical::Elements::Primitives::Color::RGB.from(*args, alpha: alpha)
   end
 
-  # `hex(...)` accepts the exact same shapes as `rgb` and returns a
-  # `Primitives::Color::Hex`. Implementation is literally
-  # `rgb(...).to_hex` — RGB owns the conversion math.
+  # Same input shapes as `rgb`; returns a `Color::Hex` via the
+  # `to_hex` conversion that RGB owns.
   def hex *args, **opts
     rgb(*args, **opts).to_hex
   end
 
-  # `hsv(h, s, v)` or `hsv(h, s, v, alpha)`; alpha may also be passed
-  # via `alpha:`. Components can be any mix of Integer / Float per
-  # HSV's permissive shape (`hsv { 0 100 0.8 }` in real game data).
+  # `hsv(h, s, v[, alpha])` or `hsv(h, s, v, alpha: a)`. Components
+  # can be any mix of Integer / Float per HSV's permissive shape
+  # (`hsv { 0 100 0.8 }` in real game data).
   def hsv *args, alpha: nil
-    Paradoxical::Elements::Primitives::Color::HSV.new(color_args(args, alpha, name: "hsv"))
+    raise ArgumentError, "hsv expects 3 or 4 components; got #{args.length}" unless [3, 4].include?(args.length)
+
+    components = args
+    components = components[0, 3] + [alpha] unless alpha.nil?
+
+    Paradoxical::Elements::Primitives::Color::HSV.new(
+      components.map do |c| Paradoxical::Elements::Primitives::Color.component(c) end
+    )
   end
 
-  # `hsv360(h, s, v)` — 3 integer components, no alpha. Empirically
-  # no PDX game ships 4-component hsv360, and the parser grammar
-  # rejects it; emitting a 4-component hsv360 via the DSL would be
-  # write-only garbage the engine likely wouldn't accept either.
-  # Components must be Integer (HSV360 rejects Float at construction
-  # per the empirical all-int rule).
+  # `hsv360(h, s, v)` — 3 integer components, no alpha. PDX itself
+  # doesn't emit 4-component hsv360 and the parser grammar rejects
+  # it, so DSL-emitting one would be write-only garbage. Components
+  # must be Integer (HSV360 rejects Float at construction per the
+  # empirical all-int rule).
   def hsv360 *args
     raise ArgumentError, "hsv360 expects 3 components; got #{args.length}" if args.length != 3
 
-    Paradoxical::Elements::Primitives::Color::HSV360.new(args.map do |c| color_component(c) end)
+    Paradoxical::Elements::Primitives::Color::HSV360.new(
+      args.map do |c| Paradoxical::Elements::Primitives::Color.component(c) end
+    )
   end
 
   def empty_list k
@@ -317,71 +322,5 @@ class Paradoxical::Builder
     return empty_line if sym == :_
 
     pdx_obj sym.to_s, *args, **opts, &block
-  end
-
-  private
-
-  # Dispatch for the rgb helper's 1-arg vs 3-or-4-arg forms.
-  def rgb_components_from_args args
-    return args if [3, 4].include?(args.length)
-
-    if args.length != 1 then
-      raise ArgumentError, "rgb expects 1 (hex/int), 3 (r,g,b), or 4 (r,g,b,alpha) args; got #{args.length}"
-    end
-
-    case (raw = args.first)
-    when ::String  then rgb_components_from_hex_string(raw)
-    when ::Integer then rgb_components_from_integer(raw)
-    else raise ArgumentError, "rgb single-arg form expects String or Integer; got #{raw.class}"
-    end
-  end
-
-  def rgb_components_from_hex_string str
-    hex = str.delete_prefix("#").delete_prefix("0x")
-
-    unless hex.match?(/\A[0-9a-fA-F]+\z/) and [6, 8].include?(hex.length)
-      raise ArgumentError, "rgb hex string must be 6 or 8 hex digits, got #{str.inspect}"
-    end
-
-    hex.scan(/../).map do |pair| pair.to_i(16) end
-  end
-
-  def rgb_components_from_integer n
-    raise ArgumentError, "rgb integer must be 0..0xffffffff, got #{n}" unless n.between?(0, 0xffffffff)
-
-    if n > 0xffffff then
-      [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
-    else
-      [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
-    end
-  end
-
-  # Shared dispatch for the hsv / hsv360 helpers — both take 3-or-4
-  # numeric components with an optional `alpha:` kwarg override.
-  def color_args args, alpha, name:
-    unless [3, 4].include?(args.length)
-      raise ArgumentError, "#{name} expects 3 or 4 components; got #{args.length}"
-    end
-
-    components = args
-    components = components[0, 3] + [alpha] unless alpha.nil?
-    components.map do |c| color_component(c) end
-  end
-
-  # Wrap a Ruby Integer / Float into the matching `Primitives::*`
-  # primitive. Pass-through if already typed. Used by every color
-  # helper so DSL callers can supply either plain numbers or
-  # pre-built primitives.
-  def color_component c
-    case c
-    when Paradoxical::Elements::Primitives::Integer, Paradoxical::Elements::Primitives::Float
-      c
-    when ::Float
-      Paradoxical::Elements::Primitives::Float.new(c.to_s)
-    when ::Integer
-      Paradoxical::Elements::Primitives::Integer.new(c.to_s)
-    else
-      raise ArgumentError, "color component must be Integer or Float, got #{c.class}"
-    end
   end
 end
