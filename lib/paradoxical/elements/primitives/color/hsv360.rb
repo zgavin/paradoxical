@@ -1,5 +1,12 @@
 class Paradoxical::Elements::Primitives::Color::HSV360 < Paradoxical::Elements::Primitives::Color
-  channels :h, :s, :v
+  # Alpha is parser-side restricted to nil (the grammar accepts only
+  # 3-component hsv360 per the empirical sweep), but the `:alpha`
+  # accessor lives here so DSL-built `hsv360(245, 40, 100, 50)` /
+  # `hsv360(245, 40, 100, alpha: 50)` shapes work end-to-end and
+  # match the rgb/hsv helper symmetry. Round-trip of a DSL-built
+  # 4-component hsv360 through the parser won't work since the
+  # grammar rejects it; treat that as a write-only path.
+  channels :h, :s, :v, :alpha
 
   def type; "hsv360"; end
   def hsv360?; true; end
