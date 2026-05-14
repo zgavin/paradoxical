@@ -8,6 +8,10 @@ module Paradoxical::Games::ImperatorRome
   # inherit. Mod loading still goes through the SQLite launcher.
   HAS_GAME_SUBDIR    = true
   LAUNCHER_FORMAT    = :sqlite
+  # Calendar365 handles Imperator's BC-shifted years (`-50.1.1`) via
+  # plain integer-year math; no Imperator-specific calendar subclass
+  # needed.
+  CALENDAR           = Paradoxical::Calendars::Calendar365
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

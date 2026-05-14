@@ -315,35 +315,83 @@ Phases 1–5 are now complete.
 
 ### 8. Richer primitive types
 
-Open-ended and explicitly gated on "concrete need surfaces" — none of these are urgent. Stdlib-only by design: no third-party calendar/decimal/etc. gems, and no custom abstractions that downstream mod authors have to learn. See memory.
+Open-ended and explicitly gated on "concrete need surfaces." Stdlib-only by design: no third-party calendar/decimal/etc. gems, and no custom abstractions that downstream mod authors have to learn beyond what they already know. See memory.
 
-#### Float → fixed-precision (moved from former 4f)
+#### 8a. Color subclass refactor (landed)
 
-`Paradoxical::Elements::Primitives::Float` stores Ruby `Float` (binary floating point). PDX games actually store decimals as base-10 fixed-precision integers with 3 decimal places (i.e. `1.234` is internally `1234`). DSL math on parsed decimals can drift due to binary-FP rounding. Real-world DSL math is rare so it hasn't bitten in practice. The right shape if/when this is tackled is a wrapper using stdlib `BigDecimal` (or just `Integer` × scale), with arithmetic operators preserving precision.
+Foundation work for the broader color rework. `Primitives::Color` split from a single class with `type` / `colors` / `rgb?` predicates into a real subclass hierarchy: `Primitives::Color::RGB` / `HSV` / `HSV360` / `Hex`, each in its own file under `lib/paradoxical/elements/primitives/color/`. The parser instantiates the right subclass based on the matched keyword; `is_a?(Color)` stays true across all four.
 
-#### Game-aware `Date#to_pdx`
+**Grammar:** de-atomized the `color` rule. The old `@{ ... }` matched as a single byte string that Ruby regex'd back apart in `maybe_parse!`. The new rule captures each subtype + its components + per-token whitespace as distinct AST nodes, so the Rust side dispatches components to the right typed primitive (`Primitives::Integer` vs `Primitives::Float`) at parse time. HSV360 restricted to exactly 3 components per the parser-strictness principle (empirical sweep across all five installed games found zero hsv360 alpha).
 
-Add `Date#to_pdx` to `core_extensions.rb` so users can write a Ruby `Date` straight into a property and get a PDX-formatted string. Game-aware: validates per the current `Paradoxical.game`'s calendar rules and raises clearly on representable-but-invalid dates.
+**Ruby surface:**
+- Per-channel accessors via a declarative `channels :r, :g, :b, :alpha` macro on the base — each concrete class reads as one line. Storage delegates to `component(idx)` / `set_component(idx, v)` which default to `@components[idx]`; Hex overrides them to slice 2-char channels out of its `0x...` literal so the same `channels` declaration works there too.
+- Each subclass declares its `type` literal explicitly (`def type; "rgb"; end`); the base method is abstract.
+- Conversion API shifted from in-place mutators (`hsv!`, `rgb!`) to typed constructors (`#to_rgb`, `#to_hsv`, `#to_hsv360`, `#to_hex`). Identity conversions return `dup`, not `self`, so callers can mutate the result safely.
 
-PDX calendar landscape (worth recording so future-us doesn't re-derive):
+NotImplementedError preserved at this phase for the cases 8b fixes (4-component conversions, hsv360 conversions, hex conversions, the float-RGB conversion math bug, `justify!` for 4-comp / hsv360 / hex).
 
-- **EU4 / EU5 / CK3 / HOI4 / Imperator: Rome** all use *Gregorian without leap years*. Stdlib `Date.new(1444, 2, 29)` succeeds but represents an in-game-invalid date; `Date#to_pdx` should `raise` for `month == 2 && day == 29`. Imperator additionally uses BC-shifted years (`-50`-style negatives), which `Date` represents fine.
-- **Stellaris** uses 12 × 30 = 360 days. `Date` can't represent Feb 30, so `Date#to_pdx` for Stellaris dates beyond the stdlib-valid subset has to either: (a) raise with a clear "use `Primitives::Date` raw string" message, or (b) be served by a `Stellaris::Date` helper that lives in the game-namespaced module from phase 5. Honest asymmetry rather than a custom calendar abstraction.
-- HOI4 and EU5 have hour-level granularity in-game but the script language doesn't expose it (per the maintainer), so date primitives stay day-resolution.
+#### 8b. Color validation + conversion math (landed)
 
-The implementation likely dispatches via the phase-5 game-namespaced modules — per-game calendar rules want to live with the rest of each game's quirks rather than as a switch in `core_extensions.rb`.
+Every remaining `NotImplementedError` in the Color subclasses replaced with real math, plus construction-time validation where empirical data supports it.
 
-#### `hsv360` color conversions (ride along with Color rework)
+**Per-component interpretation rule** for conversion math (handles real-data mixed cases the originally-planned "all-or-nothing" rule couldn't):
+- RGB: Integer → /255 (channel), Float → as-is (fraction, HDR-extended above 1 ok).
+- HSV: Integer → /100 (percentage style — `hsv { 0 100 0.8 }`), Float → as-is.
+- HSV360: h/360, s/100, v/100.
+- Hex: 2-char pair → int / 255.
 
-Phase 4d-B3 added `hsv360` as a new color type the parser recognizes and round-trips byte-identically. But `Primitives::Color`'s conversion methods (`hsv!`, `rgb!`, `justify!`) currently `raise NotImplementedError` when the source type is `hsv360` — degrees-to-fraction (and component padding) conversions need their own arithmetic that didn't fit the simple grammar fix. Phase 8 should land:
+Direct conversions: RGB ↔ HSV (the classic math, fixed for float-RGB inputs), HSV ↔ HSV360, Hex ↔ RGB. Indirect conversions chain through these so the math lives in one place. **HDR preservation:** if any normalized channel > 1, HSV → RGB outputs Float RGB; otherwise Integer RGB. Alpha threads through where source and target both support it (RGB / HSV / Hex); dropped on HSV360.
 
-- `hsv360 → hsv` and `hsv360 → rgb` conversions (and inverse where useful).
-- `justify!` rules for the hsv360 component shape (integer degrees + integer 0..100 percentages).
-- Maybe `hsv360?` shouldn't be the only predicate — `colors_per_component_max(0..360, 0..100, 0..100)` style accessors might be more useful long-term.
+**Validation (construction-time)** scoped to what real data supports:
+- RGB: components all-Integer or all-Float — *except* Integer 0/1 are polymorphic. EU5 ships `rgb { 0.502 0 0.612 }` where the bare `0` is the fraction endpoint. Only real Integer (≥2) mixed with Float gets rejected.
+- HSV360: all-Integer. Empirical sweep (826 unique values in EU5 alone) found zero floats.
+- HSV: none. Real data ships mixed types and HDR-extended values (`hsv { 0 100 0.8 }`, `hsv { 0.5 0.1 4.5 }` Stellaris lighting colors) — permissive grammar matches engine permissiveness.
+- Hex: `0x` followed by at least one hex digit. Even-digit requirement dropped — EU5 ships a 9-digit literal (`0xffeDAA06D`) the engine accepts; the slicer returns nil for incomplete pairs rather than corrupting the read.
 
-Until then, code that needs hsv↔rgb conversion on hsv360-typed colors will get a clear `NotImplementedError` rather than silent wrong math.
+`justify!` now works on every shape: RGB / HSV 3-or-4 components, HSV360 3-component integer width padding, Hex outer-whitespace canonicalization.
 
-#### Distinct primitive types for string-like patterns
+**Empirical findings worth recording** (for future numeric-primitive work in 8d and beyond):
+- The parser-strictness principle ("don't be more lenient than the engine") must be empirically validated, not assumed. We initially planned all-or-nothing homogeneity for RGB *and* HSV; real data immediately refuted both. The shape we landed on is "validate what's clearly invalid; stay permissive where the engine itself is permissive."
+- Per-component typing (each component reads its own scale) handles mixed-type real-data cases that all-or-nothing rules can't.
+- HDR-extended values exist across HSV (Float `v` > 1) and HSV360 (Integer `v` > 100). Conversion math must let them flow through unclamped; output type can switch between Integer/Float per HDR presence to preserve the brightness multiplier.
+
+Verified: 415 unit tests pass; all five parse smokes clean (22,229 / 22,229 files).
+
+#### 8c. Custom per-game calendar implementations (landed)
+
+Two concrete calendar classes under `Paradoxical::Calendars`; `Primitives::Date` carries a class-level default that `Game.new` sets per active game (so parse-smoke and `paradoxical!` both pick it up automatically — `paradoxical!` goes through `Game.new`).
+
+- **Calendar365** — 365 days, 12 months of 28/30/31, *no leap years*. EU4 / EU5 / CK3 / HOI4 / Imperator / V3 / CK2. Imperator's BC-shifted years (`-50.1.1`) flow through plain integer-year math, so no Imperator-specific subclass needed.
+- **Calendar360** — 12 × 30 = 360 days. Stellaris only.
+
+Not "Gregorian" — Gregorian has leap years; the 365-day no-leap-year calendar is a Paradox invention with no real-world analog, so the name is descriptive.
+
+**`Primitives::Date` rewrite.** Dropped the stdlib-Date impersonation in favor of a typed primitive that stores year / month / day eagerly and carries its calendar. `+`/`-` accept `Integer` (days) or `ActiveSupport::Duration` (calendar-aware year/month shifts with day-clamping when a month-shift lands on a shorter month). `Date - Date` returns the day-count delta. `Comparable` for `<`/`>`/`<=>`. The raw bytes round-trip via `to_pdx` unchanged.
+
+**Permissive at parse time** — *not* "valid by construction." Empirical sweep across all five games turned up sentinel dates the engine accepts (`0000.00.00`, `1.0.1`, `Feb 29` in non-leap calendars). The grammar accepts them, the engine accepts them, so we round-trip them faithfully. Calendar semantics apply only on the arithmetic path; out-of-range inputs flow through `to_day_count` / `from_day_count` as integer math without crashing, but the result may be nonsensical (garbage-in / garbage-out).
+
+**Explicit decision: don't impersonate stdlib `Date`.** Arithmetic on stdlib Date can land on Feb 29 (real-world leap day, in-game-invalid) and surface as wrong-day bugs much later. Custom calendars are regular enough (no leap years, fixed month lengths, no time / timezone / locale / format complexity) that arithmetic produces engine-valid dates by construction *when inputs are themselves engine-valid*.
+
+HOI4 and EU5 have hour-level granularity in-game but the script language doesn't expose it (per the maintainer), so date primitives stay day-resolution. AS::Duration's `hours` / `minutes` / `seconds` parts are truncated to whole days.
+
+Verified: 423 unit tests pass (8 new — year/month/day accessors, sentinel-date acceptance, day arithmetic, AS::Duration month-shift with day-clamp, Date - Date, Comparable, Stellaris Feb 30 support). Parse smokes clean across all five games (22,229 / 22,229 files).
+
+#### 8d. Float → BigDecimal-backed precision (pending)
+
+`Paradoxical::Elements::Primitives::Float` currently impersonates Ruby `::Float` (binary FP). DSL math on parsed decimals can drift due to binary-FP rounding. Real-world DSL math is rare so it hasn't bitten in practice yet, but the precision pattern in newer games argues for fixing it before it does.
+
+**Empirical precision finding (EU5):** older PDX games stored decimals as fixed-precision integers with 3 decimal places (`1.234` = internal `1234`). EU5 isn't that anymore — numerous game-data floats carry 4-6 digits of precision, with 6 looking like a soft limit (~20k 6-digit values across the install, only 49 with 7+ digits and at least one of those is in a comment). Best guess: 64-bit integers with 6-digit fixed precision for game logic, true float/double for some shader/rendering paths.
+
+**Decision: BigDecimal over Integer × scale.** With variable precision per file/field, fixed-scale Integer doesn't fit. BigDecimal is stdlib and the Impersonator concern handles infix and comparison delegation through `to_real`, so changing the impersonated class plus the conversion method (`:to_d`) propagates BigDecimal semantics to comparisons and arithmetic automatically.
+
+Migration surface (small — PancakeTaco is the only consumer):
+- `Primitives::Float#to_real` returns `BigDecimal` instead of `Float`.
+- `prop.value.to_f` still works (BigDecimal responds to `to_f`).
+- `prop.value.is_a?(::Float)` becomes false. `PropertyMatcher#matches?` does this check at one line; needs updating. No other Ruby-side callers do `is_a? Float`.
+
+Trigger: surfaces when DSL math drifts. Not urgent.
+
+#### 8e. Distinct primitive types for string-like patterns
 
 `Primitives::String` is currently the catch-all for any sequence that doesn't match a structured primitive (Color/Date/Float/Integer/Boolean/Percentage). That includes several syntactically- and semantically-distinct PDX concepts the engine itself treats as separate types:
 
@@ -389,6 +437,12 @@ Captured here so we don't re-litigate them.
 - **Phases renumbered after phase 4 went empty.** The original plan had phase 4 as "Rust idiom uplift" and 5a/5b as bug-fixes / game-namespaced DSLs. The magnus port (phase 2b) subsumed the Rust idiom work, leaving 4 reserved-but-empty next to 5a/5b. After 1a-d and 2a-d landed, 5a was renamed to 4 and 5b to 5 so the remaining work proceeds in clean numerical order. References to "5a"/"5b" in pre-renumber commits/PRs/AGENTS.md are historical.
 - **Phase 8 added; Float deferral moved out of phase 4.** Phase 4 was originally going to absorb the "Float → fixed-precision" cleanup as a deferred 4f item, but the calendar-support discussion surfaced a parallel concern (game-aware `Date#to_pdx`) with the same shape — a primitive type wanting richer representation. Both moved to a new phase 8 explicitly gated on "concrete need surfaces," and explicitly stdlib-only (no external gems, no custom calendar/decimal abstractions). The reasoning: external gems can be abandoned (lesson from rutie), and downstream mod authors shouldn't have to learn a `Paradoxical::Calendar` abstraction when stdlib `Date` is what they already know.
 - **Phase 8 expanded to cover the "distinct primitive types for string-like patterns" family.** Phase 4d's grammar work surfaced that the parser silently accepts a lot of malformed syntax because the engine treats several syntactically-distinct PDX concepts (percentages, parameter substitutions, localization refs, computation expressions, variable refs) as separate types — paradoxical lumps them all under `Primitives::String`. Phase 8 absorbs that family of "deserves its own typed primitive" items. Each gets validated by a dedicated pest rule (the parser becomes properly strict for the patterns the engine itself recognizes) and a typed DSL helper. Phase 4d-B5 specifically should tackle the `-$NAME$` parameter case via the typed `Primitives::Parameter` shape rather than just widening grammar.
+- **Color rework split into 8a / 8b.** The original phase-8 plan filed the color work as a single "hsv360 conversions ride along with Color rework" bullet. During implementation it grew into a foundation/math split worth doing as two PRs: 8a (subclass hierarchy + conversion API rename + grammar de-atomization, with current NotImplementedError preserved for the math fixes) shipped first as a regression baseline; 8b followed with the validation and the math. Each ran on green parse smokes (22k+ files) before merge so any real-data regression would have surfaced at the seam between them.
+- **Per-component color interpretation rule.** Empirical data ruled out the originally-planned "all-int-or-all-float" homogeneity validation: HSV ships mixed Integer + Float in real Stellaris lighting files, and HDR-extended values blow past 0..1 ranges. Settled on: each component reads its own type (Integer → /scale, Float → as-is); validation stays permissive where data demands it (HSV none; RGB with Integer 0/1 polymorphism); HDR values flow through unclamped. Output type (Integer vs Float RGB) decided dynamically from the presence of HDR-extended values so the brightness multiplier survives conversion. Same shape may apply to future numeric primitives that show similar variance.
+- **Custom calendar over stdlib Date impersonation (8c).** Discussed adding `Date#to_pdx` to `core_extensions.rb` so users could pass Ruby Dates through. Rejected: arithmetic on stdlib Date can land on Feb 29 (real-world leap day, in-game-invalid) and surface as wrong-day bugs much later. Building `Calendar365` / `Calendar360` outright is small — no leap years, regular month lengths, no time / timezone / locale / format complexity.
+- **Permissive parse, calendar = arithmetic engine, not validator (8c).** Original framing was "guarantee in-game-valid dates by construction" — i.e. validate at parse time. Empirical sweep refuted: real game data ships sentinel dates (`0000.00.00`, `1.0.1`) and Feb 29 dates that the engine itself accepts. Same pattern as the color homogeneity rule — empirically validate the rule before committing to it. Settled on: parse permissively, attach the calendar as arithmetic metadata, garbage-in / garbage-out for the arithmetic on engine-invalid inputs. Round-trip preservation is the load-bearing property; "valid by construction" was aspirational.
+- **Imperator BC support via integer-year math, no subclass (8c).** Originally planned as `Calendar365` + `ImperatorCalendar < Calendar365` with an `allows_bc?` flag. Once we dropped construction-time validation, the BC distinction stopped paying for itself — `Calendar365#to_day_count` works on any integer year via Ruby's `divmod`-with-negative-floor semantics. Single class handles every non-Stellaris game including Imperator.
+- **BigDecimal over Integer × scale for floats (8d).** Originally planned as either-or. EU5 game-data floats carry 4-6 digits of precision (with 6 a soft limit), so fixed-scale Integer doesn't fit — precision varies per file. BigDecimal is stdlib, arithmetic plugs into the Impersonator concern's existing comparison/infix delegation through `to_real`, and the migration surface is one-line (`PropertyMatcher#matches?`'s `is_a?(::Float)` check). PancakeTaco is the only consumer so the broader Ruby-side audit is tiny.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.

@@ -90,13 +90,17 @@ RSpec.describe Paradoxical::Parser do
       it "parses a four-digit-year date" do
         prop = parse("foo = 1444.11.11").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_date).to eq(::Date.new(1444, 11, 11))
+        expect(prop.value.year).to eq(1444)
+        expect(prop.value.month).to eq(11)
+        expect(prop.value.day).to eq(11)
       end
 
       it "parses a single-digit-year date" do
         prop = parse("foo = 9.1.1").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_date).to eq(::Date.new(9, 1, 1))
+        expect(prop.value.year).to eq(9)
+        expect(prop.value.month).to eq(1)
+        expect(prop.value.day).to eq(1)
       end
 
       it "parses a BC (negative-year) date" do
@@ -105,7 +109,137 @@ RSpec.describe Paradoxical::Parser do
         # accepts an optional leading `-` sign.
         prop = parse("date = -2500.01.01").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(prop.value.to_date).to eq(::Date.new(-2500, 1, 1))
+        expect(prop.value.year).to eq(-2500)
+      end
+
+      it "carries the default calendar (Calendar365) and round-trips bytes" do
+        prop = parse("foo = 1444.11.11").first
+        expect(prop.value.calendar).to eq(Paradoxical::Calendars::Calendar365)
+        expect(prop.value.to_pdx).to eq("1444.11.11")
+      end
+
+      it "permissively accepts sentinel dates (e.g. 0000.00.00) without raising" do
+        # Real game data ships `0000.00.00` and `1.0.1` as engine-
+        # accepted sentinels. We round-trip them faithfully — calendar
+        # validity is for arithmetic, not construction.
+        expect { parse("foo = 0000.00.00") }.not_to raise_error
+        expect { parse("foo = 1.0.1") }.not_to raise_error
+      end
+
+      describe "arithmetic" do
+        let(:date) { parse("foo = 1444.11.11").first.value }
+
+        it "+ Integer adds days (Calendar365: no leap year)" do
+          # 1444.11.11 + 20 days -> 1444.12.1
+          result = date + 20
+          expect(result.year).to eq(1444)
+          expect(result.month).to eq(12)
+          expect(result.day).to eq(1)
+        end
+
+        it "- Integer subtracts days" do
+          result = date - 10
+          expect(result.year).to eq(1444)
+          expect(result.month).to eq(11)
+          expect(result.day).to eq(1)
+        end
+
+        it "Date - Date returns day count" do
+          earlier = parse("a = 1444.11.01").first.value
+          expect(date - earlier).to eq(10)
+        end
+
+        it "applies ActiveSupport::Duration with month-shift + day-clamp" do
+          # 1444.1.31 + 1.month -> 1444.2.28 (clamp to Feb's 28 days)
+          jan31 = parse("d = 1444.1.31").first.value
+          result = jan31 + 1.month
+          expect(result.month).to eq(2)
+          expect(result.day).to eq(28)
+        end
+
+        it "truncates fractional days/hours from ActiveSupport::Duration" do
+          # `1.5.days` produces a Duration with parts `{days: 1.5}` —
+          # Float. The day-resolution math truncates the fraction at
+          # the `add_days` boundary so it doesn't propagate into
+          # `from_day_count` and yield a Float year.
+          one_and_half = parse("d = 1444.1.1").first.value + 1.5.days
+          expect(one_and_half.day).to eq(2)
+          # 23.hours = 0.958… days → truncates to 0 days, same date.
+          stays = parse("d = 1444.1.1").first.value + 23.hours
+          expect(stays.day).to eq(1)
+        end
+
+        it "comparisons via <=> (Comparable)" do
+          earlier = parse("a = 1444.01.01").first.value
+          later   = parse("a = 1500.01.01").first.value
+          expect(earlier).to be < date
+          expect(date).to be < later
+        end
+
+        it "BCE → CE arithmetic skips year 0 (historical convention)" do
+          # Paradox follows historical year numbering: there is no
+          # year 0. -1.12.31 (1 BCE) + 1 day → 1.1.1 (1 CE).
+          # Empirical backing: EU5's emerald_buddha has
+          # creation_date = -43.1.1 which Wikipedia dates to 43 BCE
+          # (so -N = N BCE, no year 0 offset).
+          end_of_bce = parse("d = -1.12.31").first.value
+          start_of_ce = end_of_bce + 1
+          expect(start_of_ce.year).to eq(1)
+          expect(start_of_ce.month).to eq(1)
+          expect(start_of_ce.day).to eq(1)
+        end
+
+        it "year 0 in source round-trips bytes but normalizes to year 1 via arithmetic" do
+          # `seasons.txt` files (Imperator / HOI4 / CK2 / EU4) and
+          # EU4's region.txt monsoons use `00.M.D` as a year-ignored
+          # placeholder — same byte-vs-arithmetic asymmetry as the
+          # Feb 29 case. Round-trip preserves the source year 0; the
+          # engine has no actual year 0 so arithmetic resolves it
+          # to year 1.
+          d = parse("d = 0.6.15").first.value
+          expect(d.to_pdx).to eq("0.6.15")
+          expect((d + 0).year).to eq(1)
+          expect((d + 0).month).to eq(6)
+          expect((d + 0).day).to eq(15)
+        end
+
+        it "preserves BCE dates round-trip via arithmetic (-43.1.1 + 0)" do
+          d = parse("d = -43.1.1").first.value
+          normalized = d + 0
+          expect(normalized.year).to eq(-43)
+          expect(normalized.month).to eq(1)
+          expect(normalized.day).to eq(1)
+        end
+
+        it "Feb 29 normalizes to Mar 1 via arithmetic round-trip (engine-matching)" do
+          # EU5 ships `Y.2.29` dates in historical content and the
+          # engine renders them as Mar 1 (verified in-game on PR #69).
+          # `to_pdx` on the parser product preserves the raw bytes
+          # so byte-identical round-trip holds; arithmetic round-trip
+          # through the calendar normalizes to Mar 1, matching the
+          # engine's resolved form.
+          feb29 = parse("d = 1756.2.29").first.value
+          expect(feb29.to_pdx).to eq("1756.2.29")
+          # `+ 0` walks through to_day_count / from_day_count and
+          # normalizes the Feb 29 to its day-of-year-59 ↔ Mar 1 form.
+          normalized = feb29 + 0
+          expect(normalized.month).to eq(3)
+          expect(normalized.day).to eq(1)
+        end
+
+        it "Stellaris (Calendar360) supports Feb 30" do
+          prev = Paradoxical::Elements::Primitives::Date.default_calendar
+          begin
+            Paradoxical::Elements::Primitives::Date.default_calendar = Paradoxical::Calendars::Calendar360
+            d = Paradoxical::Elements::Primitives::Date.new("2200.2.30")
+            # 2200.2.30 + 1.day -> 2200.3.1 in Calendar360
+            result = d + 1
+            expect(result.month).to eq(3)
+            expect(result.day).to eq(1)
+          ensure
+            Paradoxical::Elements::Primitives::Date.default_calendar = prev
+          end
+        end
       end
 
       it "BC date doesn't shadow negative integer parsing" do
