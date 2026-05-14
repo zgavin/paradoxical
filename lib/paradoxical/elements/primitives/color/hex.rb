@@ -3,13 +3,14 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
   # still conceptually 3-or-4 components (the channels are just
   # stored as 2-char hex byte strings rather than numbers), so the
   # `#r`/`#g`/`#b`/`#alpha` accessors below derive them by slicing
-  # the literal. Conversion to numeric / RGB is a phase 8 follow-up.
+  # the literal.
 
   HEX_PAIR = /\A[0-9a-fA-F]{2}\z/
 
   def initialize literal, whitespace: nil
     @literal = literal
     @whitespace = whitespace || []
+    validate!
   end
 
   attr_accessor :literal
@@ -35,7 +36,7 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
 
   def to_pdx
     iter = @whitespace.each
-    next_ws = ->(default = " ") { iter.next rescue default }
+    next_ws = ->(default = " ") { (iter.next or default) rescue default }
 
     buffer = String.new(type)
     buffer << next_ws.call
@@ -48,19 +49,28 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
   end
 
   def justify!
-    raise NotImplementedError, "justify! for hex is a phase 8 follow-up"
+    @whitespace = [nil, " ", " ", nil]
+
+    self
   end
 
+  # Conversions chain through RGB — hex maps cleanly onto integer
+  # channels (each 2-char pair is a 0..255 byte), so converting to
+  # RGB first and chaining from there is both correct and concise.
   def to_rgb
-    raise NotImplementedError, "hex -> rgb conversion is a phase 8 follow-up"
+    pairs = [r, g, b].compact.map do |pair| pair.to_i(16) end
+    components = pairs.map do |i| make_int(i) end
+    components << make_int(alpha.to_i(16)) unless alpha.nil?
+
+    Paradoxical::Elements::Primitives::Color::RGB.new(components)
   end
 
   def to_hsv
-    raise NotImplementedError, "hex -> hsv conversion is a phase 8 follow-up"
+    to_rgb.to_hsv
   end
 
   def to_hsv360
-    raise NotImplementedError, "hex -> hsv360 conversion is a phase 8 follow-up"
+    to_rgb.to_hsv.to_hsv360
   end
 
   def to_hex
@@ -68,6 +78,15 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
   end
 
   private
+
+  # Hex literals must be `0x` followed by at least one hex digit.
+  # We don't enforce an even digit count — EU5 ships at least one
+  # 9-digit literal (`0xffeDAA06D`) which the engine accepts; the
+  # component slicer below already returns nil for incomplete pairs,
+  # so odd lengths degrade gracefully rather than corrupt the read.
+  def validate!
+    raise ArgumentError, "hex literal must match 0x<hex digits>; got #{@literal.inspect}" unless @literal =~ /\A0x[0-9a-fA-F]+\z/
+  end
 
   # Components are at offsets 2/4/6/8 (after the "0x" prefix), each
   # 2 chars wide. Returns nil when the literal is too short for that

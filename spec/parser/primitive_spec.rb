@@ -211,10 +211,25 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.alpha.to_f).to eq(1.0)
       end
 
-      it "raises on conversion / justify of 4-component colors" do
+      it "preserves alpha through 4-component rgb → hsv conversion" do
+        prop = parse("foo = rgb { 255 0 0 128 }").first
+        hsv = prop.value.to_hsv
+        expect(hsv).to be_a(Paradoxical::Elements::Primitives::Color::HSV)
+        # Pure red: h=0, s=1, v=1
+        expect(hsv.h.to_f).to be_within(0.001).of(0.0)
+        expect(hsv.s.to_f).to be_within(0.001).of(1.0)
+        expect(hsv.v.to_f).to be_within(0.001).of(1.0)
+        # Alpha 128/255 ≈ 0.502
+        expect(hsv.alpha.to_f).to be_within(0.001).of(128.0 / 255.0)
+      end
+
+      it "justify! works on 4-component rgb" do
         prop = parse("foo = rgb { 235 0 18 0 }").first
-        expect { prop.value.to_hsv }.to raise_error(NotImplementedError, /4-component/)
-        expect { prop.value.justify! }.to raise_error(NotImplementedError, /4-component/)
+        prop.value.justify!
+        # Each component padded to 4 wide; same shape the 3-component
+        # justify! already produces ("rgb { ... }" with space-after-type
+        # and space-before-`}` from the to_pdx default).
+        expect(prop.value.to_pdx).to eq("rgb { 235   0  18   0 }")
       end
 
       it "parses an hsv360 color" do
@@ -241,10 +256,22 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).not_to be_a(Paradoxical::Elements::Primitives::Color)
       end
 
-      it "raises on hsv360 -> hsv / rgb conversion (phase 8 follow-up)" do
-        prop = parse("foo = hsv360 { 49 35 71 }").first
-        expect { prop.value.to_hsv }.to raise_error(NotImplementedError, /phase 8/)
-        expect { prop.value.to_rgb }.to raise_error(NotImplementedError, /phase 8/)
+      it "converts hsv360 to hsv (h/360, s/100, v/100)" do
+        prop = parse("foo = hsv360 { 180 50 100 }").first
+        hsv = prop.value.to_hsv
+        expect(hsv).to be_a(Paradoxical::Elements::Primitives::Color::HSV)
+        expect(hsv.h.to_f).to be_within(0.001).of(0.5)
+        expect(hsv.s.to_f).to be_within(0.001).of(0.5)
+        expect(hsv.v.to_f).to be_within(0.001).of(1.0)
+      end
+
+      it "converts hsv360 to rgb via hsv (HDR extension preserved)" do
+        # 245 → 0.68 h, 40 → 0.4 s, 150 → 1.5 v (HDR-extended brightness)
+        prop = parse("foo = hsv360 { 245 40 150 }").first
+        rgb = prop.value.to_rgb
+        expect(rgb).to be_a(Paradoxical::Elements::Primitives::Color::RGB)
+        # HDR — any normalized channel > 1 should produce Float RGB
+        expect(rgb.components.first).to be_a(Paradoxical::Elements::Primitives::Float)
       end
 
       it "parses a hex literal color" do
@@ -291,10 +318,77 @@ RSpec.describe Paradoxical::Parser do
         expect { hex.alpha = "ff" }.to raise_error(ArgumentError, /too short/)
       end
 
-      it "raises on hex conversions (phase 8 follow-up)" do
-        hex = parse("x = hex{ 0xffffffff }").first.value
-        expect { hex.to_rgb }.to raise_error(NotImplementedError, /phase 8/)
-        expect { hex.justify! }.to raise_error(NotImplementedError, /phase 8/)
+      it "converts hex to rgb (each 2-char pair to int channel)" do
+        hex = parse("x = hex{ 0xff80c000 }").first.value
+        rgb = hex.to_rgb
+        expect(rgb).to be_a(Paradoxical::Elements::Primitives::Color::RGB)
+        expect(rgb.r.to_i).to eq(0xff)
+        expect(rgb.g.to_i).to eq(0x80)
+        expect(rgb.b.to_i).to eq(0xc0)
+        expect(rgb.alpha.to_i).to eq(0x00)
+      end
+
+      it "round-trips rgb -> hex -> rgb byte-equivalently" do
+        rgb = parse("c = rgb { 235 0 18 }").first.value
+        hex = rgb.to_hex
+        expect(hex.literal).to eq("0xeb0012")
+        back = hex.to_rgb
+        expect(back.components.map(&:to_i)).to eq([0xeb, 0x00, 0x12])
+      end
+
+      it "justify! works on hex (canonicalizes whitespace)" do
+        hex = parse("c = hex{ 0xab12cd34 }").first.value
+        hex.justify!
+        expect(hex.to_pdx).to eq("hex { 0xab12cd34 }")
+      end
+
+      it "applies per-component rule to mixed-with-bare-0 float rgb" do
+        # EU5 ships `rgb { 0.502 0 0.612 }` — bare `0` is polymorphic
+        # (Integer 0 reads as fraction endpoint in float context).
+        prop = parse("c = rgb { 0.502 0 0.612 }").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Color::RGB)
+        hsv = prop.value.to_hsv
+        expect(hsv.v.to_f).to be_within(0.001).of(0.612)
+      end
+
+      it "applies per-component rule to hsv mixed percentage + fraction" do
+        # `hsv { 0 100 0.8 }`: Integer 100 -> /100 = 1.0; Float 0.8 stays
+        prop = parse("c = hsv { 0 100 0.8 }").first
+        rgb = prop.value.to_rgb
+        # s=1, v=0.8 — saturated, mid-bright. r should equal v*255.
+        # h=0 -> pure red hue, so r=204 (0.8*255), g=0, b=0
+        expect(rgb.r.to_i).to eq(204)
+        expect(rgb.g.to_i).to eq(0)
+        expect(rgb.b.to_i).to eq(0)
+      end
+
+      it "preserves HDR through hsv (v > 1) → rgb conversion" do
+        # `hsv { 0.5 0.1 4.5 }` — HDR-extended v=4.5 (lighting brightness)
+        prop = parse("c = hsv { 0.5 0.1 4.5 }").first
+        rgb = prop.value.to_rgb
+        # Any channel > 1 → output Float RGB to preserve HDR
+        expect(rgb.components.first).to be_a(Paradoxical::Elements::Primitives::Float)
+      end
+
+      it "validates rgb homogeneity (Integer 0/1 ok, real Integer mixed with Float rejected)" do
+        # Bare 0/1 with floats is valid (already exercised above).
+        # Real Integer >= 2 with Float should raise at construction.
+        rgb = Paradoxical::Elements::Primitives::Color::RGB
+        i = ->(v) { Paradoxical::Elements::Primitives::Integer.new(v.to_s) }
+        f = ->(v) { Paradoxical::Elements::Primitives::Float.new(v.to_s) }
+
+        expect { rgb.new([f.call("0.5"), i.call(128), f.call("0.5")]) }.to raise_error(ArgumentError, /Integer >= 2 mixed with Float/)
+        expect { rgb.new([f.call("0.5"), i.call(0), f.call("0.5")]) }.not_to raise_error
+        expect { rgb.new([f.call("0.5"), i.call(1), f.call("0.5")]) }.not_to raise_error
+      end
+
+      it "validates hsv360 all-int (rejects float components)" do
+        hsv360 = Paradoxical::Elements::Primitives::Color::HSV360
+        i = ->(v) { Paradoxical::Elements::Primitives::Integer.new(v.to_s) }
+        f = ->(v) { Paradoxical::Elements::Primitives::Float.new(v.to_s) }
+
+        expect { hsv360.new([i.call(180), i.call(50), i.call(100)]) }.not_to raise_error
+        expect { hsv360.new([i.call(180), f.call("0.5"), i.call(100)]) }.to raise_error(ArgumentError, /must all be Integer/)
       end
 
       it "round-trips byte-identically across all subtypes" do
