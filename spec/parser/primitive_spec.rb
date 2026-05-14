@@ -257,6 +257,40 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value.literal).to eq("0xffffffff")
       end
 
+      it "exposes per-channel #r/#g/#b/#alpha accessors on hex (4-channel literal)" do
+        hex = parse("c = hex{ 0xab12cd34 }").first.value
+        expect(hex.r).to eq("ab")
+        expect(hex.g).to eq("12")
+        expect(hex.b).to eq("cd")
+        expect(hex.alpha).to eq("34")
+        expect(hex.components).to eq(%w[ab 12 cd 34])
+      end
+
+      it "returns nil for #alpha on a 6-char hex literal (no alpha channel)" do
+        hex = parse("c = hex{ 0xab12cd }").first.value
+        expect(hex.r).to eq("ab")
+        expect(hex.alpha).to be_nil
+        expect(hex.components).to eq(%w[ab 12 cd])
+      end
+
+      it "allows per-channel setters that mutate the underlying literal" do
+        hex = parse("c = hex{ 0xffffffff }").first.value
+        hex.r = "00"
+        hex.alpha = "80"
+        expect(hex.literal).to eq("0x00ffff80")
+      end
+
+      it "rejects non-hex-pair component setters" do
+        hex = parse("c = hex{ 0xffffffff }").first.value
+        expect { hex.r = "zz" }.to raise_error(ArgumentError, /2 hex chars/)
+        expect { hex.r = "f" }.to raise_error(ArgumentError, /2 hex chars/)
+      end
+
+      it "rejects #alpha= on a 6-char hex (no auto-grow)" do
+        hex = parse("c = hex{ 0xab12cd }").first.value
+        expect { hex.alpha = "ff" }.to raise_error(ArgumentError, /too short/)
+      end
+
       it "raises on hex conversions (phase 8 follow-up)" do
         hex = parse("x = hex{ 0xffffffff }").first.value
         expect { hex.to_rgb }.to raise_error(NotImplementedError, /phase 8/)
