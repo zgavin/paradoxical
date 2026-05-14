@@ -2,6 +2,7 @@ class Paradoxical::Elements::Primitives::Color::RGB < Paradoxical::Elements::Pri
   channels :r, :g, :b, :alpha
 
   def type; "rgb"; end
+  def rgb?; true; end
 
   def justify!
     strs = @components.map(&:to_pdx)

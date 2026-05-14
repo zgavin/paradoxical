@@ -70,10 +70,13 @@ class Paradoxical::Elements::Primitives::Color
     raise NotImplementedError, "subclass must define #type"
   end
 
-  def rgb?     ; is_a? RGB     end
-  def hsv?     ; is_a? HSV     end
-  def hsv360?  ; is_a? HSV360  end
-  def hex?     ; is_a? Hex     end
+  # Type predicates default to `false` on the base; each concrete
+  # subclass overrides its own to `true`. Cheaper than `is_a?` at
+  # call time and lets rubocop be happy about not having
+  # `def foo? ; ... end` one-liners on the base.
+  %i[rgb hsv hsv360 hex].each do |name|
+    define_method("#{name}?") { false }
+  end
 
   # Back-compat surface: `colors` historically returned an array of
   # stringified components. Keep that signature so existing call

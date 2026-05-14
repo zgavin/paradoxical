@@ -2,6 +2,7 @@ class Paradoxical::Elements::Primitives::Color::HSV360 < Paradoxical::Elements::
   channels :h, :s, :v
 
   def type; "hsv360"; end
+  def hsv360?; true; end
 
   def justify!
     # Hue tops out at 360 (3 digits); s/v at 100 (3 digits) but can

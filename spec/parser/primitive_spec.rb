@@ -377,7 +377,8 @@ RSpec.describe Paradoxical::Parser do
         i = ->(v) { Paradoxical::Elements::Primitives::Integer.new(v.to_s) }
         f = ->(v) { Paradoxical::Elements::Primitives::Float.new(v.to_s) }
 
-        expect { rgb.new([f.call("0.5"), i.call(128), f.call("0.5")]) }.to raise_error(ArgumentError, /Integer >= 2 mixed with Float/)
+        mixed = [f.call("0.5"), i.call(128), f.call("0.5")]
+        expect { rgb.new(mixed) }.to raise_error(ArgumentError, /Integer >= 2 mixed with Float/)
         expect { rgb.new([f.call("0.5"), i.call(0), f.call("0.5")]) }.not_to raise_error
         expect { rgb.new([f.call("0.5"), i.call(1), f.call("0.5")]) }.not_to raise_error
       end
@@ -388,7 +389,8 @@ RSpec.describe Paradoxical::Parser do
         f = ->(v) { Paradoxical::Elements::Primitives::Float.new(v.to_s) }
 
         expect { hsv360.new([i.call(180), i.call(50), i.call(100)]) }.not_to raise_error
-        expect { hsv360.new([i.call(180), f.call("0.5"), i.call(100)]) }.to raise_error(ArgumentError, /must all be Integer/)
+        mixed = [i.call(180), f.call("0.5"), i.call(100)]
+        expect { hsv360.new(mixed) }.to raise_error(ArgumentError, /must all be Integer/)
       end
 
       it "round-trips byte-identically across all subtypes" do

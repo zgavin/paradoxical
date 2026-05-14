@@ -22,6 +22,7 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
   channels :r, :g, :b, :alpha
 
   def type; "hex"; end
+  def hex?; true; end
 
   # 3-or-4 channels depending on whether alpha is present. Mirrors
   # the array shape of RGB/HSV/HSV360 (component count = channel count)
@@ -85,7 +86,9 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
   # component slicer below already returns nil for incomplete pairs,
   # so odd lengths degrade gracefully rather than corrupt the read.
   def validate!
-    raise ArgumentError, "hex literal must match 0x<hex digits>; got #{@literal.inspect}" unless @literal =~ /\A0x[0-9a-fA-F]+\z/
+    return if @literal =~ /\A0x[0-9a-fA-F]+\z/
+
+    raise ArgumentError, "hex literal must match 0x<hex digits>; got #{@literal.inspect}"
   end
 
   # Components are at offsets 2/4/6/8 (after the "0x" prefix), each
@@ -107,7 +110,9 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
 
     start = 2 + idx * 2
 
-    raise ArgumentError, "cannot set component #{idx} on #{@literal.inspect} (literal too short)" if @literal.length < start + 2
+    if @literal.length < start + 2 then
+      raise ArgumentError, "cannot set component #{idx} on #{@literal.inspect} (literal too short)"
+    end
 
     @literal[start, 2] = value
   end
