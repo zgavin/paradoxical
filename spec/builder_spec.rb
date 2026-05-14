@@ -201,14 +201,12 @@ RSpec.describe Paradoxical::Builder do
       expect(c.h.to_i).to eq(245)
     end
 
-    it "accepts 4 components (positional alpha)" do
-      c = builder.hsv360(245, 40, 100, 50)
-      expect(c.alpha.to_i).to eq(50)
+    it "rejects 4 components (no PDX game emits 4-component hsv360)" do
+      expect { builder.hsv360(245, 40, 100, 50) }.to raise_error(ArgumentError, /3 components/)
     end
 
-    it "accepts alpha as a kwarg" do
-      c = builder.hsv360(245, 40, 100, alpha: 50)
-      expect(c.alpha.to_i).to eq(50)
+    it "does not accept an alpha kwarg" do
+      expect { builder.hsv360(245, 40, 100, alpha: 50) }.to raise_error(ArgumentError)
     end
 
     it "rejects Float components (HSV360 is all-int)" do

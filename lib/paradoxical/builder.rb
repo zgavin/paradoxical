@@ -145,11 +145,16 @@ class Paradoxical::Builder
     Paradoxical::Elements::Primitives::Color::HSV.new(color_args(args, alpha, name: "hsv"))
   end
 
-  # `hsv360(h, s, v)` or `hsv360(h, s, v, alpha)`; alpha may also be
-  # passed via `alpha:`. Components must be Integer (HSV360 rejects
-  # Float at construction per the empirical all-int rule).
-  def hsv360 *args, alpha: nil
-    Paradoxical::Elements::Primitives::Color::HSV360.new(color_args(args, alpha, name: "hsv360"))
+  # `hsv360(h, s, v)` — 3 integer components, no alpha. Empirically
+  # no PDX game ships 4-component hsv360, and the parser grammar
+  # rejects it; emitting a 4-component hsv360 via the DSL would be
+  # write-only garbage the engine likely wouldn't accept either.
+  # Components must be Integer (HSV360 rejects Float at construction
+  # per the empirical all-int rule).
+  def hsv360 *args
+    raise ArgumentError, "hsv360 expects 3 components; got #{args.length}" if args.length != 3
+
+    Paradoxical::Elements::Primitives::Color::HSV360.new(args.map do |c| color_component(c) end)
   end
 
   def empty_list k
