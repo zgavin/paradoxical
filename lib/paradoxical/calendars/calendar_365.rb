@@ -22,8 +22,17 @@ end
 # March." Our day-count math implicitly does the same thing: day 59
 # of any year (where Feb's 28 days + 0 indexing leave you) walks
 # past Feb's 28-day length and lands on Mar 1 via `from_day_count`.
-# That means arithmetic on a parsed Feb 29 — even `date + 0` —
-# returns a date whose `to_pdx` is "Y.3.1" rather than "Y.2.29".
+#
+# This is *not* a leap-year accommodation — the engine isn't doing
+# Julian or Gregorian leap-year reasoning at all. Several of the
+# Feb 29 dates in real data fall on non-leap years even by Julian's
+# every-4-years rule (1313, 1350, 1391, 1495), so there's no
+# "historical calendar in effect" story. The engine simply has
+# `month_lengths[1] = 28` and overflows day 29 into March, same as
+# us. Identical implementation end-to-end.
+#
+# Arithmetic on a parsed Feb 29 — even `date + 0` — returns a date
+# whose `to_pdx` is "Y.3.1" rather than "Y.2.29".
 # `Primitives::Date#to_pdx` on the *unmutated* parser product still
 # emits the raw bytes ("Y.2.29") so the byte-identical round-trip
 # property holds; the engine-normalized form is only observable
