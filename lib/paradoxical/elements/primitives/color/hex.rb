@@ -62,7 +62,7 @@ class Paradoxical::Elements::Primitives::Color::Hex < Paradoxical::Elements::Pri
   end
 
   def to_hex
-    self
+    dup
   end
 
   private

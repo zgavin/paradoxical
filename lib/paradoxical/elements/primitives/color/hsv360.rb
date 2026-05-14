@@ -14,7 +14,7 @@ class Paradoxical::Elements::Primitives::Color::HSV360 < Paradoxical::Elements::
   end
 
   def to_hsv360
-    self
+    dup
   end
 
   def to_hex

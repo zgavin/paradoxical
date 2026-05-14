@@ -49,7 +49,7 @@ class Paradoxical::Elements::Primitives::Color::HSV < Paradoxical::Elements::Pri
   end
 
   def to_hsv
-    self
+    dup
   end
 
   def to_hsv360

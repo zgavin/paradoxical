@@ -48,7 +48,7 @@ class Paradoxical::Elements::Primitives::Color::RGB < Paradoxical::Elements::Pri
   end
 
   def to_rgb
-    self
+    dup
   end
 
   def to_hsv360
