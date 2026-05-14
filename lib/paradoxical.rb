@@ -52,6 +52,10 @@ end
   elements/yaml
 
   elements/primitives/color
+  elements/primitives/color/rgb
+  elements/primitives/color/hsv
+  elements/primitives/color/hsv360
+  elements/primitives/color/hex
   elements/primitives/core_extensions
   elements/primitives/date
   elements/primitives/float
