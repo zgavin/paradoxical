@@ -2,6 +2,7 @@ class Paradoxical::Elements::Primitives::Color::HSV < Paradoxical::Elements::Pri
   channels :h, :s, :v, :alpha
 
   def type; "hsv"; end
+  def hsv?; true; end
 
   def justify!
     @whitespace = []
