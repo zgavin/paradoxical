@@ -157,6 +157,18 @@ RSpec.describe Paradoxical::Parser do
           expect(result.day).to eq(28)
         end
 
+        it "truncates fractional days/hours from ActiveSupport::Duration" do
+          # `1.5.days` produces a Duration with parts `{days: 1.5}` —
+          # Float. The day-resolution math truncates the fraction at
+          # the `add_days` boundary so it doesn't propagate into
+          # `from_day_count` and yield a Float year.
+          one_and_half = parse("d = 1444.1.1").first.value + 1.5.days
+          expect(one_and_half.day).to eq(2)
+          # 23.hours = 0.958… days → truncates to 0 days, same date.
+          stays = parse("d = 1444.1.1").first.value + 23.hours
+          expect(stays.day).to eq(1)
+        end
+
         it "comparisons via <=> (Comparable)" do
           earlier = parse("a = 1444.01.01").first.value
           later   = parse("a = 1500.01.01").first.value

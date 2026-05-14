@@ -98,7 +98,13 @@ class Paradoxical::Elements::Primitives::Date
   private
 
   def add_days n
-    y, m, d = @calendar.from_day_count(day_count + n)
+    # `to_i` truncates fractional days at the day-resolution
+    # boundary. `ActiveSupport::Duration` parts can be Float
+    # (`1.5.days`, `0.5.hours`) and the seconds-to-days conversion
+    # in `apply_duration` also produces Float; without truncation
+    # those Floats flow through `from_day_count` and produce a
+    # Float year/day_of_year, ending in garbage date strings.
+    y, m, d = @calendar.from_day_count(day_count + n.to_i)
     self.class.new("#{y}.#{m}.#{d}", calendar: @calendar)
   end
 
