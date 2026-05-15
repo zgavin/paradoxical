@@ -9,16 +9,20 @@ module Paradoxical::Games::EU5::DSL
   # taxonomy and the three variable storage kinds (scope / context /
   # game-wide) that the scope-prefixed variants target.
 
-  # `set_variable` and `check_variable`, with scope-prefixed variants
-  # for the three storage kinds. Bare form targets the current
-  # scope (a persistent game object — country, location, etc.);
-  # `_local_` targets the current context (event chain / effect
-  # block); `_global_` targets the game-wide store.
-  %w[set check].each do |verb|
-    %w[variable local_variable global_variable].each do |kind|
-      define_method("#{verb}_#{kind}") do |name, value|
-        l("#{verb}_#{kind}", p("name", name), p("value", value)).single_line!
-      end
+  # `set_variable` with scope-prefixed variants for the three
+  # storage kinds. Bare form targets the current scope (a
+  # persistent game object — country, location, etc.); `_local_`
+  # targets the current context (event chain / effect block);
+  # `_global_` targets the game-wide store.
+  #
+  # The read-side trigger is `has_variable` (not `check_variable`,
+  # which EU5/Imperator don't expose — that's an EU4/Stellaris
+  # thing). Deferred to 5e-3 along with `round_variable`, the
+  # `days =` lifetime kwarg on `set_variable`, and the
+  # property-form shorthand `set_variable = NAME`.
+  %w[set_variable set_local_variable set_global_variable].each do |key|
+    define_method(key) do |name, value|
+      l(key, p("name", name), p("value", value)).single_line!
     end
   end
 

@@ -384,9 +384,17 @@ Read as: compute `loser.total_population / winner.total_population`, clamp to `[
 
 The current DSL handles flat operation kwargs (`change_variable("x", multiply: 100, min: 0, max: 1)`) but not nested operation bodies — needs a builder-block API or similar so users can declaratively chain inside an `add:` / `subtract:` / etc. operation. Defer until DSL design is settled.
 
-**5e-3: `clamp_variable` (pending).**
+**5e-3: Fill in the rest of the variable API surface (pending).**
 
-EU5 (7 uses) and HOI4 (216 uses) ship a `clamp_variable` keyword that's redundant in EU5 (the same `min` / `max` operations live inside `change_variable`) but is the only path on HOI4. Body shapes differ: HOI4 uses `var = X min = Y max = Z`, EU5 uses `name = X min = Y max = Z`. Add per-game helpers when the chainable change_variable design lands so the EU5 form can route through there if it's strictly redundant.
+The 5e-1 PR landed the structural move + the most-common helpers (`set_variable`, `change_variable`, scope variants on EU5/Imperator). Several additional per-game keywords are documented but not yet wired into the DSL:
+
+- **`has_variable` trigger** (EU5/Imperator/HOI4) — the read-side check on whether a variable is set. Empirical use: EU5 4130, Imperator 5891, HOI4 377. Distinct from `check_variable` (the EU4/Stellaris equivalent, 825 / 1431 uses) — no game exposes both as primary forms. Per-game DSL helpers needed: `has_variable(name)` / `has_local_variable(name)` / `has_global_variable(name)` for the newer games; `check_variable(name, op, value)` is already in EU4 DSL.
+- **`round_variable`** (`round_variable { name = X nearest = Y }`) — exists in EU5 (1 use), EU4 (3), Stellaris (3), HOI4 (64). User-confirmed shape: 2-arg helper `round_variable(name, nearest)`. Local/global variants for EU5/Imperator.
+- **`days =` kwarg on `set_variable`** — EU5/Imperator only. Per the EU5 wiki, `set_variable` takes an optional `days = <script_value>` for variable lifetime. Add as a kwarg on `set_*_variable` helpers.
+- **Property-form shorthand** — EU5 (and likely Imperator) accept `set_variable = NAME` as a shorthand for `set_variable = { name = NAME value = yes }`. Useful for boolean-flag-style variables. DSL surface: `set_variable("foo")` (single positional arg) emits the property form; `set_variable("foo", value)` emits the block form.
+- **`clamp_variable`** — EU5 (7 uses, `name =` key) and HOI4 (216 uses, `var =` key). Body shapes differ between games. EU5's form is technically redundant with `min` / `max` inside `change_variable` once 5e-2 lands; HOI4 has no other clamping path.
+
+All of the above should land together since they share the same per-game-DSL infrastructure that 5e-1 set up.
 
 ### 6. RBS types
 

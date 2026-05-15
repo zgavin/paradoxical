@@ -8,11 +8,14 @@ module Paradoxical::Games::ImperatorRome::DSL
   # taxonomy and the three variable storage kinds (scope / context /
   # game-wide) that the scope-prefixed variants target.
 
-  %w[set check].each do |verb|
-    %w[variable local_variable global_variable].each do |kind|
-      define_method("#{verb}_#{kind}") do |name, value|
-        l("#{verb}_#{kind}", p("name", name), p("value", value)).single_line!
-      end
+  # `check_variable` is an EU4/Stellaris-only trigger keyword;
+  # Imperator's read-side trigger is `has_variable` (5891 uses
+  # vs 0 of `check_variable`). Deferred to 5e-3 alongside the
+  # other shapes the wiki documents (`round_variable`, `days =`
+  # lifetime kwarg, property-form shorthand).
+  %w[set_variable set_local_variable set_global_variable].each do |key|
+    define_method(key) do |name, value|
+      l(key, p("name", name), p("value", value)).single_line!
     end
   end
 
