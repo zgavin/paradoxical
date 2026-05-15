@@ -316,6 +316,20 @@ Empirical sweep across installed games:
 | Imperator | 312 | 0 | new operation-keyed `change_variable { name = X add = Y }` |
 | EU5 | 342 | 0 | new operation-keyed `change_variable { name = X add = Y }`, also supports chaining + nesting |
 
+**Global / local variants.** Newer engines (EU5, Imperator) expose explicit `set_global_variable` / `set_local_variable` / `change_global_variable` / `change_local_variable` pairs; the unqualified `set_variable` no longer carries an implied scope. Older engines (EU4, Stellaris, HOI4) have only the unqualified form and treat it as implicitly global.
+
+| Game | Global variants | Local variants |
+|---|---:|---:|
+| EU4 | 0 (implicit-global `set_variable` only) | 0 |
+| Stellaris | 0 (same) | 0 |
+| HOI4 | 0 (same) | 0 |
+| Imperator | 26 | 73 |
+| EU5 | 55 | 124 |
+
+The per-game DSL helpers need to emit the right scope-prefixed form for newer games.
+
+**`clamp_variable` aside.** EU5 (7 uses) and HOI4 (216 uses) ship a `clamp_variable` keyword that's redundant in EU5 (the same `min` / `max` operations live inside `change_variable`) but is the only path on HOI4 (which doesn't have the new operation-keyed shape). Body shapes differ too — HOI4 uses a `var =` key (`clamp_variable { var = X min = Y max = Z }`), EU5 uses `name =` to match the new-shape convention. Worth noting since it's a function the per-game DSL helpers should also cover, not just a quirk of the `change_variable` story.
+
 The EU5 / Imperator shape is meaningfully more powerful. Operations (`add`, `subtract`, `multiply`, `divide`, `modulo`, `min`, `max`, `value`) can be chained in one `change_variable` and nested. Example from EU5:
 
 ```
