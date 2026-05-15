@@ -213,4 +213,48 @@ RSpec.describe Paradoxical::Builder do
       expect { builder.hsv360(245.5, 40, 100) }.to raise_error(ArgumentError, /must all be Integer/)
     end
   end
+
+  describe "#percent" do
+    it "accepts a Ruby Integer and appends %" do
+      p = builder.percent(50)
+      expect(p).to be_a(Paradoxical::Elements::Primitives::Percentage)
+      expect(p.to_pdx).to eq("50%")
+      expect(p.value).to eq(BigDecimal("50"))
+    end
+
+    it "accepts a Ruby Float and routes through to_pdx (precision-capped)" do
+      # Goes through `::Float#to_pdx` so output respects the active
+      # game's FLOAT_PRECISION cap (default 3 — `0.50000` → `0.5`).
+      p = builder.percent(12.5)
+      expect(p.to_pdx).to eq("12.5%")
+    end
+
+    it "accepts a BigDecimal as plain decimal (not scientific)" do
+      # Default BigDecimal#to_s would emit scientific notation
+      # (`0.125e2`); `to_pdx` is the plain-decimal formatter.
+      p = builder.percent(BigDecimal("12.5"))
+      expect(p.to_pdx).to eq("12.5%")
+    end
+
+    it "accepts a string and appends % when missing" do
+      expect(builder.percent("50").to_pdx).to eq("50%")
+    end
+
+    it "accepts a string with trailing % (no double-append)" do
+      expect(builder.percent("50%").to_pdx).to eq("50%")
+    end
+
+    it "preserves multi-% strings (localization-template escape)" do
+      expect(builder.percent("+10.00%%").to_pdx).to eq("+10.00%%")
+    end
+
+    it "accepts a negative number" do
+      expect(builder.percent(-25).to_pdx).to eq("-25%")
+    end
+
+    it "accepts a Primitives::Float (routes through to_pdx)" do
+      pf = Paradoxical::Elements::Primitives::Float.new("7.5")
+      expect(builder.percent(pf).to_pdx).to eq("7.5%")
+    end
+  end
 end
