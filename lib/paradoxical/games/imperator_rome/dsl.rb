@@ -8,14 +8,25 @@ module Paradoxical::Games::ImperatorRome::DSL
   # taxonomy and the three variable storage kinds (scope / context /
   # game-wide) that the scope-prefixed variants target.
 
+  # See EU5::DSL for the full doc-comment on shape, the
+  # property-form shorthand, and the `days:` kwarg. Imperator
+  # uses 700 property-form `set_variable` uses (1 `_local_`,
+  # 11 `_global_`); `days =` doesn't appear in real Imperator
+  # source but is accepted by the engine.
+  #
   # `check_variable` is an EU4/Stellaris-only trigger keyword;
-  # Imperator's read-side trigger is `has_variable` (5891 uses
-  # vs 0 of `check_variable`). Deferred to 5e-3 alongside the
-  # other shapes the wiki documents (`round_variable`, `days =`
-  # lifetime kwarg, property-form shorthand).
+  # Imperator uses `has_variable` (5891 uses) which works via
+  # the generic DSL fallthrough — no helper needed.
   %w[set_variable set_local_variable set_global_variable].each do |key|
-    define_method(key) do |name, value|
-      l(key, p("name", name), p("value", value)).single_line!
+    define_method(key) do |name, value = nil, days: nil|
+      if value.nil? and days.nil? then
+        p(key, name)
+      else
+        children = [p("name", name)]
+        children << p("value", value) unless value.nil?
+        children << p("days", days) unless days.nil?
+        l(key, *children).single_line!
+      end
     end
   end
 

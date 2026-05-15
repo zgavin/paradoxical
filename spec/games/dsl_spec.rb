@@ -137,6 +137,42 @@ RSpec.describe "per-game DSL prepended onto Builder" do
       expect(global_elements.first.key.to_s).to eq("set_global_variable")
     end
 
+    it "set_variable single-arg form emits property shorthand (5e-3)" do
+      # `set_variable("foo")` -> `set_variable = foo`. Empirical: 768
+      # uses in EU5 for boolean-flag-style variables; equivalent to
+      # `set_variable = { name = foo value = yes }` per the wiki.
+      elements = builder.build { set_variable "borgia_pope_global" }
+      prop = elements.first
+      expect(prop).to be_a(Paradoxical::Elements::Property)
+      expect(prop.key.to_s).to eq("set_variable")
+      expect(prop.value.to_s).to eq("borgia_pope_global")
+    end
+
+    it "property-form shorthand applies to local / global variants too" do
+      local_p  = builder.build { set_local_variable  "flag_a" }.first
+      global_p = builder.build { set_global_variable "flag_b" }.first
+      expect(local_p).to be_a(Paradoxical::Elements::Property)
+      expect(global_p).to be_a(Paradoxical::Elements::Property)
+      expect(local_p.key.to_s).to eq("set_local_variable")
+      expect(global_p.key.to_s).to eq("set_global_variable")
+    end
+
+    it "set_variable accepts a `days:` kwarg for variable lifetime (5e-3)" do
+      # Real example: `set_variable = { name = ccw_timer value = yes days = 365 }`.
+      elements = builder.build { set_variable "ccw_timer", "yes", days: 365 }
+      list = elements.first
+      expect(list).to be_a(Paradoxical::Elements::List)
+      keys = list.map { |c| c.key.to_s }
+      expect(keys).to eq(%w[name value days])
+    end
+
+    it "`days:` kwarg works for local / global variants" do
+      local_l  = builder.build { set_local_variable  "x", 1, days: 30 }.first
+      global_l = builder.build { set_global_variable "y", 2, days: 60 }.first
+      expect(local_l.map { |c| c.key.to_s }).to eq(%w[name value days])
+      expect(global_l.map { |c| c.key.to_s }).to eq(%w[name value days])
+    end
+
     it "change_variable accepts operation kwargs and emits them in order" do
       # `change_variable("imperial_authority_change", max: 0.2, min: 0.01, multiply: 100)`
       # (the EU5 example shape from MODERNIZATION 5e).
