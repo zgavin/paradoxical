@@ -155,5 +155,65 @@ RSpec.describe "per-game DSL prepended onto Builder" do
       expect(local_elements.first.key.to_s).to eq("change_local_variable")
       expect(global_elements.first.key.to_s).to eq("change_global_variable")
     end
+
+    it "change_variable accepts a block for nested operations (5e-2)" do
+      # Operations whose value is itself a block of further operations.
+      # The block evaluates in Builder context, so any `keyword do ... end`
+      # falls through method_missing → pdx_obj and emits the nested shape.
+      # EU5 imperial_authority example from MODERNIZATION 5e.
+      elements = builder.build do
+        change_variable "imperial_authority" do
+          add do
+            value "scope:loser.total_population"
+            divide "scope:winner.total_population"
+            max 2
+            min 0.1
+            multiply 5
+          end
+        end
+      end
+
+      list = elements.first
+      expect(list.key.to_s).to eq("change_variable")
+
+      add_node = list["add"]
+      expect(add_node).to be_a(Paradoxical::Elements::List)
+      add_keys = add_node.map { |c| c.key.to_s }
+      expect(add_keys).to eq(%w[value divide max min multiply])
+    end
+
+    it "change_variable block form emits multi-line, kwargs form stays single-line" do
+      single = builder.build { change_variable "x", add: 5 }.first
+      nested = builder.build do
+        change_variable "x" do
+          add do
+            value "y"
+            multiply 2
+          end
+        end
+      end.first
+
+      # `single_line!` collapses whitespace; the block form keeps the
+      # natural multi-line emission since nested bodies want to
+      # render readably. Top-level emission always includes one
+      # leading newline (`line_break`); the single-line form has
+      # exactly that one, while nested has internal newlines too.
+      expect(single.to_pdx.count("\n")).to eq(1)
+      expect(nested.to_pdx.count("\n")).to be > 1
+    end
+
+    it "change_variable allows mixing flat kwargs with a block (kwargs first)" do
+      elements = builder.build do
+        change_variable "x", multiply: 2 do
+          add do
+            value "y"
+          end
+        end
+      end
+      list = elements.first
+      keys = list.map { |c| c.respond_to?(:key) ? c.key.to_s : nil }.compact
+      # Order: name, then flat kwargs (multiply), then block contents (add)
+      expect(keys).to eq(%w[name multiply add])
+    end
   end
 end

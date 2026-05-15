@@ -19,9 +19,13 @@ module Paradoxical::Games::ImperatorRome::DSL
     end
   end
 
+  # See EU5::DSL for the nested-block example. Block form emits
+  # multi-line; flat-kwargs form stays single-line.
   %w[change_variable change_local_variable change_global_variable].each do |key|
-    define_method(key) do |name, **operations|
-      l(key, p("name", name), *operations.map do |k, v| p(k.to_s, v) end).single_line!
+    define_method(key) do |name, **operations, &block|
+      list = l(key, p("name", name), *operations.map do |k, v| p(k.to_s, v) end, &block)
+      list.single_line! if block.nil?
+      list
     end
   end
 end
