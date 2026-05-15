@@ -53,6 +53,22 @@ class Float
   end
 end
 
+class BigDecimal
+  prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
+
+  # `to_s("F")` is BigDecimal's "plain decimal" formatter — `"1.234"`
+  # rather than the default `inspect`-shaped scientific notation
+  # (`"0.1234e4"`). Without this override, BigDecimals that land in
+  # AST values (typically results of `Primitives::Float` arithmetic
+  # post-8d) fall through to `Object#to_pdx` → `inspect` and emit
+  # script the engine doesn't accept. Preserves whatever precision
+  # the BigDecimal carries — we deliberately don't `%.3f` it because
+  # the 8d switch was specifically to keep more than 3 decimals.
+  def to_pdx
+    to_s("F")
+  end
+end
+
 class Integer
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
 

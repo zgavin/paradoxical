@@ -108,6 +108,28 @@ RSpec.describe Paradoxical::Parser do
           prop = parse("foo = 1.234").first
           expect(prop.value.to_f).to be_within(0.0001).of(1.234)
         end
+
+        it "BigDecimal#to_pdx emits plain decimal notation, not scientific" do
+          # `BigDecimal("1.234").to_s` defaults to `"0.1234e4"` —
+          # without the core_extensions override, AST values that
+          # land as bare BigDecimals (results of Primitives::Float
+          # arithmetic) would serialize as scientific notation that
+          # the engine doesn't accept.
+          expect(BigDecimal("1.234").to_pdx).to eq("1.234")
+          expect(BigDecimal("0.1").to_pdx).to eq("0.1")
+          expect(BigDecimal("-1.5").to_pdx).to eq("-1.5")
+          expect(BigDecimal("1000000").to_pdx).to eq("1000000.0")
+        end
+
+        it "round-trips through Property when value is a post-arithmetic BigDecimal" do
+          # The full real-world failure mode: parse a float, do
+          # arithmetic (yielding a BigDecimal), drop it back as the
+          # property's value, serialize. Without BigDecimal#to_pdx
+          # this would emit `key = 0.3e0` style scientific notation.
+          prop = parse("key = 0.1").first
+          prop.value = prop.value + 0.2 # BigDecimal("0.3")
+          expect(prop.to_pdx).to eq("key = 0.3")
+        end
       end
     end
 
