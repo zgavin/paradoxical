@@ -7,8 +7,10 @@ class Paradoxical::Elements::Primitives::Percentage
   # The raw byte string round-trips via `to_pdx`. `value` returns
   # the literal number (the part before the trailing `%`s) as a
   # `BigDecimal` so precision survives arithmetic — matches the 8d
-  # Float backing. `fraction` returns `value / 100` for the
-  # conventional 0..1-style interpretation a caller might want.
+  # Float backing. `multiplier` returns `value / 100` — the scalar
+  # you'd actually multiply against something. `multiplier` rather
+  # than `fraction` since percentages above 100% (HDR-style) are
+  # common and a "fraction" implies [0, 1].
   #
   # No range validation. Empirically all five games ship negative
   # percentages (`-100%` and beyond) and percentages above 100%
@@ -16,6 +18,11 @@ class Paradoxical::Elements::Primitives::Percentage
   # localization-template escape — engine-presentation only; the
   # underlying value is the leading number, so we strip all trailing
   # `%` for `value`.
+  #
+  # Immutable — no setters. Same shape as `Primitives::Date`. Raw
+  # bytes carry presentation info (sign, decimal precision, multi-`%`
+  # count) that doesn't map cleanly through a `value=` setter; if
+  # callers want a different value, construct a new instance.
 
   include Comparable
 
@@ -43,9 +50,9 @@ class Paradoxical::Elements::Primitives::Percentage
     BigDecimal(@raw.sub(/%+\z/, ""))
   end
 
-  # Conventional 0..1 fraction. `50%` → `0.5`. Unbounded — HDR-style
-  # values flow through (`200%` → `2.0`).
-  def fraction
+  # The scalar to multiply against — `50%` → `0.5`, `200%` → `2.0`,
+  # `-10%` → `-0.1`. Unbounded; HDR-style values flow through.
+  def multiplier
     value / 100
   end
 

@@ -389,7 +389,7 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
         expect(prop.value.to_s).to eq("50%")
         expect(prop.value.value).to eq(BigDecimal("50"))
-        expect(prop.value.fraction).to eq(BigDecimal("0.5"))
+        expect(prop.value.multiplier).to eq(BigDecimal("0.5"))
       end
 
       it "parses a negative percentage" do
@@ -410,7 +410,7 @@ RSpec.describe Paradoxical::Parser do
         prop = parse("foo = 12.5%").first
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
         expect(prop.value.value).to eq(BigDecimal("12.5"))
-        expect(prop.value.fraction).to eq(BigDecimal("0.125"))
+        expect(prop.value.multiplier).to eq(BigDecimal("0.125"))
       end
 
       it "parses a multi-`%` percentage (HOI4 localization-template escape)" do
