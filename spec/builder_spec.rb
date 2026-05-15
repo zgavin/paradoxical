@@ -257,4 +257,21 @@ RSpec.describe Paradoxical::Builder do
       expect(builder.percent(pf).to_pdx).to eq("7.5%")
     end
   end
+
+  describe "#var_ref" do
+    it "accepts a name without leading @ and prepends it" do
+      v = builder.var_ref("my_const")
+      expect(v).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(v.to_pdx).to eq("@my_const")
+      expect(v.name).to eq("my_const")
+    end
+
+    it "accepts a name with leading @ (no double-prefix)" do
+      expect(builder.var_ref("@my_const").to_pdx).to eq("@my_const")
+    end
+
+    it "accepts a Symbol" do
+      expect(builder.var_ref(:my_const).to_pdx).to eq("@my_const")
+    end
+  end
 end

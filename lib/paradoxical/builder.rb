@@ -177,6 +177,17 @@ class Paradoxical::Builder
     Paradoxical::Elements::Primitives::Percentage.new(str)
   end
 
+  # Construct a typed `Primitives::VariableRef` for DSL output.
+  # Accepts the name with or without a leading `@` so DSL callers can
+  # write either `var_ref("my_const")` or `var_ref("@my_const")` —
+  # both produce the same `@my_const` ref. Symbols also accepted for
+  # parity with other DSL helpers that read like identifiers.
+  def var_ref name
+    raw = name.to_s
+    raw = "@#{raw}" unless raw.start_with?("@")
+    Paradoxical::Elements::Primitives::VariableRef.new raw
+  end
+
   def empty_list k
     list k, []
   end

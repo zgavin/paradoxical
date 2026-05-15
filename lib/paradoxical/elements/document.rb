@@ -50,7 +50,10 @@ class Paradoxical::Elements::Document
   end
 
   def defines
-    properties.select do |p| p.key.starts_with? "@" end.map do |p| [p.key, p.value] end.to_h
+    properties
+      .select do |p| p.key.is_a? Paradoxical::Elements::Primitives::VariableRef end
+      .map do |p| [p.key, p.value] end
+      .to_h
   end
 
   def vanilla?

@@ -121,7 +121,7 @@ bare_head             = _{ !( color | percentage | date | float | integer | bool
 // `{ 0.0 { 0.0 -0.4 0.1 } }` (EU5/Imperator gene curve data).
 keyless_list          =  { ws ~ "{" ~ ( expression | value | keyless_list )* ~ ws ~ "}" }
 
-primitive             =  { ( color | percentage | date | float | integer | boolean | placeholder | string ) }
+primitive             =  { ( color | percentage | date | float | integer | boolean | placeholder | var_ref | string ) }
 
 operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
@@ -209,6 +209,28 @@ unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" | "-" | "
 // localization-templating quirk (HOI4 956 uses) where the trailing
 // `%` characters are escapes the engine substitutes at display time.
 percentage            =  { ("-" | "+")? ~ numeric ~ ( "." ~ numeric )? ~ "%"+ }
+
+// Variable reference — `@varname`. Token-leading `@` followed by an
+// identifier; the engine substitutes the named definition's value at
+// parse time. `VariableRef#resolve` walks the AST to find the
+// defining sibling property.
+//
+// The negative lookahead guards the three other `@`-leading shapes
+// that share the sigil for unrelated runtime operators and must stay
+// as plain strings:
+//   `@@var`           — EU5 template indirect-variable ref
+//   `@$NAME$_text`    — Stellaris parameter splice
+//   `@[expr]`, `@\[]` — math-at-parse-time (matched by computation_string)
+// Other `@`-using patterns (HOI4 `key@modifier` dynamic-var accessor,
+// Stellaris `event_target:name@suffix` saved-target suffix, EU4
+// `_@SCOPE` scope-name substitution) have a non-`@` token prefix
+// already, so they don't reach this rule at all — they parse as
+// unquoted_string and stay strings.
+//
+// Trailing `&break_character` keeps weirder-shaped tokens like
+// `@foo.bar` (none observed in real game data, but defensive) flowing
+// to unquoted_string rather than getting half-eaten here.
+var_ref               = @{ !( "@@" | "@$" | "@[" | "@\\" ) ~ "@" ~ ( LETTER | NUMBER ) ~ ( LETTER | NUMBER | "_" )* ~ &break_character }
 
 break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | ";" | "," | EOI }
 

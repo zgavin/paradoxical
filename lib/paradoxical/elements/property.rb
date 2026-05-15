@@ -1,5 +1,6 @@
 class Paradoxical::Elements::Property < Paradoxical::Elements::Node
-  attr_accessor :key, :value, :operator
+  attr_reader :key, :value
+  attr_accessor :operator
 
   def initialize key, operator, value = nil, whitespace: nil
     if value.nil? then
@@ -11,6 +12,21 @@ class Paradoxical::Elements::Property < Paradoxical::Elements::Node
     self.value = value
     self.operator = operator
     self.whitespace = whitespace
+  end
+
+  # Custom setters back-fill `owner` on assigned `VariableRef`s so
+  # `#resolve` has an AST entry point. Other primitive kinds don't
+  # care — the check is is_a?-cheap and only triggers for refs.
+  def key= key
+    @key = key
+    key.owner = self if key.is_a?(Paradoxical::Elements::Primitives::VariableRef)
+    key
+  end
+
+  def value= value
+    @value = value
+    value.owner = self if value.is_a?(Paradoxical::Elements::Primitives::VariableRef)
+    value
   end
 
   def dup key: nil

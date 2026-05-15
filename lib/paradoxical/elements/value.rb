@@ -1,5 +1,13 @@
 class Paradoxical::Elements::Value < Paradoxical::Elements::Node
-  attr_accessor :value
+  attr_reader :value
+
+  # Custom setter back-fills `owner` on assigned `VariableRef`s so
+  # `#resolve` has an AST entry point. See `Property#value=`.
+  def value= value
+    @value = value
+    value.owner = self if value.is_a?(Paradoxical::Elements::Primitives::VariableRef)
+    value
+  end
 
   def self.empty_line
     empty_line = self.new Paradoxical::Elements::Primitives::String.new "", quoted: false
