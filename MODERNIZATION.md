@@ -365,7 +365,7 @@ Read as: compute `loser.total_population / winner.total_population`, clamp to `[
 
 Tests at `spec/games/dsl_spec.rb` exercise each game's emission shape via anonymous Builder subclasses with the DSL module prepended. 483/0 unit, 22,229/22,229 parse smokes clean.
 
-**5e-2: Chainable + nested `change_variable` (pending).**
+**5e-2: Chainable + nested `change_variable` (landed).**
 
 The EU5/Imperator example from the empirical research shows the full shape:
 
@@ -384,7 +384,23 @@ change_variable = {
 
 Read as: compute `loser.total_population / winner.total_population`, clamp to `[0.1, 2]`, multiply by 5, then add the result to `imperial_authority`.
 
-The current DSL handles flat operation kwargs (`change_variable("x", multiply: 100, min: 0, max: 1)`) but not nested operation bodies — needs a builder-block API or similar so users can declaratively chain inside an `add:` / `subtract:` / etc. operation. Defer until DSL design is settled.
+The 5e-1 DSL handled flat operation kwargs (`change_variable("x", multiply: 100, min: 0, max: 1)`); 5e-2 adds a block form so operations can carry nested bodies. Implementation is a backward-compatible addition — the existing `change_variable` / `change_local_variable` / `change_global_variable` helpers now also accept a block, and the block evaluates in Builder context so any `keyword do … end` inside it falls through `method_missing` → `pdx_obj` and emits the right `keyword = { body }` shape:
+
+```ruby
+change_variable "imperial_authority" do
+  add do
+    value "scope:loser.total_population"
+    divide "scope:winner.total_population"
+    max 2
+    min 0.1
+    multiply 5
+  end
+end
+```
+
+Flat kwargs + block can also mix; kwargs emit first, block contents after. Block form leaves the list multi-line for readability; flat-kwargs-only form stays `single_line!` as before.
+
+The DSL needs almost no new code — three lines in each game's DSL (`change_variable` definition now passes a block through to `l(...)` and skips `single_line!` when a block is present). The heavy lifting (nested block evaluation, child accumulation) was already in `Builder#list`. Verified the doc-note suspicion in 5e-3 that "most keywords work via idiomatic DSL" — same logic applies to the operation bodies here.
 
 **5e-3: Ergonomic helpers + property-form shorthand (pending).**
 
