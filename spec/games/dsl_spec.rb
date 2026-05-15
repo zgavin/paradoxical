@@ -48,43 +48,112 @@ RSpec.describe "per-game DSL prepended onto Builder" do
     end
   end
 
-  describe "EU4 variable-method override" do
+  describe "EU4 variable arithmetic (which/value with non-numeric wrinkle)" do
     # EU4's set_variable/check_variable etc. emit `which = NAME`
     # (instead of `value = NAME`) when the second operand is a
-    # non-numeric reference to another variable. The base Builder
-    # implementation always uses `value`; the EU4::DSL override
-    # swaps to `which` for non-numerics.
+    # non-numeric reference to another variable. Per 5e the legacy
+    # family lives on EU4's DSL module (not base Builder anymore).
 
-    let(:base_builder)    { Paradoxical::Builder.new }
-    let(:eu4_builder)     { builder_with(Paradoxical::Games::EU4::DSL) }
+    let(:eu4_builder) { builder_with(Paradoxical::Games::EU4::DSL) }
 
-    it "base Builder always uses `value` as the second key" do
-      elements = base_builder.build { set_variable "gold", "=", "other_var" }
-      list = elements.first
-      expect(list[1].key.to_s).to eq("value")
-    end
-
-    it "EU4 swaps to `which` when the value is a non-numeric reference" do
+    it "swaps to `which` when the value is a non-numeric reference" do
       elements = eu4_builder.build { set_variable "gold", "=", "other_var" }
       list = elements.first
       expect(list[1].key.to_s).to eq("which")
     end
 
-    it "EU4 keeps `value` when the value is numeric" do
+    it "keeps `value` when the value is numeric" do
       elements = eu4_builder.build { set_variable "gold", "=", 100 }
       list = elements.first
       expect(list[1].key.to_s).to eq("value")
     end
 
-    it "EU4 doesn't override export_to_variable (always emits `value`)" do
-      # Base implementation; EU4::DSL's override loop excludes
-      # `export_to_variable` because it has its own dedicated method
-      # in Builder with a different shape (which/value/who triplet).
+    it "export_to_variable always uses `value` (no which-wrinkle)" do
       elements = eu4_builder.build { export_to_variable "gold", "treasury" }
       list = elements.first
       expect(list.key.to_s).to eq("export_to_variable")
       keys = list.map { |c| c.key.to_s }
       expect(keys).to eq(%w[which value])
+    end
+  end
+
+  describe "Stellaris variable arithmetic (which/value, no wrinkle)" do
+    let(:builder) { builder_with(Paradoxical::Games::Stellaris::DSL) }
+
+    it "emits `which`/`value` second-key shape" do
+      elements = builder.build { set_variable "score", "=", 5 }
+      list = elements.first
+      expect(list.key.to_s).to eq("set_variable")
+      expect(list[0].key.to_s).to eq("which")
+      expect(list[1].key.to_s).to eq("value")
+    end
+
+    it "doesn't apply EU4's which-second-key swap for non-numerics" do
+      # Stellaris always uses `value` even when the rhs is a reference.
+      elements = builder.build { change_variable "score", "=", "other_var" }
+      list = elements.first
+      expect(list[1].key.to_s).to eq("value")
+    end
+  end
+
+  describe "HOI4 variable arithmetic (direct key=value shape)" do
+    let(:builder) { builder_with(Paradoxical::Games::HOI4::DSL) }
+
+    it "emits the variable name as the inner key" do
+      # HOI4 shape: `set_variable = { VAR_NAME = VAL }` — the name is
+      # the key of the inner property, no `which =` / `name =` wrapper.
+      elements = builder.build { set_variable "morale_buff", "=", 5 }
+      list = elements.first
+      expect(list.key.to_s).to eq("set_variable")
+      expect(list[0].key.to_s).to eq("morale_buff")
+      expect(list[0].value.to_i).to eq(5)
+    end
+
+    it "uses `add_to_variable` as the arithmetic verb (not change_variable)" do
+      elements = builder.build { add_to_variable "morale_buff", "=", 1 }
+      list = elements.first
+      expect(list.key.to_s).to eq("add_to_variable")
+    end
+  end
+
+  describe "EU5 / Imperator variable arithmetic (name/value, operation-keyed)" do
+    # Same surface in both games today — testing via EU5 since the
+    # shape is identical.
+
+    let(:builder) { builder_with(Paradoxical::Games::EU5::DSL) }
+
+    it "set_variable uses `name`/`value` body" do
+      elements = builder.build { set_variable "treaty_progress", 50 }
+      list = elements.first
+      expect(list.key.to_s).to eq("set_variable")
+      expect(list[0].key.to_s).to eq("name")
+      expect(list[1].key.to_s).to eq("value")
+    end
+
+    it "exposes scope-prefixed variants (local / global)" do
+      local_elements  = builder.build { set_local_variable "ctx_var", 1 }
+      global_elements = builder.build { set_global_variable "world_var", 2 }
+      expect(local_elements.first.key.to_s).to eq("set_local_variable")
+      expect(global_elements.first.key.to_s).to eq("set_global_variable")
+    end
+
+    it "change_variable accepts operation kwargs and emits them in order" do
+      # `change_variable("imperial_authority_change", max: 0.2, min: 0.01, multiply: 100)`
+      # (the EU5 example shape from MODERNIZATION 5e).
+      elements = builder.build do
+        change_variable "imperial_authority_change", max: 0.2, min: 0.01, multiply: 100
+      end
+      list = elements.first
+      expect(list.key.to_s).to eq("change_variable")
+      keys = list.map { |c| c.key.to_s }
+      expect(keys).to eq(%w[name max min multiply])
+    end
+
+    it "scope variants apply to change_variable too" do
+      local_elements  = builder.build { change_local_variable "v", add: 1 }
+      global_elements = builder.build { change_global_variable "v", add: 1 }
+      expect(local_elements.first.key.to_s).to eq("change_local_variable")
+      expect(global_elements.first.key.to_s).to eq("change_global_variable")
     end
   end
 end

@@ -252,27 +252,12 @@ class Paradoxical::Builder
     end
   end
 
-  # `set_variable` / `check_variable` / etc. — game-agnostic base.
-  # Each generates a `key { which = NAME value = VALUE }` list.
-  # EU4 needs a small wrinkle (uses `which` instead of `value` as
-  # the second key for non-numeric values); that override lives in
-  # `Paradoxical::Games::EU4::DSL`.
-  %w{set check change subtract multiply divide modulo round_variable_to_closest export_to_variable}.each do |word|
-    key = word.include?("variable") ? word : "#{word}_variable"
-
-    define_method key do |which, operator, value = nil|
-      value, operator = operator, "=" if value.nil?
-      l(key, p("which", which), p("value", operator, value)).single_line!
-    end
-  end
-
-  def export_to_variable which, value, who = nil
-    l "export_to_variable" do
-      p "which", which
-      p "value", value
-      p "who", who unless who.nil?
-    end.single_line!
-  end
+  # Variable-arithmetic helpers (`set_variable`, `change_variable`,
+  # `multiply_variable`, etc.) live in per-game DSL modules — the
+  # body shape varies by game: HOI4 uses direct `key = value` bodies,
+  # EU4/Stellaris use `which`/`value` keys, EU5/Imperator use
+  # `name`/`value` with chainable operations. See phase 5e in
+  # MODERNIZATION.md.
 
   def country_event *args, **opts, &block
     if args.count == 1 and [::String, String].any? do |klass| args.first.is_a? klass end then

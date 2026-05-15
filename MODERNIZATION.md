@@ -308,13 +308,17 @@ Surfaced during the in-game probe for 8d's precision validation: EU5 and Imperat
 
 Empirical sweep across installed games:
 
+**Inline variable comparison in newer games.** EU5/Imperator deprecated `check_variable` in favor of inline comparison operators on variable references — `var:foo >= var:bar` is a valid trigger directly. This explains why `check_variable` empirically drops to 0 uses in EU5/Imperator (vs 825 in EU4 and 1431 in Stellaris) even though those games still need to test variable values. The DSL emits the inline form via the existing `p` helper: `p "var:foo", ">=", "var:bar"` — no new helper needed.
+
+There are **three distinct body shapes** across the games, not two:
+
 | Game | `change_variable` uses | Legacy `*_variable` uses | Shape |
 |---|---:|---:|---|
-| EU4 | 260 | 492 | legacy `change_variable { which = X value = Y }` (functionally `add`) + `multiply_variable` / `divide_variable` / … family |
-| Stellaris | 893 | 205 | same as EU4 — legacy `change_variable { which = X value = Y }` (a coincidence in keyword naming with the new shape; the body is the legacy form) + the `*_variable` family |
-| HOI4 | 0 | 341 | `*_variable` family exclusively |
-| Imperator | 312 | 0 | new operation-keyed `change_variable { name = X add = Y }` |
-| EU5 | 342 | 0 | new operation-keyed `change_variable { name = X add = Y }`, also supports chaining + nesting |
+| EU4 | 260 | 492 | `which` / `value` — `change_variable { which = X value = Y }` (functionally `add`), plus `multiply_variable` / `divide_variable` / … family. EU4 has a `which`-second-key wrinkle when the right-hand side references another variable (non-numeric Y) |
+| Stellaris | 893 | 205 | `which` / `value` — same as EU4 but no second-key wrinkle. The high `change_variable` count is a keyword-name coincidence; the body is still the legacy `which`/`value` shape, not the new operation-keyed one |
+| HOI4 | 0 | 341 | direct key=value — `set_variable = { VAR = VAL }`, `add_to_variable = { VAR = N }`, `multiply_variable = { VAR = N }`. No second-key wrapper at all; the variable name *is* the key. Arithmetic verb is `add_to_variable`, not `change_variable` |
+| Imperator | 312 | 0 | `name` / operation-keyed — `set_variable { name = X value = Y }`, `change_variable { name = X add = Y }` |
+| EU5 | 342 | 0 | `name` / operation-keyed — same as Imperator, with chainable + nestable operations inside `change_variable` |
 
 **Three storage kinds.** Variables can attach to three different things:
 
@@ -351,13 +355,56 @@ change_variable = {
 
 Read as: compute `loser.total_population / winner.total_population`, clamp to `[0.1, 2]`, multiply by 5, then add the result to `imperial_authority`. A single nested block — not expressible by the legacy per-operation function family.
 
-**Scope when tackled:**
-- Move the existing variable-arithmetic helpers off the base Builder (where they currently live in a loop at `lib/paradoxical/builder.rb:184`) into per-game DSL modules. Mirrors how 5b moved `add_resource` / `check_galaxy_setup_value` off Builder into `Stellaris::DSL`.
-- **EU4 DSL**: keep the existing `which`-key override for non-numeric values; absorb the legacy family (currently game-agnostic on Builder) so it's explicitly EU4's contract.
-- **Stellaris / HOI4 DSL**: legacy family, no `which`-key wrinkle.
-- **EU5 / Imperator DSL**: new `change_variable { name = ... add = ... }` shape. Helper should accept nested expressions naturally — probably a builder block API so users can chain operations declaratively.
+**5e-1: Structural move + basic per-game shapes (landed).**
 
-Trigger: surfaces when a mod-script wants to emit EU5/Imperator variable arithmetic. Today the only path is constructing the script tree manually. Not in scope for 8d's precision work; filed here so the empirical landscape isn't lost.
+- Variable-arithmetic loop removed from base `Builder` — each game's DSL now owns its variable helpers, so adding a Builder DSL doesn't accidentally inherit wrong-shape behavior.
+- **EU4 DSL**: keeps the existing `which`-second-key wrinkle for non-numeric values; absorbs `export_to_variable` from base Builder (EU4-only across the installed games, 370 uses).
+- **Stellaris DSL**: legacy `which`/`value` family added, no wrinkle.
+- **HOI4 DSL**: direct key=value family — `set_variable = { VAR = VAL }`, `add_to_variable = { VAR = N }`, `multiply_variable` / `divide_variable` / etc. The variable name is the inner property's key, not a wrapped `which =` / `name =`.
+- **EU5 / Imperator DSL**: `set_variable { name = X value = Y }` plus simple non-chained `change_variable { name = X add = Y }` via operation kwargs. Scope-prefixed variants added (`set_local_variable` / `set_global_variable` / `change_local_variable` / `change_global_variable`).
+
+Tests at `spec/games/dsl_spec.rb` exercise each game's emission shape via anonymous Builder subclasses with the DSL module prepended. 483/0 unit, 22,229/22,229 parse smokes clean.
+
+**5e-2: Chainable + nested `change_variable` (pending).**
+
+The EU5/Imperator example from the empirical research shows the full shape:
+
+```
+change_variable = {
+  name = imperial_authority
+  add = {                                # nested expression
+    value = scope:loser.total_population
+    divide = scope:winner.total_population
+    max = 2
+    min = 0.1
+    multiply = 5
+  }
+}
+```
+
+Read as: compute `loser.total_population / winner.total_population`, clamp to `[0.1, 2]`, multiply by 5, then add the result to `imperial_authority`.
+
+The current DSL handles flat operation kwargs (`change_variable("x", multiply: 100, min: 0, max: 1)`) but not nested operation bodies — needs a builder-block API or similar so users can declaratively chain inside an `add:` / `subtract:` / etc. operation. Defer until DSL design is settled.
+
+**5e-3: Ergonomic helpers + property-form shorthand (pending).**
+
+The 5e-1 PR landed the structural move + the most-common helpers. Most other variable-related keywords can already be emitted via idiomatic DSL — `method_missing` → `pdx_obj` builds the right `keyword = { key = value … }` shape from a block body, so things like:
+
+```ruby
+has_variable "foo"                                # has_variable = foo
+clamp_variable do; name "foo"; min 0; max 100; end  # EU5 form
+clamp_variable do; var "foo"; min 0; max 100; end   # HOI4 form
+round_variable do; name "foo"; nearest 1; end
+```
+
+…all work today via Builder's `method_missing` fall-through. The DSL doesn't need explicit helpers for keywords whose only value-add is convenient kwargs.
+
+That leaves two items where an explicit helper *does* pay for itself:
+
+- **`days =` kwarg on `set_variable`** (EU5/Imperator only). Per the EU5 wiki, `set_variable` accepts an optional `days = <script_value>` lifetime. Worth a kwarg on the existing `set_*_variable` helpers since it changes the block shape and is easy to forget.
+- **Property-form shorthand** for `set_variable`. EU5 (and probably Imperator) accept `set_variable = NAME` as a shorthand for `set_variable = { name = NAME value = yes }`. Useful for boolean-flag variables. DSL surface: `set_variable("foo")` (single positional arg) emits the property form; `set_variable("foo", value)` keeps the block form.
+
+The `change_variable` chainable / nested form filed under 5e-2 might also turn out to be idiomatic-doable via `change_variable do; name "x"; add do; … end; end`. Worth re-evaluating when that PR is tackled.
 
 ### 6. RBS types
 

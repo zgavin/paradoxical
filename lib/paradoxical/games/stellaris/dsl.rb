@@ -46,4 +46,17 @@ module Paradoxical::Games::Stellaris::DSL
       l("add_resource", p(resource, -1 * value)).single_line!
     end
   end
+
+  # Variable arithmetic. Stellaris uses the `which`/`value` body
+  # shape — `change_variable { which = X value = Y }` etc. No
+  # EU4-style second-key wrinkle (Stellaris always uses `value` as
+  # the second key, even when Y is a non-numeric reference).
+  %w[set check change subtract multiply divide modulo round_variable_to_closest].each do |word|
+    key = word.include?("variable") ? word : "#{word}_variable"
+
+    define_method key do |which, operator, value = nil|
+      value, operator = operator, "=" if value.nil?
+      l(key, p("which", which), p("value", operator, value)).single_line!
+    end
+  end
 end
