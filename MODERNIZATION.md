@@ -316,17 +316,21 @@ Empirical sweep across installed games:
 | Imperator | 312 | 0 | new operation-keyed `change_variable { name = X add = Y }` |
 | EU5 | 342 | 0 | new operation-keyed `change_variable { name = X add = Y }`, also supports chaining + nesting |
 
-**Global / local variants.** All games attach variables to the current scope (where the scope supports it); the global/local distinction is *not* "scoped vs unscoped." Newer engines (EU5, Imperator) split it into explicit `set_local_variable` / `set_global_variable` / `change_local_variable` / `change_global_variable` pairs — `local` is the old per-scope behavior, `global` is a new truly-game-wide variable kind that any scope can read or write. Older engines (EU4, Stellaris, HOI4) only have the unqualified `set_variable` form, which behaves like the new `set_local_variable`.
+**Three storage kinds.** Variables can attach to three different things:
 
-| Game | Global variants | Local variants | Notes |
-|---|---:|---:|---|
-| EU4 | 0 | 0 | per-scope `set_variable` only; scopes that support variables are `country` and `province` |
-| Stellaris | 0 | 0 | per-scope `set_variable` only; scope support expanded over the game's lifetime to cover most scope types |
-| HOI4 | 0 | 0 | per-scope `set_variable` only |
-| Imperator | 26 | 73 | local + global both available; `local` is the older per-scope semantics |
-| EU5 | 55 | 124 | local + global both available; `local` is the older per-scope semantics |
+- **Scope** — a persistent game object (country, location, religion, unit, …). The bare `set_variable` operates on the current scope; the variable lives with that object for the rest of the campaign (or until cleared). All games support this form, but the set of scopes that *accept* variables varies — EU4 limits to `country` and `province`; Stellaris expanded to nearly every scope type over its lifetime.
+- **Context** — a transient execution unit (event chain, effect block, etc.). `set_local_variable` operates here; the variable disappears when the context ends. New in EU5 / Imperator.
+- **Game** — game-wide, accessible from any scope. `set_global_variable` operates here. New in EU5 / Imperator.
 
-The per-game DSL helpers will need to emit the right scope-prefixed form for newer games and surface the global variant separately, since it's a real semantic distinction (which-scope-owns-this) not just a naming preference.
+| Game | Bare (scope) | Local (context) | Global (game-wide) |
+|---|---|---:|---:|
+| EU4 | yes — `country` / `province` scopes only | 0 | 0 |
+| Stellaris | yes — broad scope support added over the game's lifetime | 0 | 0 |
+| HOI4 | yes | 0 | 0 |
+| Imperator | yes | 73 | 26 |
+| EU5 | yes | 124 | 55 |
+
+The per-game DSL helpers will need to surface the local + global variants separately on EU5 / Imperator since they're semantically distinct from the bare form (different lifetime + reach), not just a naming preference.
 
 **`clamp_variable` aside.** EU5 (7 uses) and HOI4 (216 uses) ship a `clamp_variable` keyword that's redundant in EU5 (the same `min` / `max` operations live inside `change_variable`) but is the only path on HOI4 (which doesn't have the new operation-keyed shape). Body shapes differ too — HOI4 uses a `var =` key (`clamp_variable { var = X min = Y max = Z }`), EU5 uses `name =` to match the new-shape convention. Worth noting since it's a function the per-game DSL helpers should also cover, not just a quirk of the `change_variable` story.
 
