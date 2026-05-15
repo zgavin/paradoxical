@@ -203,7 +203,12 @@ localization_string   = @{ ("[" ~ (!"]" ~ ANY)* ~ "]") }
 // picks `@@`/`@$` over a bare `@` when the source has them.
 unquoted_string       =  { ( ( ( "@@" | "@$" | "@" | "_"+ | "$" | "-$" | "-" | "'" ) ~ ( LETTER | NUMBER ) ) | ( LETTER | NUMBER ) | "_"+ ) ~ ( !( break_character ) ~ ANY )* }
 
-percentage            =  { ("-" | "+")? ~ numeric ~ "%"+ }
+// Optional fractional part — `12.5%` shows up heavily in HOI4 and
+// other games; pre-widening the rule didn't accept it and it fell
+// through to `unquoted_string`. Multi-`%` (`50%%`, `+10.00%%`) is a
+// localization-templating quirk (HOI4 956 uses) where the trailing
+// `%` characters are escapes the engine substitutes at display time.
+percentage            =  { ("-" | "+")? ~ numeric ~ ( "." ~ numeric )? ~ "%"+ }
 
 break_character       = _{ whitespace_character | operator | "{" | "}" | "#" | ";" | "," | EOI }
 

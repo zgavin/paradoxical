@@ -384,16 +384,62 @@ RSpec.describe Paradoxical::Parser do
     end
 
     describe "percentage" do
-      it "parses a percentage as a String primitive" do
+      it "parses a percentage as a Percentage primitive (8e)" do
         prop = parse("foo = 50%").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
         expect(prop.value.to_s).to eq("50%")
+        expect(prop.value.value).to eq(BigDecimal("50"))
+        expect(prop.value.multiplier).to eq(BigDecimal("0.5"))
       end
 
       it "parses a negative percentage" do
         prop = parse("foo = -50%").first
-        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
-        expect(prop.value.to_s).to eq("-50%")
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
+        expect(prop.value.value).to eq(BigDecimal("-50"))
+      end
+
+      it "parses a positive-prefixed percentage" do
+        prop = parse("foo = +50%").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
+        expect(prop.value.value).to eq(BigDecimal("50"))
+      end
+
+      it "parses a fractional percentage (12.5%)" do
+        # HOI4 ships 7k+ of these; grammar widened in 8e to capture them
+        # as Percentage rather than falling through to String.
+        prop = parse("foo = 12.5%").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
+        expect(prop.value.value).to eq(BigDecimal("12.5"))
+        expect(prop.value.multiplier).to eq(BigDecimal("0.125"))
+      end
+
+      it "parses a multi-`%` percentage (HOI4 localization-template escape)" do
+        # `+10.00%%` is a real HOI4 shape — the trailing `%%` is a
+        # localization-template escape, not part of the numeric value.
+        prop = parse("foo = +10.00%%\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Percentage)
+        expect(prop.value.to_pdx).to eq("+10.00%%")
+        expect(prop.value.value).to eq(BigDecimal("10"))
+      end
+
+      it "accepts values outside 0..100 (no range validation)" do
+        # `-100%` and `>100%` are common; no validation enforces a range.
+        expect(parse("foo = -100%").first.value.value).to eq(BigDecimal("-100"))
+        expect(parse("foo = 125%").first.value.value).to eq(BigDecimal("125"))
+      end
+
+      it "round-trips byte-identically" do
+        # `to_pdx` returns raw bytes — preservation is load-bearing.
+        %w[50% -50% +50% 12.5% +10.00%%].each do |body|
+          input = "foo = #{body}\n"
+          expect(parse(input).to_pdx).to eq(input)
+        end
+      end
+
+      it "is Comparable on numeric value" do
+        small = Paradoxical::Elements::Primitives::Percentage.new("25%")
+        big   = Paradoxical::Elements::Primitives::Percentage.new("125%")
+        expect(small).to be < big
       end
     end
 

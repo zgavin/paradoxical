@@ -64,6 +64,7 @@ end
   elements/primitives/date
   elements/primitives/float
   elements/primitives/integer
+  elements/primitives/percentage
   elements/primitives/string
 
   search/function_matcher

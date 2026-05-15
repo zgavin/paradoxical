@@ -533,38 +533,21 @@ Note: the `Impersonator#is_a?` override doesn't alias to `kind_of?`, so RSpec's 
 
 #### 8e. Distinct primitive types for string-like patterns
 
-`Primitives::String` is currently the catch-all for any sequence that doesn't match a structured primitive (Color/Date/Float/Integer/Boolean/Percentage). That includes several syntactically- and semantically-distinct PDX concepts the engine itself treats as separate types:
+`Primitives::String` is the catch-all for any sequence that doesn't match a structured primitive. Several PDX concepts the engine treats as distinct types are still lumped under it; each lift gets its own sub-PR since each surfaces its own allowlist-churn risk.
 
-- **Percentage** (`50%`) — already grammatically constrained but currently lives under `String`; deserves numeric semantics in its own primitive.
-- **Parameter substitution** (`$NAME$`, `-$NAME$`) — engine-level placeholder evaluated at parse time. Supported across all PDX games. Negative-prefixed form is what's still pending in phase 4d-B5.
-- **Localization reference** (`[ROOT.GetName]`) — looks up text from `.yml` localization files at game-load time.
-- **Computation expression** (`@[GetSize + 1]`, `@\[Total]`) — math evaluated at parse time. The escaped form is also distinct.
-- **Variable reference** (`@variable_name`) — references a `@var = value` definition in the same file or scope.
+Sub-PR sequence in order of complexity:
 
-Lumping these as `String` means:
-- The parser silently accepts invalid syntax (e.g. unbalanced `[`, malformed `$NAME$`) that the game would reject. Mod authors find out at game-load time instead of at compile time.
-- DSL helpers can't typed-construct each (e.g. `builder.localization("KEY")` can't return something type-safe).
-- Round-trip preservation works (we store raw text), but semantic information is lost.
+- **8e-1: `Primitives::Percentage` (landed).** Lift the percentage shape out of `String`. Grammar widened to capture fractional percentages (`12.5%` — HOI4 ships 7k+ of these and they previously fell through to `unquoted_string`). Class stores raw bytes for round-trip plus `value` (BigDecimal — matches 8d's Float backing) and `multiplier` accessors (the scalar to multiply against; renamed from "fraction" since HDR-style >100% values are common and "fraction" implies [0, 1]). Immutable — same shape as `Primitives::Date`; raw bytes carry presentation info (sign, decimal precision, multi-`%` count) that doesn't map cleanly through a `value=` setter. No range validation: all five games ship negative percentages and >100% values; HOI4 alone has 13k+ `>100%` uses. Multi-`%` (`+10.00%%`, HOI4's 956 uses) is a localization-template escape — preserved as raw bytes; `value` strips the trailing `%`s. Comparable on numeric value. 499/0 tests, 22,229/22,229 smokes clean.
 
-See [feedback memory: don't be more lenient than the game's parser](../memory/feedback_match_game_parser_strictness.md) for the underlying principle.
+- **8e-2: `Primitives::VariableRef` (pending).** `@variable_name` references. Whole-token-only by design, and empirically that's also the entire shape — none of the five games ship `@varname` mid-identifier embeddings. Other `@`-using patterns that exist (HOI4 `party_popularity@democratic` dynamic-var accessor ~2.3k uses, Stellaris `event_target:name@suffix` saved-target suffix ~2.2k uses, EU4 `flag_name_@ROOT` scope-name substitution ~30-50 uses) all overload the `@` symbol for unrelated runtime operators and must stay as `String`. The clean cut at the grammar level: `unquoted_string`'s leading-sigil branch produces `@@varname` (EU5 template indirect) and `@$NAME$_text` (Stellaris parameter splice) which stay as String; only bare `@varname` becomes VariableRef. The interesting design surface is `#resolve`: a VariableRef knows the Property/List that owns it (set by the parser at construction) and walks up the AST scanning sibling properties for a definition (a property whose *key* is a VariableRef of the same name). If found, return the value (recursing through chained VariableRefs / nested Computations once 8e-3 lands). If detached or unresolved, raise. This is the foundation 8e-3's Computation evaluator builds on.
 
-**Proposed shape per type:**
+- **8e-3: `Primitives::Computation` (pending).** `@[expr]`, `@\[expr]`. Math-at-parse-time. Internal expression grammar that may reference VariableRefs — `#evaluate` chains through 8e-2's resolution. Done next so the VariableRef foundation is exercised end-to-end before we layer on the simpler-but-orthogonal localization/parameter work.
 
-1. New pest rule that validates the specific syntax (e.g. `parameter = @{ ("-" | "+")? ~ "$" ~ (LETTER | NUMBER)+ ~ "$" }`).
-2. New `Paradoxical::Elements::Primitives::*` class storing the parsed-out parts (key, expression, sign, etc.) in addition to the raw text for round-trip.
-3. New DSL helpers in `Builder` for typed construction.
+- **8e-4: `Primitives::LocalizationRef` (pending).** `[ROOT.GetName]`, `[KEY|format]`. Has internal grammar — scope chain + getter + optional format spec. Tier-1 (validate balanced brackets) is cheap; tier-2 (parse scope/getter/format slots) enables typed querying. Likely worth tier-2 since the scope chain itself is rich enough that knowing its parts is useful.
 
-**Trade-off to budget for.** A stricter parser will surface previously-passing files as smoke failures. That's positive signal (real invalid syntax we used to mask) but each fix surfaces its own allowlist churn — and if any `compile.rb`-emitted output trips on stricter validation, the DSL needs a small accompanying fix to use the right typed helper.
+- **8e-5: `Primitives::Parameter` (pending — possibly punt).** `$NAME$` substitutions. Pre-compilation macros — the engine string-substitutes before parsing, so `foo_$BAR$_baz` is a valid identifier shape where `$BAR$` expands inline. Empirical: whole-form `$BAR$` and mid-identifier embeddings have comparable volume (10k-40k each per game), so whole-form-only coverage loses ~30-50% of uses. **Working plan**: hybrid (whole-form gets typed; mid-identifier stays as `String` with a `.parameters` accessor for introspection) — or punt entirely and leave parameters as strings since the typing value is limited and the grammar already differentiates the sigil shapes. Decide after VariableRef/Computation land and we have a calibrated sense of the typing pattern's payoff.
 
-Initial scope, in order of likely value-per-effort:
-
-- `Primitives::Percentage` — already grammatically constrained, lift it out of `String`.
-- `Primitives::Parameter` — overlap with phase-4d-B5: tackle the `-$NAME$` form using the typed primitive shape rather than just widening grammar.
-- `Primitives::LocalizationRef` — `[KEY]` and `[KEY|format]` variants.
-- `Primitives::Computation` — `@[expr]` and `@\[expr]`.
-- `Primitives::VariableRef` — `@variable_name` (no brackets).
-
-Existing `String` stays as the catch-all; the change is additive.
+**Trade-off to budget for.** A stricter parser will surface previously-passing files as smoke failures. That's positive signal (real invalid syntax we used to mask) but each fix surfaces its own allowlist churn — and if any `compile.rb`-emitted output trips on stricter validation, the DSL needs a small accompanying fix to use the right typed helper. Each sub-PR runs all five smokes before merge.
 
 ## Decision log
 

@@ -162,6 +162,21 @@ class Paradoxical::Builder
     )
   end
 
+  # Construct a typed `Primitives::Percentage` for DSL output.
+  # Accepts any numeric (Ruby Integer/Float/BigDecimal or
+  # `Primitives::Integer`/`Float`) or a string. Numerics route
+  # through `to_pdx` so precision matches the active game's
+  # `FLOAT_PRECISION` cap and BigDecimal serializes as plain decimal
+  # rather than scientific. Strings pass through as-is, with a
+  # trailing `%` appended if missing — so `percent("50")` and
+  # `percent("50%")` both produce the same `50%`. Multi-`%` literals
+  # (`"+10.00%%"`) are preserved.
+  def percent value
+    str = value.is_a?(::String) ? value : value.to_pdx
+    str = "#{str}%" unless str.end_with?("%")
+    Paradoxical::Elements::Primitives::Percentage.new(str)
+  end
+
   def empty_list k
     list k, []
   end
