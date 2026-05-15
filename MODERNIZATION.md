@@ -310,11 +310,11 @@ Empirical sweep across installed games:
 
 | Game | `change_variable` uses | Legacy `*_variable` uses | Shape |
 |---|---:|---:|---|
-| EU4 | 260 | 492 | `change_variable { which = X value = Y }` + `multiply_variable`/`divide_variable`/… family |
-| Stellaris | 893 | 205 | mostly the `*_variable` family |
+| EU4 | 260 | 492 | legacy `change_variable { which = X value = Y }` (functionally `add`) + `multiply_variable` / `divide_variable` / … family |
+| Stellaris | 893 | 205 | same as EU4 — legacy `change_variable { which = X value = Y }` (a coincidence in keyword naming with the new shape; the body is the legacy form) + the `*_variable` family |
 | HOI4 | 0 | 341 | `*_variable` family exclusively |
-| Imperator | 312 | 0 | `change_variable { name = X add = Y }` (operation-keyed) |
-| EU5 | 342 | 0 | `change_variable { name = X add = Y }` (operation-keyed, nestable) |
+| Imperator | 312 | 0 | new operation-keyed `change_variable { name = X add = Y }` |
+| EU5 | 342 | 0 | new operation-keyed `change_variable { name = X add = Y }`, also supports chaining + nesting |
 
 The EU5 / Imperator shape is meaningfully more powerful. Operations (`add`, `subtract`, `multiply`, `divide`, `modulo`, `min`, `max`, `value`) can be chained in one `change_variable` and nested. Example from EU5:
 
