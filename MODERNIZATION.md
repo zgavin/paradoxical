@@ -316,17 +316,17 @@ Empirical sweep across installed games:
 | Imperator | 312 | 0 | new operation-keyed `change_variable { name = X add = Y }` |
 | EU5 | 342 | 0 | new operation-keyed `change_variable { name = X add = Y }`, also supports chaining + nesting |
 
-**Global / local variants.** Newer engines (EU5, Imperator) expose explicit `set_global_variable` / `set_local_variable` / `change_global_variable` / `change_local_variable` pairs; the unqualified `set_variable` no longer carries an implied scope. Older engines (EU4, Stellaris, HOI4) have only the unqualified form and treat it as implicitly global.
+**Global / local variants.** All games attach variables to the current scope (where the scope supports it); the global/local distinction is *not* "scoped vs unscoped." Newer engines (EU5, Imperator) split it into explicit `set_local_variable` / `set_global_variable` / `change_local_variable` / `change_global_variable` pairs — `local` is the old per-scope behavior, `global` is a new truly-game-wide variable kind that any scope can read or write. Older engines (EU4, Stellaris, HOI4) only have the unqualified `set_variable` form, which behaves like the new `set_local_variable`.
 
-| Game | Global variants | Local variants |
-|---|---:|---:|
-| EU4 | 0 (implicit-global `set_variable` only) | 0 |
-| Stellaris | 0 (same) | 0 |
-| HOI4 | 0 (same) | 0 |
-| Imperator | 26 | 73 |
-| EU5 | 55 | 124 |
+| Game | Global variants | Local variants | Notes |
+|---|---:|---:|---|
+| EU4 | 0 | 0 | per-scope `set_variable` only; scopes that support variables are `country` and `province` |
+| Stellaris | 0 | 0 | per-scope `set_variable` only; scope support expanded over the game's lifetime to cover most scope types |
+| HOI4 | 0 | 0 | per-scope `set_variable` only |
+| Imperator | 26 | 73 | local + global both available; `local` is the older per-scope semantics |
+| EU5 | 55 | 124 | local + global both available; `local` is the older per-scope semantics |
 
-The per-game DSL helpers need to emit the right scope-prefixed form for newer games.
+The per-game DSL helpers will need to emit the right scope-prefixed form for newer games and surface the global variant separately, since it's a real semantic distinction (which-scope-owns-this) not just a naming preference.
 
 **`clamp_variable` aside.** EU5 (7 uses) and HOI4 (216 uses) ship a `clamp_variable` keyword that's redundant in EU5 (the same `min` / `max` operations live inside `change_variable`) but is the only path on HOI4 (which doesn't have the new operation-keyed shape). Body shapes differ too — HOI4 uses a `var =` key (`clamp_variable { var = X min = Y max = Z }`), EU5 uses `name =` to match the new-shape convention. Worth noting since it's a function the per-game DSL helpers should also cover, not just a quirk of the `change_variable` story.
 
