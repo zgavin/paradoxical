@@ -173,6 +173,16 @@ RSpec.describe "per-game DSL prepended onto Builder" do
       expect(global_l.map { |c| c.key.to_s }).to eq(%w[name value days])
     end
 
+    it "rejects `days:` without a `value` (block form requires value)" do
+      # Engine requires `value` in the block form; `days:` alone
+      # would emit `set_variable = { name = X days = N }` which the
+      # engine doesn't accept. Catch at DSL time.
+      expect { builder.build { set_variable "x", days: 30 } }
+        .to raise_error(ArgumentError, /block form requires a `value`/)
+      expect { builder.build { set_global_variable "x", days: 30 } }
+        .to raise_error(ArgumentError, /block form requires a `value`/)
+    end
+
     it "change_variable accepts operation kwargs and emits them in order" do
       # `change_variable("imperial_authority_change", max: 0.2, min: 0.01, multiply: 100)`
       # (the EU5 example shape from MODERNIZATION 5e).

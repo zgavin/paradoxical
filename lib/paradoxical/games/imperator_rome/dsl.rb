@@ -21,9 +21,10 @@ module Paradoxical::Games::ImperatorRome::DSL
     define_method(key) do |name, value = nil, days: nil|
       if value.nil? and days.nil? then
         p(key, name)
+      elsif value.nil? then
+        raise ArgumentError, "#{key} block form requires a `value` (got `days: #{days.inspect}` without it)"
       else
-        children = [p("name", name)]
-        children << p("value", value) unless value.nil?
+        children = [p("name", name), p("value", value)]
         children << p("days", days) unless days.nil?
         l(key, *children).single_line!
       end
