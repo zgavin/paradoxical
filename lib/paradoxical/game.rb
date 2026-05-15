@@ -38,6 +38,7 @@ class Paradoxical::Game
 
     register_corrections
     register_calendar
+    register_float_precision
   end
 
   private
@@ -67,6 +68,15 @@ class Paradoxical::Game
   # one Game-per-process is the typical mod-script shape.
   def register_calendar
     Paradoxical::Elements::Primitives::Date.default_calendar = @game_module::CALENDAR
+  end
+
+  # Set the per-game DSL output precision cap on `Primitives::Float`.
+  # Used by `BigDecimal#to_pdx` and `::Float#to_pdx` to round
+  # arithmetic results / raw Ruby numerics before emission.
+  def register_float_precision
+    return unless defined?(@game_module::FLOAT_PRECISION)
+
+    Paradoxical::Elements::Primitives::Float.default_precision = @game_module::FLOAT_PRECISION
   end
 
   public

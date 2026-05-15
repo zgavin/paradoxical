@@ -40,6 +40,30 @@ class Paradoxical::Elements::Primitives::Float
 
   impersonate_infix_methods %i{!~ % * ** + - / =~}
 
+  # Per-game DSL output precision cap. `Game.new` sets this from
+  # the active game module's `FLOAT_PRECISION` constant; defaults
+  # to 3 (the EU4-era legacy convention) when no game is active.
+  # Used by `BigDecimal#to_pdx` and `::Float#to_pdx` to round
+  # arithmetic results and raw Ruby numerics before emission.
+  # `Primitives::Float#to_pdx` deliberately bypasses this — it
+  # returns the raw `@value` bytes so parsed sources round-trip
+  # byte-identically regardless of precision setting.
+  class << self
+    attr_writer :default_precision
+
+    def default_precision
+      @default_precision ||= 3
+    end
+
+    # Round `value` to `precision` decimal places and format in plain
+    # decimal notation (no scientific). Trims trailing zeros but
+    # preserves at least one digit after the decimal point — so
+    # `1` → `"1.0"`, `0.500000` → `"0.5"`, `1.234567` (cap 3) → `"1.235"`.
+    def format value, precision: default_precision
+      BigDecimal(value.to_s).round(precision).to_s("F")
+    end
+  end
+
   def coerce something
     case something
     when ::Integer then [@value.to_i, something]

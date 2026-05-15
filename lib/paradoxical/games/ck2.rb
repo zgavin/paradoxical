@@ -11,6 +11,7 @@ module Paradoxical::Games::CK2
   # mods (parser-only usage still works).
   LAUNCHER_FORMAT    = :legacy
   CALENDAR           = Paradoxical::Calendars::Calendar365
+  FLOAT_PRECISION    = 3
 
   # CK2 ships no branch file or launcher JSON. The game has been EOL
   # since the 3.3.5.1 patch (Sep 2021), so any installed copy is on

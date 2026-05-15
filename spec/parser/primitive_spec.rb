@@ -121,6 +121,43 @@ RSpec.describe Paradoxical::Parser do
           expect(BigDecimal("1000000").to_pdx).to eq("1000000.0")
         end
 
+        describe "per-game precision cap" do
+          # Save / restore the class-level default so individual cases
+          # don't bleed into each other (other Date tests rely on the
+          # default being 3 too — see `Float.format` defaults).
+          let(:saved_precision) { Paradoxical::Elements::Primitives::Float.default_precision }
+          after { Paradoxical::Elements::Primitives::Float.default_precision = saved_precision }
+
+          it "rounds to default_precision (3 by default — EU4 / Stellaris era)" do
+            Paradoxical::Elements::Primitives::Float.default_precision = 3
+            expect(BigDecimal("1.234567").to_pdx).to eq("1.235")
+            expect(0.987654.to_pdx).to eq("0.988")
+          end
+
+          it "rounds to EU5's 5-digit cap when set" do
+            Paradoxical::Elements::Primitives::Float.default_precision = 5
+            expect(BigDecimal("1.234567").to_pdx).to eq("1.23457")
+            expect(0.987654.to_pdx).to eq("0.98765")
+          end
+
+          it "trims trailing zeros but preserves at least one decimal" do
+            expect(BigDecimal("0.500000").to_pdx).to eq("0.5")
+            expect(BigDecimal("1.0").to_pdx).to eq("1.0")
+            expect(BigDecimal("1").to_pdx).to eq("1.0")
+            expect(0.5.to_pdx).to eq("0.5")
+          end
+
+          it "Primitives::Float#to_pdx bypasses the cap (returns raw @value bytes)" do
+            # Round-trip preservation: a parsed `0.123456` (6 digits)
+            # round-trips byte-identically regardless of the active
+            # precision cap, because the parser product's raw bytes
+            # are the source of truth.
+            Paradoxical::Elements::Primitives::Float.default_precision = 3
+            prim = Paradoxical::Elements::Primitives::Float.new("0.123456")
+            expect(prim.to_pdx).to eq("0.123456")
+          end
+        end
+
         it "round-trips through Property when value is a post-arithmetic BigDecimal" do
           # The full real-world failure mode: parse a float, do
           # arithmetic (yielding a BigDecimal), drop it back as the
