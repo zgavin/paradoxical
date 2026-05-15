@@ -393,6 +393,22 @@ Raw bytes still round-trip via `to_pdx` unchanged — round-trip is bytes-in / b
 
 Verified: 469 unit tests (5 new — `to_real` is BigDecimal, `0.1 + 0.2 == 0.3` exact, `is_a?` type contract, raw-bytes round-trip, `to_f` still works). Parse smokes clean across all five games (22,229 / 22,229).
 
+**In-game empirical confirmation (EU5, post-merge).** Validated via console `run`:
+
+```
+set_local_variable = { name = test_var value = 0.2 }
+while = { count = 10 change_local_variable = { name = test_var add = 0.1 } }
+debug_log = "test_var: [SCOPE.GetLocalVariable('test_var').GetValue]"
+```
+
+Result: `1.2` exactly — not `1.20000…` drift. So the engine's variable arithmetic isn't `Float`/`double`; it's fixed-precision or BigDecimal-equivalent. Our Ruby-side BigDecimal model is engine-correct for arithmetic semantics, not just "close enough."
+
+Same probe revealed a two-tier precision cap:
+- **6 digits** for general source-file constants (modifiers, events, etc.). Beyond → load-time errors.
+- **5 digits** for `set_local_variable` / `change_local_variable`. Distinct error messages for `set` vs `change` suggest separately validated, not a shared parser path. A 6-digit constant in `modifiers.txt` loads fine but the same value via `change_local_variable add` errors.
+
+Practical guidance: DSL emissions should stay ≤5 digits in variable arithmetic, ≤6 elsewhere. Not currently enforced in code (would need a precision-cap option on the Float DSL output); documented in `Primitives::Float`'s class doc-comment for future reference.
+
 Note: the `Impersonator#is_a?` override doesn't alias to `kind_of?`, so RSpec's `be_a` matcher (which uses `kind_of?`) sees the standard class-hierarchy answer (Primitives::Float doesn't inherit from BigDecimal). Production code uses `is_a?` consistently, so this divergence isn't load-bearing. Aliasing `kind_of?` to `is_a?` in the Impersonator concern is a follow-up cleanup not specific to 8d.
 
 #### 8e. Distinct primitive types for string-like patterns
