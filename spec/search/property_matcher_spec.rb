@@ -109,6 +109,17 @@ RSpec.describe Paradoxical::Search::PropertyMatcher do
       it "coerces to Float when property is a Float" do
         expect(described_class.new("score", operator: "=", value: "3.5").matches?(node)).to be true
       end
+
+      it "uses BigDecimal-exact comparison for Primitives::Float values (no Float coercion)" do
+        # A precision-sensitive value: 0.1 + 0.2 == 0.30000000000000004
+        # in binary FP, but exact in BigDecimal. Property values from
+        # the parser are Primitives::Float (BigDecimal-backed), and
+        # querying with the exact decimal string should match without
+        # FP drift.
+        node = list("{ ratio = 0.3 }")
+        expect(described_class.new("ratio", operator: "=", value: "0.3").matches?(node)).to be true
+        expect(described_class.new("ratio", operator: ">=", value: "0.3").matches?(node)).to be true
+      end
     end
 
     it "matches against a Document at the top level" do

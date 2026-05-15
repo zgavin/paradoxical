@@ -72,6 +72,102 @@ RSpec.describe Paradoxical::Parser do
         expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
         expect(prop.value.to_s).to eq("0.5fix")
       end
+
+      describe "BigDecimal-backed precision (phase 8d)" do
+        it "to_real returns a BigDecimal" do
+          prop = parse("foo = 1.234567").first
+          expect(prop.value.to_real).to be_a(::BigDecimal)
+          expect(prop.value.to_real).to eq(BigDecimal("1.234567"))
+        end
+
+        it "arithmetic preserves base-10 precision (0.1 + 0.2 = 0.3 exactly)" do
+          # Ruby Float drifts here: 0.1 + 0.2 == 0.30000000000000004.
+          # BigDecimal is exact.
+          prop = parse("foo = 0.1").first
+          result = prop.value + 0.2
+          expect(result).to eq(BigDecimal("0.3"))
+        end
+
+        it "is_a? sees BigDecimal (not Float) as the impersonated type" do
+          # `is_a?` is what production code uses (PropertyMatcher etc.);
+          # `kind_of?` would skip the Impersonator override and return
+          # the standard class-hierarchy answer.
+          prop = parse("foo = 1.5").first
+          expect(prop.value.is_a?(::BigDecimal)).to be true
+          expect(prop.value.is_a?(::Float)).to be false
+        end
+
+        it "raw bytes still round-trip via to_pdx" do
+          # Round-trip is bytes-in / bytes-out — independent of how
+          # `to_real` interprets the value.
+          input = "foo = 0.123456\n"
+          expect(parse(input).to_pdx).to eq(input)
+        end
+
+        it "to_f still works (BigDecimal#to_f)" do
+          prop = parse("foo = 1.234").first
+          expect(prop.value.to_f).to be_within(0.0001).of(1.234)
+        end
+
+        it "BigDecimal#to_pdx emits plain decimal notation, not scientific" do
+          # `BigDecimal("1.234").to_s` defaults to `"0.1234e4"` —
+          # without the core_extensions override, AST values that
+          # land as bare BigDecimals (results of Primitives::Float
+          # arithmetic) would serialize as scientific notation that
+          # the engine doesn't accept.
+          expect(BigDecimal("1.234").to_pdx).to eq("1.234")
+          expect(BigDecimal("0.1").to_pdx).to eq("0.1")
+          expect(BigDecimal("-1.5").to_pdx).to eq("-1.5")
+          expect(BigDecimal("1000000").to_pdx).to eq("1000000.0")
+        end
+
+        describe "per-game precision cap" do
+          # Save / restore the class-level default so individual cases
+          # don't bleed into each other (other Date tests rely on the
+          # default being 3 too — see `Float.format` defaults).
+          let(:saved_precision) { Paradoxical::Elements::Primitives::Float.default_precision }
+          after { Paradoxical::Elements::Primitives::Float.default_precision = saved_precision }
+
+          it "rounds to default_precision (3 by default — EU4 / Stellaris era)" do
+            Paradoxical::Elements::Primitives::Float.default_precision = 3
+            expect(BigDecimal("1.234567").to_pdx).to eq("1.235")
+            expect(0.987654.to_pdx).to eq("0.988")
+          end
+
+          it "rounds to EU5's 5-digit cap when set" do
+            Paradoxical::Elements::Primitives::Float.default_precision = 5
+            expect(BigDecimal("1.234567").to_pdx).to eq("1.23457")
+            expect(0.987654.to_pdx).to eq("0.98765")
+          end
+
+          it "trims trailing zeros but preserves at least one decimal" do
+            expect(BigDecimal("0.500000").to_pdx).to eq("0.5")
+            expect(BigDecimal("1.0").to_pdx).to eq("1.0")
+            expect(BigDecimal("1").to_pdx).to eq("1.0")
+            expect(0.5.to_pdx).to eq("0.5")
+          end
+
+          it "Primitives::Float#to_pdx bypasses the cap (returns raw @value bytes)" do
+            # Round-trip preservation: a parsed `0.123456` (6 digits)
+            # round-trips byte-identically regardless of the active
+            # precision cap, because the parser product's raw bytes
+            # are the source of truth.
+            Paradoxical::Elements::Primitives::Float.default_precision = 3
+            prim = Paradoxical::Elements::Primitives::Float.new("0.123456")
+            expect(prim.to_pdx).to eq("0.123456")
+          end
+        end
+
+        it "round-trips through Property when value is a post-arithmetic BigDecimal" do
+          # The full real-world failure mode: parse a float, do
+          # arithmetic (yielding a BigDecimal), drop it back as the
+          # property's value, serialize. Without BigDecimal#to_pdx
+          # this would emit `key = 0.3e0` style scientific notation.
+          prop = parse("key = 0.1").first
+          prop.value = prop.value + 0.2 # BigDecimal("0.3")
+          expect(prop.to_pdx).to eq("key = 0.3")
+        end
+      end
     end
 
     describe "boolean" do

@@ -27,7 +27,15 @@ class Paradoxical::Search::PropertyMatcher
     properties.any? do |property|
       tmp = value
       tmp = tmp.to_i if property.value.is_a? Integer
-      tmp = tmp.to_f if property.value.is_a?(Float) or property.value.is_a?(Paradoxical::Elements::Primitives::Float)
+      # `Primitives::Float` is BigDecimal-backed (8d), and
+      # Impersonator's `is_a?` override makes it answer true to
+      # `is_a?(::BigDecimal)` — so the explicit Primitives::Float
+      # check is redundant. Split Float vs BigDecimal so Ruby Floats
+      # match via Float#== (binary-FP semantics) and BigDecimals match
+      # exactly via BigDecimal#== — avoids the
+      # `BigDecimal("0.1") != 0.1` precision gotcha.
+      tmp = tmp.to_f if property.value.is_a? Float
+      tmp = tmp.to_d if property.value.is_a? BigDecimal
 
       case operator
       when "="

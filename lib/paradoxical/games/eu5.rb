@@ -11,6 +11,12 @@ module Paradoxical::Games::EU5
   # launcher-v2 SQLite database.
   LAUNCHER_FORMAT    = :json
   CALENDAR           = Paradoxical::Calendars::Calendar365
+  # EU5 generally accepts up to 6 decimal digits in source, but
+  # `set_local_variable` / `change_local_variable` cap at 5 (with
+  # distinct errors for set vs change — separately validated paths,
+  # not a shared parser). 5 is the variable-safe default; modders
+  # who need 6 in a non-variable context can opt out via raw bytes.
+  FLOAT_PRECISION    = 5
 
   # EU5 ships no launcher-settings.json. `caesar_branch.txt` is also
   # unreliable: its format is at Paradox's whim and patch components

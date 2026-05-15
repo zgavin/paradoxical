@@ -12,6 +12,7 @@ module Paradoxical::Games::ImperatorRome
   # plain integer-year math; no Imperator-specific calendar subclass
   # needed.
   CALENDAR           = Paradoxical::Calendars::Calendar365
+  FLOAT_PRECISION    = 3
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

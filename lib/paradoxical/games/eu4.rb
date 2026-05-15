@@ -7,6 +7,7 @@ module Paradoxical::Games::EU4
   LAUNCHER_FORMAT   = :sqlite
 
   CALENDAR = Paradoxical::Calendars::Calendar365
+  FLOAT_PRECISION = 3
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

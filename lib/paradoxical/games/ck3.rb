@@ -6,6 +6,7 @@ module Paradoxical::Games::CK3
   HAS_GAME_SUBDIR    = true
   LAUNCHER_FORMAT    = :sqlite
   CALENDAR           = Paradoxical::Calendars::Calendar365
+  FLOAT_PRECISION    = 3
 
   # Reads `rawVersion` from the game's `launcher-settings.json`.
   def self.installed_version game

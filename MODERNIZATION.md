@@ -300,7 +300,64 @@ The `@gamestate` intel-manager regex fix-up (`gsub(/^(\d+)\s*\{$/, '\1 = {')`) a
 
 Verified: 396 unit tests pass; EU5 + Stellaris parse smokes clean; `paradoxical! game: "stellaris"` exposes `edit` at top level, `paradoxical! game: "eu4"` does not.
 
-Phases 1–5 are now complete.
+Phases 1–5's structural restructuring is complete. 5e below is a known per-game DSL gap surfaced after the fact.
+
+#### 5e. Per-game variable arithmetic DSLs (pending)
+
+Surfaced during the in-game probe for 8d's precision validation: EU5 and Imperator use a new operation-keyed `change_variable` shape, while EU4 / Stellaris / HOI4 use the legacy separate-function family (`multiply_variable`, `divide_variable`, etc.) that the current base Builder loop emits.
+
+Empirical sweep across installed games:
+
+| Game | `change_variable` uses | Legacy `*_variable` uses | Shape |
+|---|---:|---:|---|
+| EU4 | 260 | 492 | legacy `change_variable { which = X value = Y }` (functionally `add`) + `multiply_variable` / `divide_variable` / … family |
+| Stellaris | 893 | 205 | same as EU4 — legacy `change_variable { which = X value = Y }` (a coincidence in keyword naming with the new shape; the body is the legacy form) + the `*_variable` family |
+| HOI4 | 0 | 341 | `*_variable` family exclusively |
+| Imperator | 312 | 0 | new operation-keyed `change_variable { name = X add = Y }` |
+| EU5 | 342 | 0 | new operation-keyed `change_variable { name = X add = Y }`, also supports chaining + nesting |
+
+**Three storage kinds.** Variables can attach to three different things:
+
+- **Scope** — a persistent game object (country, location, religion, unit, …). The bare `set_variable` operates on the current scope; the variable lives with that object for the rest of the campaign (or until cleared). All games support this form, but the set of scopes that *accept* variables varies — EU4 limits to `country` and `province`; Stellaris expanded to nearly every scope type over its lifetime.
+- **Context** — a transient execution unit (event chain, effect block, etc.). `set_local_variable` operates here; the variable disappears when the context ends. New in EU5 / Imperator.
+- **Game** — game-wide, accessible from any scope. `set_global_variable` operates here. New in EU5 / Imperator.
+
+| Game | Bare (scope) | Local (context) | Global (game-wide) |
+|---|---|---:|---:|
+| EU4 | yes — `country` / `province` scopes only | 0 | 0 |
+| Stellaris | yes — broad scope support added over the game's lifetime | 0 | 0 |
+| HOI4 | yes | 0 | 0 |
+| Imperator | yes | 73 | 26 |
+| EU5 | yes | 124 | 55 |
+
+The per-game DSL helpers will need to surface the local + global variants separately on EU5 / Imperator since they're semantically distinct from the bare form (different lifetime + reach), not just a naming preference.
+
+**`clamp_variable` aside.** EU5 (7 uses) and HOI4 (216 uses) ship a `clamp_variable` keyword that's redundant in EU5 (the same `min` / `max` operations live inside `change_variable`) but is the only path on HOI4 (which doesn't have the new operation-keyed shape). Body shapes differ too — HOI4 uses a `var =` key (`clamp_variable { var = X min = Y max = Z }`), EU5 uses `name =` to match the new-shape convention. Worth noting since it's a function the per-game DSL helpers should also cover, not just a quirk of the `change_variable` story.
+
+The EU5 / Imperator shape is meaningfully more powerful. Operations (`add`, `subtract`, `multiply`, `divide`, `modulo`, `min`, `max`, `value`) can be chained in one `change_variable` and nested. Example from EU5:
+
+```
+change_variable = {
+  name = imperial_authority
+  add = {                                # nested expression
+    value = scope:loser.total_population
+    divide = scope:winner.total_population
+    max = 2
+    min = 0.1
+    multiply = 5
+  }
+}
+```
+
+Read as: compute `loser.total_population / winner.total_population`, clamp to `[0.1, 2]`, multiply by 5, then add the result to `imperial_authority`. A single nested block — not expressible by the legacy per-operation function family.
+
+**Scope when tackled:**
+- Move the existing variable-arithmetic helpers off the base Builder (where they currently live in a loop at `lib/paradoxical/builder.rb:184`) into per-game DSL modules. Mirrors how 5b moved `add_resource` / `check_galaxy_setup_value` off Builder into `Stellaris::DSL`.
+- **EU4 DSL**: keep the existing `which`-key override for non-numeric values; absorb the legacy family (currently game-agnostic on Builder) so it's explicitly EU4's contract.
+- **Stellaris / HOI4 DSL**: legacy family, no `which`-key wrinkle.
+- **EU5 / Imperator DSL**: new `change_variable { name = ... add = ... }` shape. Helper should accept nested expressions naturally — probably a builder block API so users can chain operations declaratively.
+
+Trigger: surfaces when a mod-script wants to emit EU5/Imperator variable arithmetic. Today the only path is constructing the script tree manually. Not in scope for 8d's precision work; filed here so the empirical landscape isn't lost.
 
 ### 6. RBS types
 
@@ -376,20 +433,40 @@ HOI4 and EU5 have hour-level granularity in-game but the script language doesn't
 
 Verified: 423 unit tests pass (8 new — year/month/day accessors, sentinel-date acceptance, day arithmetic, AS::Duration month-shift with day-clamp, Date - Date, Comparable, Stellaris Feb 30 support). Parse smokes clean across all five games (22,229 / 22,229 files).
 
-#### 8d. Float → BigDecimal-backed precision (pending)
+#### 8d. Float → BigDecimal-backed precision (landed)
 
-`Paradoxical::Elements::Primitives::Float` currently impersonates Ruby `::Float` (binary FP). DSL math on parsed decimals can drift due to binary-FP rounding. Real-world DSL math is rare so it hasn't bitten in practice yet, but the precision pattern in newer games argues for fixing it before it does.
+`Primitives::Float` was impersonating Ruby `::Float` (binary FP). DSL math on parsed decimals would drift due to binary-FP rounding — the classic `0.1 + 0.2 = 0.30000000000000004` failure on every value modders actually care about.
 
-**Empirical precision finding (EU5):** older PDX games stored decimals as fixed-precision integers with 3 decimal places (`1.234` = internal `1234`). EU5 isn't that anymore — numerous game-data floats carry 4-6 digits of precision, with 6 looking like a soft limit (~20k 6-digit values across the install, only 49 with 7+ digits and at least one of those is in a comment). Best guess: 64-bit integers with 6-digit fixed precision for game logic, true float/double for some shader/rendering paths.
+**Empirical precision finding (EU5):** older PDX games stored decimals as fixed-precision integers with 3 decimal places (`1.234` = internal `1234`). EU5 isn't that anymore — numerous game-data floats carry 4-6 digits of precision, with 6 a soft limit (~20k 6-digit values across the install, only 49 with 7+ digits and at least one of those is in a comment). Best guess: 64-bit integers with 6-digit fixed precision for game logic, true float/double for some shader/rendering paths.
 
-**Decision: BigDecimal over Integer × scale.** With variable precision per file/field, fixed-scale Integer doesn't fit. BigDecimal is stdlib and the Impersonator concern handles infix and comparison delegation through `to_real`, so changing the impersonated class plus the conversion method (`:to_d`) propagates BigDecimal semantics to comparisons and arithmetic automatically.
+**Decision: BigDecimal over Integer × scale.** Variable precision per file/field rules out fixed-scale Integer. BigDecimal is stdlib; the `Impersonator` concern handles infix and comparison delegation through `to_real`, so switching the impersonated class to `::BigDecimal` and the conversion method to `:to_d` propagates BigDecimal semantics to comparisons and arithmetic automatically.
 
 Migration surface (small — PancakeTaco is the only consumer):
-- `Primitives::Float#to_real` returns `BigDecimal` instead of `Float`.
+- `Primitives::Float#to_real` returns `BigDecimal` instead of `Float`. Arithmetic results from `+`/`-`/`*`/`/`/`%`/`**` are `BigDecimal` instead of `Float`.
 - `prop.value.to_f` still works (BigDecimal responds to `to_f`).
-- `prop.value.is_a?(::Float)` becomes false. `PropertyMatcher#matches?` does this check at one line; needs updating. No other Ruby-side callers do `is_a? Float`.
+- `prop.value.is_a?(::Float)` becomes false; `is_a?(::BigDecimal)` becomes true. `PropertyMatcher#matches?`'s `is_a?(Float)` coercion check was updated to also recognize `BigDecimal`.
 
-Trigger: surfaces when DSL math drifts. Not urgent.
+Raw bytes still round-trip via `to_pdx` unchanged — round-trip is bytes-in / bytes-out, independent of how arithmetic interprets the value.
+
+Verified: 469 unit tests (5 new — `to_real` is BigDecimal, `0.1 + 0.2 == 0.3` exact, `is_a?` type contract, raw-bytes round-trip, `to_f` still works). Parse smokes clean across all five games (22,229 / 22,229).
+
+**In-game empirical confirmation (EU5, post-merge).** Validated via console `run`:
+
+```
+set_local_variable = { name = test_var value = 0.2 }
+while = { count = 10 change_local_variable = { name = test_var add = 0.1 } }
+debug_log = "test_var: [SCOPE.GetLocalVariable('test_var').GetValue]"
+```
+
+Result: `1.2` exactly — not `1.20000…` drift. So the engine's variable arithmetic isn't `Float`/`double`; it's fixed-precision or BigDecimal-equivalent. Our Ruby-side BigDecimal model is engine-correct for arithmetic semantics, not just "close enough."
+
+Same probe revealed a two-tier precision cap:
+- **6 digits** for general source-file constants (modifiers, events, etc.). Beyond → load-time errors.
+- **5 digits** for `set_local_variable` / `change_local_variable`. Distinct error messages for `set` vs `change` suggest separately validated, not a shared parser path. A 6-digit constant in `modifiers.txt` loads fine but the same value via `change_local_variable add` errors.
+
+Practical guidance: DSL emissions should stay ≤5 digits in variable arithmetic, ≤6 elsewhere. Not currently enforced in code (would need a precision-cap option on the Float DSL output); documented in `Primitives::Float`'s class doc-comment for future reference.
+
+Note: the `Impersonator#is_a?` override doesn't alias to `kind_of?`, so RSpec's `be_a` matcher (which uses `kind_of?`) sees the standard class-hierarchy answer (Primitives::Float doesn't inherit from BigDecimal). Production code uses `is_a?` consistently, so this divergence isn't load-bearing. Aliasing `kind_of?` to `is_a?` in the Impersonator concern is a follow-up cleanup not specific to 8d.
 
 #### 8e. Distinct primitive types for string-like patterns
 

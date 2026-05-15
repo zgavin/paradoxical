@@ -48,8 +48,26 @@ end
 class Float
   prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
 
+  # Round + trim via `Primitives::Float.format`, using the active
+  # game's precision cap (set by `Game.new` from `FLOAT_PRECISION`,
+  # default 3). Replaces the old hard-coded `"%.3f"` shape: `0.5`
+  # now emits `"0.5"` rather than `"0.500"`. Modders who need a
+  # specific precision / trailing zeros can pass a string literal
+  # through `Primitives::String` instead.
   def to_pdx
-    "%.3f" % self
+    Paradoxical::Elements::Primitives::Float.format(self)
+  end
+end
+
+class BigDecimal
+  prepend Paradoxical::Elements::Concerns::Impersonator::NativeComparisons
+
+  # BigDecimals land in AST values when `Primitives::Float` arithmetic
+  # returns a result (post-8d). Default `to_s` is scientific notation
+  # (`"0.1234e4"`) which the engine doesn't accept. Round + trim via
+  # the same formatter `::Float#to_pdx` uses.
+  def to_pdx
+    Paradoxical::Elements::Primitives::Float.format(self)
   end
 end
 
