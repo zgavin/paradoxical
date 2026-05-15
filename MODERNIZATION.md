@@ -300,7 +300,46 @@ The `@gamestate` intel-manager regex fix-up (`gsub(/^(\d+)\s*\{$/, '\1 = {')`) a
 
 Verified: 396 unit tests pass; EU5 + Stellaris parse smokes clean; `paradoxical! game: "stellaris"` exposes `edit` at top level, `paradoxical! game: "eu4"` does not.
 
-Phases 1–5 are now complete.
+Phases 1–5's structural restructuring is complete. 5e below is a known per-game DSL gap surfaced after the fact.
+
+#### 5e. Per-game variable arithmetic DSLs (pending)
+
+Surfaced during the in-game probe for 8d's precision validation: EU5 and Imperator use a new operation-keyed `change_variable` shape, while EU4 / Stellaris / HOI4 use the legacy separate-function family (`multiply_variable`, `divide_variable`, etc.) that the current base Builder loop emits.
+
+Empirical sweep across installed games:
+
+| Game | `change_variable` uses | Legacy `*_variable` uses | Shape |
+|---|---:|---:|---|
+| EU4 | 260 | 492 | `change_variable { which = X value = Y }` + `multiply_variable`/`divide_variable`/… family |
+| Stellaris | 893 | 205 | mostly the `*_variable` family |
+| HOI4 | 0 | 341 | `*_variable` family exclusively |
+| Imperator | 312 | 0 | `change_variable { name = X add = Y }` (operation-keyed) |
+| EU5 | 342 | 0 | `change_variable { name = X add = Y }` (operation-keyed, nestable) |
+
+The EU5 / Imperator shape is meaningfully more powerful. Operations (`add`, `subtract`, `multiply`, `divide`, `modulo`, `min`, `max`, `value`) can be chained in one `change_variable` and nested. Example from EU5:
+
+```
+change_variable = {
+  name = imperial_authority
+  add = {                                # nested expression
+    value = scope:loser.total_population
+    divide = scope:winner.total_population
+    max = 2
+    min = 0.1
+    multiply = 5
+  }
+}
+```
+
+Read as: compute `loser.total_population / winner.total_population`, clamp to `[0.1, 2]`, multiply by 5, then add the result to `imperial_authority`. A single nested block — not expressible by the legacy per-operation function family.
+
+**Scope when tackled:**
+- Move the existing variable-arithmetic helpers off the base Builder (where they currently live in a loop at `lib/paradoxical/builder.rb:184`) into per-game DSL modules. Mirrors how 5b moved `add_resource` / `check_galaxy_setup_value` off Builder into `Stellaris::DSL`.
+- **EU4 DSL**: keep the existing `which`-key override for non-numeric values; absorb the legacy family (currently game-agnostic on Builder) so it's explicitly EU4's contract.
+- **Stellaris / HOI4 DSL**: legacy family, no `which`-key wrinkle.
+- **EU5 / Imperator DSL**: new `change_variable { name = ... add = ... }` shape. Helper should accept nested expressions naturally — probably a builder block API so users can chain operations declaratively.
+
+Trigger: surfaces when a mod-script wants to emit EU5/Imperator variable arithmetic. Today the only path is constructing the script tree manually. Not in scope for 8d's precision work; filed here so the empirical landscape isn't lost.
 
 ### 6. RBS types
 
