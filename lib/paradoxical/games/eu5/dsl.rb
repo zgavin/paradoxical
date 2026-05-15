@@ -15,14 +15,38 @@ module Paradoxical::Games::EU5::DSL
   # targets the current context (event chain / effect block);
   # `_global_` targets the game-wide store.
   #
-  # The read-side trigger is `has_variable` (not `check_variable`,
-  # which EU5/Imperator don't expose — that's an EU4/Stellaris
-  # thing). Deferred to 5e-3 along with `round_variable`, the
-  # `days =` lifetime kwarg on `set_variable`, and the
-  # property-form shorthand `set_variable = NAME`.
+  # Two forms:
+  #   set_variable "foo"                        # property: `set_variable = foo`
+  #   set_variable "foo", 5                     # block: `set_variable = { name = foo value = 5 }`
+  #   set_variable "foo", 5, days: 30           # block: `... value = 5 days = 30 }`
+  #   set_variable "foo", "yes", days: 365      # ccw_timer-style flag with lifetime
+  #
+  # Single-arg form is the property-form shorthand the engine
+  # accepts as `set_variable = NAME` (equivalent to `{ name = NAME
+  # value = yes }`). Empirically used 768 times in EU5 for flag-
+  # style boolean variables. `days:` is the variable lifetime
+  # kwarg per the EU5 wiki; lands inside the block alongside
+  # `value`. Local-scope `days:` is rare (engine probably ignores
+  # it since local variables die with the context anyway) but
+  # accepted for shape symmetry across the scope variants.
+  #
+  # Read-side `has_variable` and similar triggers work via the
+  # generic DSL fallthrough (`has_variable "foo"` → `has_variable
+  # = foo`) — no explicit helper needed.
   %w[set_variable set_local_variable set_global_variable].each do |key|
-    define_method(key) do |name, value|
-      l(key, p("name", name), p("value", value)).single_line!
+    define_method(key) do |name, value = nil, days: nil|
+      if value.nil? and days.nil? then
+        p(key, name)
+      elsif value.nil? then
+        # Engine requires `value` in the block form — `days:` alone
+        # is invalid. Catch at DSL time so this surfaces here rather
+        # than at game-load.
+        raise ArgumentError, "#{key} block form requires a `value` (got `days: #{days.inspect}` without it)"
+      else
+        children = [p("name", name), p("value", value)]
+        children << p("days", days) unless days.nil?
+        l(key, *children).single_line!
+      end
     end
   end
 

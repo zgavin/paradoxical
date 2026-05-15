@@ -402,25 +402,25 @@ Flat kwargs + block can also mix; kwargs emit first, block contents after. Block
 
 The DSL needs almost no new code — three lines in each game's DSL (`change_variable` definition now passes a block through to `l(...)` and skips `single_line!` when a block is present). The heavy lifting (nested block evaluation, child accumulation) was already in `Builder#list`. Verified the doc-note suspicion in 5e-3 that "most keywords work via idiomatic DSL" — same logic applies to the operation bodies here.
 
-**5e-3: Ergonomic helpers + property-form shorthand (pending).**
+**5e-3: `days:` kwarg + property-form shorthand (landed).**
 
-The 5e-1 PR landed the structural move + the most-common helpers. Most other variable-related keywords can already be emitted via idiomatic DSL — `method_missing` → `pdx_obj` builds the right `keyword = { key = value … }` shape from a block body, so things like:
+5e-1 and 5e-2 covered the structural move + the common helpers + chainable change_variable. 5e-3 fills in the last two cases where an explicit helper still pays for itself; everything else (`has_variable`, `clamp_variable`, `round_variable`, etc.) works via Builder's `method_missing` → `pdx_obj` fall-through:
 
 ```ruby
-has_variable "foo"                                # has_variable = foo
+has_variable "foo"                                  # has_variable = foo
 clamp_variable do; name "foo"; min 0; max 100; end  # EU5 form
 clamp_variable do; var "foo"; min 0; max 100; end   # HOI4 form
 round_variable do; name "foo"; nearest 1; end
 ```
 
-…all work today via Builder's `method_missing` fall-through. The DSL doesn't need explicit helpers for keywords whose only value-add is convenient kwargs.
+Two genuine helper additions:
 
-That leaves two items where an explicit helper *does* pay for itself:
+- **`days:` kwarg on `set_*_variable`** (EU5/Imperator). Emits `{ name = X value = Y days = N }`. Real examples confirmed in EU5 source: `set_variable = { name = ccw_timer value = yes days = 365 }`. `set_global_variable` also accepts it (1 EU5 use); `set_local_variable` empirically doesn't appear with `days` (engine likely ignores it since local variables die with the context anyway) but the helper accepts it for shape symmetry.
+- **Property-form shorthand**: `set_variable("foo")` (single positional arg) emits `set_variable = foo` instead of the block form. Equivalent to `set_variable = { name = foo value = yes }` per the wiki. Empirical use is heavy: EU5 has 768 / 9 / 27 property-form uses of bare / `_local_` / `_global_` (Imperator 700 / 1 / 11). The shorthand applies across all three scope variants.
 
-- **`days =` kwarg on `set_variable`** (EU5/Imperator only). Per the EU5 wiki, `set_variable` accepts an optional `days = <script_value>` lifetime. Worth a kwarg on the existing `set_*_variable` helpers since it changes the block shape and is easy to forget.
-- **Property-form shorthand** for `set_variable`. EU5 (and probably Imperator) accept `set_variable = NAME` as a shorthand for `set_variable = { name = NAME value = yes }`. Useful for boolean-flag variables. DSL surface: `set_variable("foo")` (single positional arg) emits the property form; `set_variable("foo", value)` keeps the block form.
+Verified: 492/0 unit (4 new — single-arg shorthand for bare + scope variants, `days:` kwarg for bare + scope variants), 22,229/22,229 parse smokes clean, rubocop clean.
 
-The `change_variable` chainable / nested form filed under 5e-2 might also turn out to be idiomatic-doable via `change_variable do; name "x"; add do; … end; end`. Worth re-evaluating when that PR is tackled.
+The variable-arithmetic DSL surface is now feature-complete for the per-game shapes we've observed. Future work would be game-specific (e.g., new keywords in future patches) rather than structural.
 
 ### 6. RBS types
 
