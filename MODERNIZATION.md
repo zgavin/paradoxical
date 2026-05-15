@@ -553,6 +553,29 @@ Sub-PR sequence in order of complexity:
 
 **Trade-off to budget for.** A stricter parser will surface previously-passing files as smoke failures. That's positive signal (real invalid syntax we used to mask) but each fix surfaces its own allowlist churn — and if any `compile.rb`-emitted output trips on stricter validation, the DSL needs a small accompanying fix to use the right typed helper. Each sub-PR runs all five smokes before merge.
 
+### 9. Per-game primitive validation
+
+The grammar accepts the union of what all five engines permit, by design (one parser, many games). But individual engines reject shapes other engines accept, and there's no way today to surface "the grammar permits it, but engine X rejects it" so mod authors hear about real bugs in their content.
+
+Known seed cases (more expected as we investigate):
+
+- **VariableRef name shape** — EU5 (Jomini) rejects `@_foo` and `@1foo` with "Invalid variable name. Variable names must start with a letter and only contain letters, numbers, or underscores." HOI4 (Clausewitz) accepts and ships 141 `@<year>` defs (`@1918 = 0` etc.). Two different validation rules across engine generations for the same grammar shape.
+- **Quoted vs unquoted strings** — game-specific strictness varies; need to catalog empirically.
+- **Date sentinels** — `0000.00.00` and similar are accepted in some games but not others.
+- **Color components** — `Color::RGB`, `Color::HSV360`, `Color::Hex` already use `validate!` (shape established in phase 8b), but it raises rather than warns.
+
+Warnings, not errors. The engine itself warns and skips the offending line at runtime — a hard parse error in Paradoxical would make an invalid mod unparseable until the user writes a correction, which is a worse user experience than the engine's "log and continue." Fatal parse errors stay reserved for grammar-level failures (`ParseError`).
+
+Design surface to settle:
+
+- **Warning channel.** Probably a `Document#warnings` accumulator the parser populates, plus a CLI surface to print them after a parse. Needs to flow through `Game#parse_files` so batch-parses surface every warning, not just the last one.
+- **Per-primitive validation hook.** Extend the `validate!` precedent already in `Color::*` to other primitives; convert raise → warn-channel for the new cases.
+- **Per-game config.** Class-level state set by `Game.new`, same shape as `Date.default_calendar` and `Float.default_precision`. E.g., `VariableRef.name_pattern` set to a Jomini-strict or Clausewitz-permissive regex.
+- **Empirical sweep.** Once the infrastructure exists, walk each primitive and catalog which games reject which shapes. The seed cases above are what we know about; the actual list is likely larger.
+- **Relationship with corrections.** Corrections (phase 5c) fix up *parse-blocking* invalid syntax; validation warnings flag *engine-rejected-but-grammar-acceptable* syntax. They're complementary — a mod could have both. May need to consider whether some validation warnings should suggest a correction.
+
+Gated on 8e completing — once all the typed primitives exist we know the full set that might want per-game rules. Phase 8b's `validate!` work is the closest precedent and a useful reference.
+
 ## Decision log
 
 Captured here so we don't re-litigate them.
