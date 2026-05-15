@@ -19,12 +19,22 @@ module Paradoxical::Games::ImperatorRome::DSL
     end
   end
 
-  # See EU5::DSL for the nested-block example. Block form emits
-  # multi-line; flat-kwargs form stays single-line.
+  # See EU5::DSL for the nested-block example. `single_line!` only
+  # fires for the one-flat-op shape; multi-op and block forms emit
+  # multi-line.
+  CHANGE_VARIABLE_OPERATIONS = %i[add subtract multiply divide modulo min max value].freeze
+
   %w[change_variable change_local_variable change_global_variable].each do |key|
     define_method(key) do |name, **operations, &block|
+      unknown = operations.keys - CHANGE_VARIABLE_OPERATIONS
+      if unknown.any? then
+        raise ArgumentError,
+              "unknown #{key} operation(s) #{unknown.inspect}; " \
+              "allowed: #{CHANGE_VARIABLE_OPERATIONS.inspect}"
+      end
+
       list = l(key, p("name", name), *operations.map do |k, v| p(k.to_s, v) end, &block)
-      list.single_line! if block.nil?
+      list.single_line! if block.nil? and operations.size == 1
       list
     end
   end

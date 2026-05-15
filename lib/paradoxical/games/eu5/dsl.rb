@@ -26,15 +26,19 @@ module Paradoxical::Games::EU5::DSL
     end
   end
 
-  # `change_variable` with operation kwargs — `add:`, `subtract:`,
-  # `multiply:`, `divide:`, `modulo:`, `min:`, `max:`, `value:` —
-  # emitted in declaration order. Multiple ops in one call work
-  # (`change_variable("x", multiply: 100, min: 0)`) because PDX
-  # treats the body as a sequence of operations applied in source
-  # order.
+  # Operation kwargs allowed in `change_variable` and its scope
+  # variants. Empirically derived from EU5 source (PR #74 review);
+  # rejecting unknown kwargs catches typos like `add: 5` vs `ad: 5`
+  # at construction time rather than producing engine-invalid script.
+  CHANGE_VARIABLE_OPERATIONS = %i[add subtract multiply divide modulo min max value].freeze
+
+  # `change_variable` with operation kwargs — emitted in declaration
+  # order so `change_variable("x", multiply: 100, min: 0, max: 1)`
+  # produces `{ name = x multiply = 100 min = 0 max = 1 }` and PDX
+  # applies the ops left-to-right.
   #
-  # Nested operations land via a block — any of the operation kwargs
-  # can also be expressed inside the block as a nested body:
+  # Nested operations land via a block — any operation can also be
+  # expressed inside the block as a nested body:
   #
   #   change_variable "imperial_authority" do
   #     add do
@@ -48,12 +52,23 @@ module Paradoxical::Games::EU5::DSL
   #
   # The block evaluates in Builder context, so any `keyword do … end`
   # inside it falls through `method_missing` → `pdx_obj` and produces
-  # the right `keyword = { body }` shape. Block form emits multi-line;
-  # flat-kwargs form stays single-line.
+  # the right `keyword = { body }` shape.
+  #
+  # Whitespace: `single_line!` only when there's exactly one flat
+  # operation (`change_variable("x", add: 5)` style). Multi-op flat
+  # forms and any block form stay multi-line — matches how real
+  # EU5 source writes multi-op changes.
   %w[change_variable change_local_variable change_global_variable].each do |key|
     define_method(key) do |name, **operations, &block|
+      unknown = operations.keys - CHANGE_VARIABLE_OPERATIONS
+      if unknown.any? then
+        raise ArgumentError,
+              "unknown #{key} operation(s) #{unknown.inspect}; " \
+              "allowed: #{CHANGE_VARIABLE_OPERATIONS.inspect}"
+      end
+
       list = l(key, p("name", name), *operations.map do |k, v| p(k.to_s, v) end, &block)
-      list.single_line! if block.nil?
+      list.single_line! if block.nil? and operations.size == 1
       list
     end
   end

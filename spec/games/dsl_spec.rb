@@ -202,6 +202,23 @@ RSpec.describe "per-game DSL prepended onto Builder" do
       expect(nested.to_pdx.count("\n")).to be > 1
     end
 
+    it "change_variable rejects unknown operation kwargs" do
+      expect { builder.build { change_variable "x", bogus: 1 } }
+        .to raise_error(ArgumentError, /unknown change_variable operation/)
+      expect { builder.build { change_variable "x", add: 1, also_bogus: 2 } }
+        .to raise_error(ArgumentError, /also_bogus/)
+    end
+
+    it "change_variable stays multi-line for multi-op flat kwargs (single_line! only when one op)" do
+      one_op   = builder.build { change_variable "x", add: 5 }.first
+      multi_op = builder.build { change_variable "x", multiply: 100, min: 0, max: 1 }.first
+
+      # Matches real EU5 source style: single-op changes are inline,
+      # multi-op changes are written across lines for readability.
+      expect(one_op.to_pdx.count("\n")).to eq(1)
+      expect(multi_op.to_pdx.count("\n")).to be > 1
+    end
+
     it "change_variable allows mixing flat kwargs with a block (kwargs first)" do
       elements = builder.build do
         change_variable "x", multiply: 2 do
