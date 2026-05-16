@@ -540,16 +540,32 @@ RSpec.describe Paradoxical::Parser do
         expect { ref.resolve }.to raise_error(/detached/)
       end
 
-      it "resolves a chained ref via repeated #resolve calls" do
-        # `@inner = 5`, `@outer = @inner`, `foo = @outer` — first
-        # resolve returns `@inner`; second resolve from that returns 5.
+      it "follows a chained ref through to a concrete value in one call" do
+        # `@inner = 5`, `@outer = @inner`, `foo = @outer` — resolve
+        # chains through the VariableRef hop and returns 5 directly.
         doc = parse("@inner = 5\n@outer = @inner\nfoo = @outer\n")
         foo = doc.properties.detect do |p| p.key.to_s == "foo" end
-        first = foo.value.resolve
-        expect(first).to be_a(Paradoxical::Elements::Primitives::VariableRef)
-        expect(first.name).to eq("inner")
-        second = first.resolve
-        expect(second.to_i).to eq(5)
+        expect(foo.value.resolve.to_i).to eq(5)
+      end
+
+      it "resolves a key-side ref to its own definition's value" do
+        # The def-site case — calling resolve on the LHS `@base` of
+        # `@base = 10` returns 10.
+        doc = parse("@base = 10\nfoo = @base\n")
+        base_def = doc.properties.detect do |p| p.key.is_a?(Paradoxical::Elements::Primitives::VariableRef) end
+        expect(base_def.key.resolve.to_i).to eq(10)
+      end
+
+      it "raises on a self-referential cycle (@a = @a)" do
+        doc = parse("@a = @a\nfoo = @a\n")
+        foo = doc.properties.detect do |p| p.key.to_s == "foo" end
+        expect { foo.value.resolve }.to raise_error(/cycle.*@a/i)
+      end
+
+      it "raises on a mutual cycle (@a = @b, @b = @a)" do
+        doc = parse("@a = @b\n@b = @a\nfoo = @a\n")
+        foo = doc.properties.detect do |p| p.key.to_s == "foo" end
+        expect { foo.value.resolve }.to raise_error(/cycle/i)
       end
     end
 

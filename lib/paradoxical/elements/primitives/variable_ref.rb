@@ -53,24 +53,54 @@ class Paradoxical::Elements::Primitives::VariableRef
     self.class.new @raw.dup
   end
 
-  # Walk up from `@owner`, scanning each enclosing list/document for a
-  # property whose *key* is a VariableRef with the same name. Returns
-  # the property's value (which may itself be a VariableRef — callers
-  # that want a fully-evaluated value can call `#resolve` again).
+  # Walk up from `@owner`, scanning each enclosing scope for a property
+  # whose *key* is a VariableRef with the same name; if the value found
+  # is itself a VariableRef, follow the chain through to a concrete
+  # value. Cycle-detects by name: `@a = @b`, `@b = @a` raises rather
+  # than looping forever.
   #
   # Raises if the ref is detached (no owner) or if no matching
   # definition is found in any ancestor scope. PDX engine semantics
   # don't restrict definitions to lexically-earlier siblings — defs
-  # anywhere in scope are visible — so the scan covers all siblings.
+  # anywhere in scope are visible — so the scan covers all siblings
+  # at each ancestor level.
   def resolve
+    visited = Set.new
+    current = self
+
+    loop do
+      raise "VariableRef cycle: @#{visited.to_a.join(" -> @")} -> @#{current.name}" if visited.include?(current.name)
+
+      visited << current.name
+
+      value = current.send(:lookup_definition_value)
+
+      return value unless value.is_a?(Paradoxical::Elements::Primitives::VariableRef)
+
+      current = value
+    end
+  end
+
+  protected
+
+  # Single-hop definition lookup. The `key.equal?(self)` short-circuit
+  # handles the def-site case — calling `#resolve` on a key-side
+  # var-ref (the LHS of `@foo = 5`) returns its own definition's
+  # value. The siblings scan handles the use-site case, walking up
+  # ancestor scopes since the engine's lexical visibility is upward.
+  def lookup_definition_value
     raise "VariableRef #{@raw} is detached — call #resolve only on refs reachable from a Document" if @owner.nil?
+
+    if @owner.is_a?(Paradoxical::Elements::Property) and @owner.key.equal?(self) then
+      return @owner.value
+    end
 
     node = @owner
 
     while node and node.respond_to?(:parent) and not node.parent.nil?
-      node.parent.each do |sibling|
+      node.siblings.each do |sibling|
         next unless sibling.is_a?(Paradoxical::Elements::Property)
-        next unless sibling.key.is_a?(self.class)
+        next unless sibling.key.is_a?(Paradoxical::Elements::Primitives::VariableRef)
         next unless sibling.key.name == @name
 
         return sibling.value
@@ -81,6 +111,8 @@ class Paradoxical::Elements::Primitives::VariableRef
 
     raise "VariableRef #{@raw} could not be resolved — no @#{@name} definition found in scope"
   end
+
+  public
 
   def <=> other
     return nil unless other.is_a?(Paradoxical::Elements::Primitives::VariableRef)
