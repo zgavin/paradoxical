@@ -273,5 +273,79 @@ RSpec.describe Paradoxical::Builder do
     it "accepts a Symbol" do
       expect(builder.var_ref(:my_const).to_pdx).to eq("@my_const")
     end
+
+    it "builds and pushes a definition property when a value is given" do
+      prop = builder.var_ref(:scale, 100)
+      expect(prop).to be_a(Paradoxical::Elements::Property)
+      expect(prop.key).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(prop.key.name).to eq("scale")
+      expect(prop.value).to eq(100)
+      expect(builder.elements).to include(prop)
+    end
+
+    it "two-arg form normalizes the leading @" do
+      prop = builder.var_ref("@base_rate", 50)
+      expect(prop.key.to_pdx).to eq("@base_rate")
+    end
+  end
+
+  describe "#property auto-coercion of @-prefixed strings" do
+    it "wraps an @-prefixed string key as a VariableRef" do
+      prop = builder.p("@foo", 5)
+      expect(prop.key).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(prop.key.name).to eq("foo")
+    end
+
+    it "wraps an @-prefixed string value as a VariableRef" do
+      prop = builder.p("x", "@foo")
+      expect(prop.value).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(prop.value.name).to eq("foo")
+    end
+
+    it "wraps both key and value when both are @-prefixed" do
+      prop = builder.p("@outer", "@inner")
+      expect(prop.key).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(prop.value).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
+    it "respects an explicit operator (3-arg form)" do
+      prop = builder.p("x", "=", "@foo")
+      expect(prop.value).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(prop.operator).to eq("=")
+    end
+
+    it "leaves @@varname alone (template indirect, stays as String)" do
+      prop = builder.p("@@indirect", 5)
+      expect(prop.key).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+      expect(prop.key.to_s).to eq("@@indirect")
+    end
+
+    it "leaves @$NAME$_text alone (parameter splice, stays as String)" do
+      prop = builder.p("x", "@$SIZE$_food")
+      expect(prop.value).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
+    it "leaves @[expr] alone (computation, stays as String)" do
+      prop = builder.p("x", "@[1 + 2]")
+      expect(prop.value).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
+    it "leaves @_invalid alone (engine rejects, but stays as a String here)" do
+      # See [[feedback_match_engine_error_behavior]] — engine logs and
+      # returns 0; we don't fabricate a typed ref out of invalid input.
+      prop = builder.p("@_invalid", 5)
+      expect(prop.key).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
+    it "leaves bare @ alone (too short to be a ref)" do
+      prop = builder.p("@", 5)
+      expect(prop.key).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
+    it "leaves an explicitly-typed Primitives::String alone (caller's intent)" do
+      explicit = Paradoxical::Elements::Primitives::String.new("@foo", quoted: false)
+      prop = builder.p("x", explicit)
+      expect(prop.value).to be(explicit)
+    end
   end
 end

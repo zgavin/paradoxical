@@ -63,7 +63,19 @@ class Paradoxical::Builder
   alias_method :l, :list
 
   def property key, operator, value = nil, whitespace: nil
-    push Paradoxical::Elements::Property.new key, operator, value, whitespace: whitespace
+    # Mirror Property#initialize's nil-shift so we coerce the actual
+    # value rather than the operator standing in for it.
+    if value.nil? then
+      value = operator
+      operator = "="
+    end
+
+    push Paradoxical::Elements::Property.new(
+      Paradoxical::Elements::Primitives::VariableRef.coerce(key),
+      operator,
+      Paradoxical::Elements::Primitives::VariableRef.coerce(value),
+      whitespace: whitespace
+    )
   end
   alias_method :p, :property
 
@@ -182,10 +194,20 @@ class Paradoxical::Builder
   # write either `var_ref("my_const")` or `var_ref("@my_const")` —
   # both produce the same `@my_const` ref. Symbols also accepted for
   # parity with other DSL helpers that read like identifiers.
-  def var_ref name
+  #
+  # If a second argument is provided, builds a definition property
+  # (`@name = value`) and pushes it. The two-arg form is the natural
+  # shape for the top-of-file `@constant = 5` def block:
+  #   var_ref :scale, 100
+  #   var_ref :base_rate, percent(50)
+  def var_ref name, value = nil
     raw = name.to_s
     raw = "@#{raw}" unless raw.start_with?("@")
-    Paradoxical::Elements::Primitives::VariableRef.new raw
+    ref = Paradoxical::Elements::Primitives::VariableRef.new raw
+
+    return ref if value.nil?
+
+    property ref, value
   end
 
   def empty_list k
