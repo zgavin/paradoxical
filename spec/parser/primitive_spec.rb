@@ -530,12 +530,18 @@ RSpec.describe Paradoxical::Parser do
         expect(size.value.resolve.to_i).to eq(100)
       end
 
-      it "raises when no matching definition exists in any ancestor scope" do
+      it "returns nil when no matching definition exists in any ancestor scope" do
+        # Mirrors the engine: error.log reports "Failed to find a
+        # valid event target link" and the runtime substitutes 0.
+        # `nil` is the honest "unresolved" signal here; the upcoming
+        # phase 9 warning channel will surface these.
         doc = parse("foo = @missing\n")
-        expect { doc.first.value.resolve }.to raise_error(/could not be resolved/)
+        expect(doc.first.value.resolve).to be_nil
       end
 
       it "raises when called on a detached ref (no owner)" do
+        # Distinct from missing-def — this is a programmer error,
+        # someone called resolve on a ref built outside the AST.
         ref = Paradoxical::Elements::Primitives::VariableRef.new("@orphan")
         expect { ref.resolve }.to raise_error(/detached/)
       end
@@ -556,16 +562,16 @@ RSpec.describe Paradoxical::Parser do
         expect(base_def.key.resolve.to_i).to eq(10)
       end
 
-      it "raises on a self-referential cycle (@a = @a)" do
+      it "returns nil on a self-referential cycle (@a = @a)" do
         doc = parse("@a = @a\nfoo = @a\n")
         foo = doc.properties.detect do |p| p.key.to_s == "foo" end
-        expect { foo.value.resolve }.to raise_error(/cycle.*@a/i)
+        expect(foo.value.resolve).to be_nil
       end
 
-      it "raises on a mutual cycle (@a = @b, @b = @a)" do
+      it "returns nil on a mutual cycle (@a = @b, @b = @a)" do
         doc = parse("@a = @b\n@b = @a\nfoo = @a\n")
         foo = doc.properties.detect do |p| p.key.to_s == "foo" end
-        expect { foo.value.resolve }.to raise_error(/cycle/i)
+        expect(foo.value.resolve).to be_nil
       end
     end
 

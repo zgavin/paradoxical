@@ -56,20 +56,26 @@ class Paradoxical::Elements::Primitives::VariableRef
   # Walk up from `@owner`, scanning each enclosing scope for a property
   # whose *key* is a VariableRef with the same name; if the value found
   # is itself a VariableRef, follow the chain through to a concrete
-  # value. Cycle-detects by name: `@a = @b`, `@b = @a` raises rather
-  # than looping forever.
+  # value.
   #
-  # Raises if the ref is detached (no owner) or if no matching
-  # definition is found in any ancestor scope. PDX engine semantics
-  # don't restrict definitions to lexically-earlier siblings — defs
-  # anywhere in scope are visible — so the scan covers all siblings
-  # at each ancestor level.
+  # Returns `nil` for unresolved cases — missing definition or a
+  # cyclical reference (`@a = @b`, `@b = @a`). Mirrors how the engine
+  # itself handles these: error.log reports "Failed to find a valid
+  # event target link" and the runtime substitutes 0, so a strict raise
+  # here would be louder than the engine and break mods the engine
+  # would still run. Honest `nil` lets callers decide — phase 9's
+  # warning channel will surface these as warnings rather than the
+  # silent-zero fallback the engine uses.
+  #
+  # Still raises when the ref is detached (no owner) — that's a
+  # programmer error (resolve called on a ref built outside the AST),
+  # distinct from a mod-content issue.
   def resolve
     visited = Set.new
     current = self
 
     loop do
-      raise "VariableRef cycle: @#{visited.to_a.join(" -> @")} -> @#{current.name}" if visited.include?(current.name)
+      return nil if visited.include?(current.name)
 
       visited << current.name
 
@@ -88,6 +94,7 @@ class Paradoxical::Elements::Primitives::VariableRef
   # var-ref (the LHS of `@foo = 5`) returns its own definition's
   # value. The siblings scan handles the use-site case, walking up
   # ancestor scopes since the engine's lexical visibility is upward.
+  # Returns `nil` when no definition exists in any ancestor scope.
   def lookup_definition_value
     raise "VariableRef #{@raw} is detached — call #resolve only on refs reachable from a Document" if @owner.nil?
 
@@ -109,7 +116,7 @@ class Paradoxical::Elements::Primitives::VariableRef
       node = node.parent
     end
 
-    raise "VariableRef #{@raw} could not be resolved — no @#{@name} definition found in scope"
+    nil
   end
 
   public
