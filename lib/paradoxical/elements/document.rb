@@ -49,7 +49,7 @@ class Paradoxical::Elements::Document
     buffer << (whitespace&.first or "")
   end
 
-  def defines
+  def var_refs
     properties
       .select do |p| p.key.is_a? Paradoxical::Elements::Primitives::VariableRef end
       .map do |p| [p.key, p.value] end
