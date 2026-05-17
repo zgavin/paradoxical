@@ -43,6 +43,10 @@ class Paradoxical::Elements::Primitives::VariableRef
 
   def self.coerce value
     return value unless value.instance_of?(::String)
+    # Cheap first-char short-circuit — `property` is the hottest path
+    # in a builder script and most values aren't `@`-prefixed, so the
+    # regex never runs for the common case.
+    return value unless value[0] == "@"
     return value unless NAME_PATTERN.match?(value)
 
     new value
