@@ -3,10 +3,7 @@ class Paradoxical::Elements::Property < Paradoxical::Elements::Node
   attr_accessor :operator
 
   def initialize key, operator, value = nil, whitespace: nil
-    if value.nil? then
-      value = operator
-      operator = "="
-    end
+    value, operator = operator, "=" if value.nil?
 
     self.key = key
     self.value = value

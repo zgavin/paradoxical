@@ -65,10 +65,7 @@ class Paradoxical::Builder
   def property key, operator, value = nil, whitespace: nil
     # Mirror Property#initialize's nil-shift so we coerce the actual
     # value rather than the operator standing in for it.
-    if value.nil? then
-      value = operator
-      operator = "="
-    end
+    value, operator = operator, "=" if value.nil?
 
     push Paradoxical::Elements::Property.new(
       Paradoxical::Elements::Primitives::VariableRef.coerce(key),
