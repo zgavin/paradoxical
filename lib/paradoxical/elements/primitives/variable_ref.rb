@@ -30,16 +30,20 @@ class Paradoxical::Elements::Primitives::VariableRef
 
   # Auto-coerce a raw `"@foo"` String into a typed VariableRef so DSL
   # callers don't have to wrap every reference in `var_ref(...)`.
+  # Only coerces strings that match the grammar's `var_ref` rule
+  # exactly: `@` + letter-or-digit-first-char + word chars. Whitespace
+  # or anything else in the tail (`"@foo bar"`, `"@foo.bar"`) stays a
+  # String — the engine would reject it as an invalid name shape, so
+  # typing it as a ref would lie about the AST.
+  #
   # Other `@`-sigil shapes (`@@var` template indirect, `@$NAME$_text`
-  # parameter splice, `@[expr]` computation, `@\[expr]` computation)
-  # stay as Strings — they're distinct runtime operators sharing the
-  # sigil. Returns the input unchanged if it's already a typed
-  # primitive or not a coercible String shape.
+  # parameter splice, `@[expr]`/`@\[expr]` computation) stay as
+  # Strings — they're distinct runtime operators sharing the sigil.
+  NAME_PATTERN = /\A@[A-Za-z0-9]\w*\z/.freeze
+
   def self.coerce value
     return value unless value.instance_of?(::String)
-    return value unless value.start_with?("@")
-    return value if value.start_with?("@@", "@$", "@[", "@\\")
-    return value if value.length < 2 or not value[1].match?(/[A-Za-z0-9]/)
+    return value unless NAME_PATTERN.match?(value)
 
     new value
   end

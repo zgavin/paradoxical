@@ -342,6 +342,18 @@ RSpec.describe Paradoxical::Builder do
       expect(prop.key).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
     end
 
+    it "leaves an @-prefixed string with whitespace alone (invalid name shape)" do
+      # `"@foo bar"` is not a valid var-ref name — typing it as one
+      # would lie about the AST since the engine rejects the shape.
+      prop = builder.p("x", "@foo bar")
+      expect(prop.value).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
+    it "leaves an @-prefixed string with a dot in the tail alone" do
+      prop = builder.p("x", "@foo.bar")
+      expect(prop.value).not_to be_a(Paradoxical::Elements::Primitives::VariableRef)
+    end
+
     it "leaves an explicitly-typed Primitives::String alone (caller's intent)" do
       explicit = Paradoxical::Elements::Primitives::String.new("@foo", quoted: false)
       prop = builder.p("x", explicit)
