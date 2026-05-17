@@ -68,7 +68,7 @@ See **MODERNIZATION.md** for the phased plan to address all of the above. Read i
 
 ## Workflow rules
 
-- **PR-driven flow.** All non-trivial work goes through a PR against `master`. The agent opens the PR with `gh pr create`; the maintainer reviews and merges. Strict serial — wait for each PR to merge before starting the next sub-phase.
+- **PR-driven flow.** All non-trivial work goes through a PR against `main`. The agent opens the PR with `gh pr create`; the maintainer reviews and merges. Strict serial — wait for each PR to merge before starting the next sub-phase.
 - **Branch naming.** Use `phase-N/letter/description` for MODERNIZATION.md phase work (e.g. `phase-2/a/rb-sys-build`). For ad-hoc work that isn't tied to a phase, use `chore/description`, `feat/description`, or `fix/description` — semver-style prefixes. In a professional context the maintainer would use a ticket ID prefix instead (e.g. `SC-1234/refactor-foo`); this project's MODERNIZATION.md plays that role.
 - **Don't commit Paradox-owned files.** Game data and game-format files belong off-repo regardless of how convenient they'd be as fixtures. PancakeTaco's Mod is the maintainer's authorship but its inputs/outputs are too entangled with game data to ship safely.
 - **Tests first for non-trivial migrations.** The whitespace/BOM/encoding round-trip behavior is easy to break silently. If MODERNIZATION.md phase 1 isn't done yet, raise it before starting phases 2+.
