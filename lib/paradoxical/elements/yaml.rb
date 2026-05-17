@@ -40,7 +40,7 @@ class Paradoxical::Elements::Yaml
     true
   end
 
-  def defines
+  def var_refs
     properties.select do |p| p.key.starts_with? "@" end.map do |p| [p.key, p.value] end.to_h
   end
 

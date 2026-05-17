@@ -71,6 +71,8 @@ static INTEGER_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("Integer").unwrap());
 static PERCENTAGE_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("Percentage").unwrap());
+static VARIABLE_REF_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("VariableRef").unwrap());
 static STRING_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("String").unwrap());
 
@@ -352,6 +354,7 @@ fn primitive(ruby: &Ruby, pair: Pair<Rule>) -> Value {
             Rule::float => Some(ruby.get_inner(&FLOAT_CLASS)),
             Rule::integer => Some(ruby.get_inner(&INTEGER_CLASS)),
             Rule::percentage => Some(ruby.get_inner(&PERCENTAGE_CLASS)),
+            Rule::var_ref => Some(ruby.get_inner(&VARIABLE_REF_CLASS)),
             Rule::string | Rule::placeholder => Some(ruby.get_inner(&STRING_CLASS)),
             Rule::boolean => None,
             r => unreachable!("unexpected rule: {:?}", r),

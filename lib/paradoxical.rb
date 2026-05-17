@@ -66,6 +66,7 @@ end
   elements/primitives/integer
   elements/primitives/percentage
   elements/primitives/string
+  elements/primitives/variable_ref
 
   search/function_matcher
   search/parser

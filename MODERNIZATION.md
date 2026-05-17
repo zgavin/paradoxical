@@ -539,7 +539,11 @@ Sub-PR sequence in order of complexity:
 
 - **8e-1: `Primitives::Percentage` (landed).** Lift the percentage shape out of `String`. Grammar widened to capture fractional percentages (`12.5%` — HOI4 ships 7k+ of these and they previously fell through to `unquoted_string`). Class stores raw bytes for round-trip plus `value` (BigDecimal — matches 8d's Float backing) and `multiplier` accessors (the scalar to multiply against; renamed from "fraction" since HDR-style >100% values are common and "fraction" implies [0, 1]). Immutable — same shape as `Primitives::Date`; raw bytes carry presentation info (sign, decimal precision, multi-`%` count) that doesn't map cleanly through a `value=` setter. No range validation: all five games ship negative percentages and >100% values; HOI4 alone has 13k+ `>100%` uses. Multi-`%` (`+10.00%%`, HOI4's 956 uses) is a localization-template escape — preserved as raw bytes; `value` strips the trailing `%`s. Comparable on numeric value. 499/0 tests, 22,229/22,229 smokes clean.
 
-- **8e-2: `Primitives::VariableRef` (pending).** `@variable_name` references. Whole-token-only by design, and empirically that's also the entire shape — none of the five games ship `@varname` mid-identifier embeddings. Other `@`-using patterns that exist (HOI4 `party_popularity@democratic` dynamic-var accessor ~2.3k uses, Stellaris `event_target:name@suffix` saved-target suffix ~2.2k uses, EU4 `flag_name_@ROOT` scope-name substitution ~30-50 uses) all overload the `@` symbol for unrelated runtime operators and must stay as `String`. The clean cut at the grammar level: `unquoted_string`'s leading-sigil branch produces `@@varname` (EU5 template indirect) and `@$NAME$_text` (Stellaris parameter splice) which stay as String; only bare `@varname` becomes VariableRef. The interesting design surface is `#resolve`: a VariableRef knows the Property/List that owns it (set by the parser at construction) and walks up the AST scanning sibling properties for a definition (a property whose *key* is a VariableRef of the same name). If found, return the value (recursing through chained VariableRefs / nested Computations once 8e-3 lands). If detached or unresolved, raise. This is the foundation 8e-3's Computation evaluator builds on.
+- **8e-2: `Primitives::VariableRef` (landed).** Lift `@variable_name` references out of `String`. New grammar rule `var_ref = @{ !("@@" | "@$" | "@[" | "@\\") ~ "@" ~ (LETTER | NUMBER) ~ (LETTER | NUMBER | "_")* ~ &break_character }` precedes `string` in the `primitive` alternation. The negative lookahead protects four `@`-using shapes that share the sigil for unrelated runtime operators and stay as `String`: `@@varname` (EU5 template indirect), `@$NAME$_text` (Stellaris parameter splice), `@[expr]`/`@\[expr]` (math-at-parse, owned by 8e-3). Other `@`-using patterns (HOI4 `party_popularity@democratic` dynamic accessor, Stellaris `event_target:name@suffix`, EU4 `flag_name_@ROOT`) have a non-`@` token prefix so they never reach this rule and stay as `String` naturally. Empirically — no game ships `@varname` mid-identifier embeddings, so whole-token-only matches the actual surface area.
+  - Ruby class: immutable `raw`/`name` value-state plus a mutable `owner` ivar (the containing `Property` or `Value`), set by `Property#key=` / `Property#value=` / `Value#value=` setters when a VariableRef is assigned in. Comparable / `==` / `eql?` / `hash` are name-based.
+  - `#resolve` walks up from `owner.parent`, scanning each enclosing list/document for a `Property` whose key is a VariableRef of the same name; returns the property's value (which may itself be a VariableRef — chain by re-calling). Raises with a descriptive message if detached or unresolved. This is the foundation 8e-3's Computation `#evaluate` builds on.
+  - Builder helper `var_ref("name")` / `var_ref("@name")` / `var_ref(:name)` — normalizes the leading `@`.
+  - 524/0 tests (15 new), 22,229/22,229 smokes across all five games clean.
 
 - **8e-3: `Primitives::Computation` (pending).** `@[expr]`, `@\[expr]`. Math-at-parse-time. Internal expression grammar that may reference VariableRefs — `#evaluate` chains through 8e-2's resolution. Done next so the VariableRef foundation is exercised end-to-end before we layer on the simpler-but-orthogonal localization/parameter work.
 
@@ -548,6 +552,29 @@ Sub-PR sequence in order of complexity:
 - **8e-5: `Primitives::Parameter` (pending — possibly punt).** `$NAME$` substitutions. Pre-compilation macros — the engine string-substitutes before parsing, so `foo_$BAR$_baz` is a valid identifier shape where `$BAR$` expands inline. Empirical: whole-form `$BAR$` and mid-identifier embeddings have comparable volume (10k-40k each per game), so whole-form-only coverage loses ~30-50% of uses. **Working plan**: hybrid (whole-form gets typed; mid-identifier stays as `String` with a `.parameters` accessor for introspection) — or punt entirely and leave parameters as strings since the typing value is limited and the grammar already differentiates the sigil shapes. Decide after VariableRef/Computation land and we have a calibrated sense of the typing pattern's payoff.
 
 **Trade-off to budget for.** A stricter parser will surface previously-passing files as smoke failures. That's positive signal (real invalid syntax we used to mask) but each fix surfaces its own allowlist churn — and if any `compile.rb`-emitted output trips on stricter validation, the DSL needs a small accompanying fix to use the right typed helper. Each sub-PR runs all five smokes before merge.
+
+### 9. Per-game primitive validation
+
+The grammar accepts the union of what all five engines permit, by design (one parser, many games). But individual engines reject shapes other engines accept, and there's no way today to surface "the grammar permits it, but engine X rejects it" so mod authors hear about real bugs in their content.
+
+Known seed cases (more expected as we investigate):
+
+- **VariableRef name shape** — EU5 (Jomini) rejects `@_foo` and `@1foo` with "Invalid variable name. Variable names must start with a letter and only contain letters, numbers, or underscores." HOI4 (Clausewitz) accepts and ships 141 `@<year>` defs (`@1918 = 0` etc.). Two different validation rules across engine generations for the same grammar shape.
+- **Quoted vs unquoted strings** — game-specific strictness varies; need to catalog empirically.
+- **Date sentinels** — `0000.00.00` and similar are accepted in some games but not others.
+- **Color components** — `Color::RGB`, `Color::HSV360`, `Color::Hex` already use `validate!` (shape established in phase 8b), but it raises rather than warns.
+
+Warnings, not errors. The engine itself warns and skips the offending line at runtime — a hard parse error in Paradoxical would make an invalid mod unparseable until the user writes a correction, which is a worse user experience than the engine's "log and continue." Fatal parse errors stay reserved for grammar-level failures (`ParseError`).
+
+Design surface to settle:
+
+- **Warning channel.** Probably a `Document#warnings` accumulator the parser populates, plus a CLI surface to print them after a parse. Needs to flow through `Game#parse_files` so batch-parses surface every warning, not just the last one.
+- **Per-primitive validation hook.** Extend the `validate!` precedent already in `Color::*` to other primitives; convert raise → warn-channel for the new cases.
+- **Per-game config.** Class-level state set by `Game.new`, same shape as `Date.default_calendar` and `Float.default_precision`. E.g., `VariableRef.name_pattern` set to a Jomini-strict or Clausewitz-permissive regex.
+- **Empirical sweep.** Once the infrastructure exists, walk each primitive and catalog which games reject which shapes. The seed cases above are what we know about; the actual list is likely larger.
+- **Relationship with corrections.** Corrections (phase 5c) fix up *parse-blocking* invalid syntax; validation warnings flag *engine-rejected-but-grammar-acceptable* syntax. They're complementary — a mod could have both. May need to consider whether some validation warnings should suggest a correction.
+
+Gated on 8e completing — once all the typed primitives exist we know the full set that might want per-game rules. Phase 8b's `validate!` work is the closest precedent and a useful reference.
 
 ## Decision log
 

@@ -443,6 +443,138 @@ RSpec.describe Paradoxical::Parser do
       end
     end
 
+    describe "var_ref" do
+      it "parses an @varname as VariableRef on the value side (8e-2)" do
+        prop = parse("foo = @my_const").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+        expect(prop.value.name).to eq("my_const")
+        expect(prop.value.to_pdx).to eq("@my_const")
+      end
+
+      it "parses an @varname as VariableRef on the key side (def shape)" do
+        prop = parse("@my_const = 5\n").first
+        expect(prop.key).to be_a(Paradoxical::Elements::Primitives::VariableRef)
+        expect(prop.key.name).to eq("my_const")
+      end
+
+      it "round-trips byte-identically" do
+        # `to_pdx` returns raw bytes — preservation is load-bearing.
+        input = "@my_const = 5\nfoo = @my_const\n"
+        expect(parse(input).to_pdx).to eq(input)
+      end
+
+      it "is Comparable on name" do
+        a = Paradoxical::Elements::Primitives::VariableRef.new("@alpha")
+        b = Paradoxical::Elements::Primitives::VariableRef.new("@beta")
+        expect(a).to be < b
+      end
+
+      it "@@varname stays as String (EU5 template indirect ref)" do
+        # `@@` is a separate runtime operator — resolves the value of
+        # `@varname` as the *name* of another variable. Not a VariableRef.
+        prop = parse("@@rgo_contributor = @scale\n").first
+        expect(prop.key).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.key.to_s).to eq("@@rgo_contributor")
+      end
+
+      it "@$NAME$_text stays as String (Stellaris parameter splice)" do
+        # `@$` is the parameter-substitution form — the engine inlines
+        # `$NAME$` before resolving `@`. Not a clean VariableRef.
+        prop = parse("food = @$SIZE$_t$TIER$_upkeep_energy\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("@$SIZE$_t$TIER$_upkeep_energy")
+      end
+
+      it "@[expr] stays as a computation_string (math-at-parse-time)" do
+        # `@[expr]` is the at-parse computation, owned by 8e-3.
+        prop = parse("foo = @[1 + 2]\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("@[1 + 2]")
+      end
+
+      it "key@modifier (HOI4 dynamic-var accessor) stays as String" do
+        # `party_popularity@democratic` — `@` here is an operator
+        # joining a variable family with a modifier key, not a ref sigil.
+        prop = parse("value = party_popularity@democratic\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("party_popularity@democratic")
+      end
+
+      it "event_target:name@suffix (Stellaris) stays as String" do
+        # `event_target:cyberspecies@species` — the `@species` here is
+        # part of the saved-target naming scheme, not a ref.
+        prop = parse("change_species = event_target:cyberspecies@species\n").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::String)
+        expect(prop.value.to_s).to eq("event_target:cyberspecies@species")
+      end
+    end
+
+    describe "VariableRef#resolve" do
+      it "resolves a sibling definition at the same scope level" do
+        doc = parse("@base = 10\nfoo = @base\n")
+        foo = doc.properties.detect do |p| p.key.to_s == "foo" end
+        resolved = foo.value.resolve
+        expect(resolved).to be_a(Paradoxical::Elements::Primitives::Integer)
+        expect(resolved.to_i).to eq(10)
+      end
+
+      it "resolves an ancestor-scope definition (def at document, ref inside nested list)" do
+        doc = parse(<<~PDX)
+          @scale = 100
+          city = {
+            size = @scale
+          }
+        PDX
+        city = doc.select do |p| p.is_a?(Paradoxical::Elements::List) end.first
+        size = city.properties.detect do |p| p.key.to_s == "size" end
+        expect(size.value.resolve.to_i).to eq(100)
+      end
+
+      it "returns nil when no matching definition exists in any ancestor scope" do
+        # Mirrors the engine: error.log reports "Failed to find a
+        # valid event target link" and the runtime substitutes 0.
+        # `nil` is the honest "unresolved" signal here; the upcoming
+        # phase 9 warning channel will surface these.
+        doc = parse("foo = @missing\n")
+        expect(doc.first.value.resolve).to be_nil
+      end
+
+      it "raises when called on a detached ref (no owner)" do
+        # Distinct from missing-def — this is a programmer error,
+        # someone called resolve on a ref built outside the AST.
+        ref = Paradoxical::Elements::Primitives::VariableRef.new("@orphan")
+        expect { ref.resolve }.to raise_error(/detached/)
+      end
+
+      it "follows a chained ref through to a concrete value in one call" do
+        # `@inner = 5`, `@outer = @inner`, `foo = @outer` — resolve
+        # chains through the VariableRef hop and returns 5 directly.
+        doc = parse("@inner = 5\n@outer = @inner\nfoo = @outer\n")
+        foo = doc.properties.detect do |p| p.key.to_s == "foo" end
+        expect(foo.value.resolve.to_i).to eq(5)
+      end
+
+      it "resolves a key-side ref to its own definition's value" do
+        # The def-site case — calling resolve on the LHS `@base` of
+        # `@base = 10` returns 10.
+        doc = parse("@base = 10\nfoo = @base\n")
+        base_def = doc.properties.detect do |p| p.key.is_a?(Paradoxical::Elements::Primitives::VariableRef) end
+        expect(base_def.key.resolve.to_i).to eq(10)
+      end
+
+      it "returns nil on a self-referential cycle (@a = @a)" do
+        doc = parse("@a = @a\nfoo = @a\n")
+        foo = doc.properties.detect do |p| p.key.to_s == "foo" end
+        expect(foo.value.resolve).to be_nil
+      end
+
+      it "returns nil on a mutual cycle (@a = @b, @b = @a)" do
+        doc = parse("@a = @b\n@b = @a\nfoo = @a\n")
+        foo = doc.properties.detect do |p| p.key.to_s == "foo" end
+        expect(foo.value.resolve).to be_nil
+      end
+    end
+
     describe "color" do
       it "parses an rgb color" do
         prop = parse("foo = rgb { 128 64 32 }").first
