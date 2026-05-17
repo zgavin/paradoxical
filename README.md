@@ -18,7 +18,7 @@ state:
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
   Stellaris / Imperator / HOI4 and their engine-default sibling dirs
-  (22,229 files total) — all parse cleanly.
+  (22,238 files total) — all parse cleanly.
 - See [`MODERNIZATION.md`](MODERNIZATION.md) for the phased plan and
   decision log.
 
@@ -31,7 +31,7 @@ stay so users on a back version can still tell if they're covered.
 | game | supported versions | coverage | notes |
 |---|---|---|---|
 | **Europa Universalis IV** | 1.37.5 | 100% | |
-| **Stellaris** | 4.3.5 | 100% | |
+| **Stellaris** | 4.3.5, 4.3.6, 4.3.7 | 100% | smoke validated against 4.3.7; 4.3.6 was a same-day emergency hotfix superseded by 4.3.7. |
 | **Imperator: Rome** | 2.0.5 | 100% | |
 | **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0, 1.2.1, 1.2.2, 1.2.3 | 100% | smoke validated against 1.0.4, 1.1.10, and 1.2.3; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
 | **Hearts of Iron IV** | 1.18.1.0 | 100% | |
