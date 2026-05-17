@@ -46,6 +46,7 @@ module Paradoxical::Games::EU5
     "2a62" => "1.2.0",   # "Echinades"; publicly-displayed checksum (obfuscated) is 5be7
     "cb31" => "1.2.1",   # publicly-displayed checksum (obfuscated) is e429
     "6005" => "1.2.2",   # publicly-displayed checksum (obfuscated) is fb04
+    "78ec" => "1.2.3",   # publicly-displayed checksum (obfuscated) is 6a4a
   }.freeze
 
   def self.installed_version game
