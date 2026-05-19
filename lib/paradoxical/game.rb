@@ -6,7 +6,7 @@ require "os"
 class Paradoxical::Game
   include Paradoxical::FileParser
 
-  attr_reader :game_module, :name, :executable, :steam_id, :root, :user_directory
+  attr_reader :game_module, :name, :slug, :executable, :steam_id, :root, :user_directory
   attr_reader :mod, :playset
 
   # Build a Game from a `Paradoxical::Games::*` module — all per-game
@@ -23,6 +23,7 @@ class Paradoxical::Game
     @game_module = game_module
     @name = game_module::NAME
     @steam_id = game_module::STEAM_ID
+    @slug = game_module::SLUG
     @executable = Paradoxical::Games.executable_for(game_module)
     @file_cache = {}
 
@@ -37,8 +38,6 @@ class Paradoxical::Game
     end
 
     register_corrections
-    register_calendar
-    register_float_precision
   end
 
   private
@@ -62,6 +61,8 @@ class Paradoxical::Game
     end
   end
 
+  public
+
   # Set the active game's calendar as the default on
   # `Primitives::Date`. Parser-built dates pick this up so callers
   # don't have to thread the calendar through every parse_file call —
@@ -74,12 +75,8 @@ class Paradoxical::Game
   # Used by `BigDecimal#to_pdx` and `::Float#to_pdx` to round
   # arithmetic results / raw Ruby numerics before emission.
   def register_float_precision
-    return unless defined?(@game_module::FLOAT_PRECISION)
-
     Paradoxical::Elements::Primitives::Float.default_precision = @game_module::FLOAT_PRECISION
   end
-
-  public
 
   def mods
     _mods.dup
