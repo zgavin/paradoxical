@@ -225,7 +225,7 @@ RSpec.describe Paradoxical::BinaryParser do
   describe "ParseError" do
     it "raises ParseError on truncated input" do
       # Property header but value cut off mid-uint32.
-      truncated = u16(TOKEN_KEY) + eq_marker + u16(0x0014) + "\x01\x02"
+      truncated = u16(TOKEN_KEY) + eq_marker + u16(0x0014) + u16(0x0102)
       expect { parse(truncated) }
         .to raise_error(Paradoxical::BinaryParser::ParseError, /end of input/)
     end

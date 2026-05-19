@@ -40,7 +40,7 @@ class Paradoxical::BinaryParser
     end
   end
 
-  attr_reader :tokens, :bytes
+  attr_reader :tokens
 
   def initialize tokens
     @tokens = tokens
@@ -50,6 +50,10 @@ class Paradoxical::BinaryParser
     @bytes = data.unpack("C*")
     read_doc
   end
+
+  private
+
+  attr_reader :bytes
 
   def integer length = nil, value: nil
     # integers have little-endian byte order, so the most significant byte is the last
@@ -90,7 +94,7 @@ class Paradoxical::BinaryParser
       when 0x0017 then string quoted: false                   # unquoted string
       when 0x000d then float 4                                # float
       when 0x0167 then float 8                                # double
-      when 0x0243 then raise ParseError, "binary rgb (type 0x0243) not implemented"
+      when 0x0243 then fail "binary rgb (type 0x0243) not implemented"
       when 0x0317 then signed_integer 8                       # int64
       when 0x0d40, 0x0d43 then integer 1                      # 8 bit lookup index
       when 0x0d41         then integer 3                      # 24 bit lookup index
@@ -140,13 +144,13 @@ class Paradoxical::BinaryParser
 
     return n if n[:close]
 
-    raise ParseError, "expected token, got: #{n}" if n[:token].nil?
+    fail "expected token, got: #{n}" if n[:token].nil?
 
     key = tokens[n[:token]] || n[:token]
 
-    assignment = read_scalar
+    eql = read_scalar
 
-    raise ParseError, "expected `=` after key #{key.inspect}, got: #{assignment}" unless assignment.is_a?(Hash) and assignment[:equals]
+    fail "expected `=` after key #{key.inspect}, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
 
     maybe_open = read_scalar is_date: key == "date"
 
@@ -155,11 +159,9 @@ class Paradoxical::BinaryParser
     elsif not maybe_open.is_a?(Hash) then
       Paradoxical::Elements::Property.new key, "=", maybe_open
     else
-      raise ParseError, "unexpected control token after `#{key}`: #{maybe_open}"
+      fail "unexpected control token after `#{key}`: #{maybe_open}"
     end
   end
-
-  private
 
   # Two's-complement signed integer. `length` is in bytes (4 for int32,
   # 8 for int64). Returns a wrapped `Primitives::Integer`.
@@ -174,8 +176,12 @@ class Paradoxical::BinaryParser
   # which would silently yield zero-valued integers / empty strings
   # downstream; raise instead so malformed input fails loudly.
   def shift_bytes length
-    raise ParseError, "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
+    fail "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
 
     bytes.shift length
+  end
+
+  def fail msg
+    raise ParseError, msg
   end
 end
