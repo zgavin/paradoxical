@@ -137,6 +137,8 @@ def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
   Paradoxical.game = Paradoxical::Game.new(game_module, root: root, user_directory: user_directory)
   Paradoxical.game.playset = playset if playset
   Paradoxical.game.mod = Paradoxical.game.mods.find { |m| m.name == mod } if mod
+  Paradoxical.game.register_calendar
+  Paradoxical.game.register_float_precision
 
   # `prepend` (vs `include`) so DSL methods win over Builder's base
   # ones — this is how EU4's variable-method override (different

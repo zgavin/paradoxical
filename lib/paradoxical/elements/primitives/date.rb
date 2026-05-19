@@ -48,6 +48,16 @@ class Paradoxical::Elements::Primitives::Date
     @value
   end
 
+  def justify
+    value = [year, *[month, day].map { |i| i.to_s.rjust(2, "0") }].join(".")
+    self.class.new(value, calendar: @calendar)
+  end
+
+  # Can raise Date::Error for Calendar360 dates, but is useful for formatting
+  def to_date
+    Date.new year, month, day
+  end
+
   def dup
     self.class.new(@value, calendar: @calendar)
   end
