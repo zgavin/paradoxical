@@ -72,6 +72,8 @@ end
   search/parser
   search/property_matcher
   search/rule
+
+  binary_parser
 }.each do |file|
   require "paradoxical/#{file}"
 end
@@ -131,7 +133,7 @@ require "paradoxical/paradoxical"
 #
 # `root:` and `user_directory:` override the default install / user
 # paths; everything else flows from the game module's constants.
-def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
+def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil, binary_tokens: nil
   game_module = Paradoxical::Games.find(game)
 
   Paradoxical.game = Paradoxical::Game.new(game_module, root: root, user_directory: user_directory)
@@ -139,6 +141,11 @@ def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil
   Paradoxical.game.mod = Paradoxical.game.mods.find { |m| m.name == mod } if mod
   Paradoxical.game.register_calendar
   Paradoxical.game.register_float_precision
+  # Binary-save token table — see `Paradoxical::BinaryParser`. The
+  # mapping is per-game and isn't distributed with this gem; callers
+  # who parse binary saves supply it here so subsequent
+  # `BinaryParser.parse(bytes)` calls (no `tokens:` kwarg) pick it up.
+  Paradoxical::BinaryParser.default_tokens = binary_tokens if binary_tokens
 
   # `prepend` (vs `include`) so DSL methods win over Builder's base
   # ones — this is how EU4's variable-method override (different
