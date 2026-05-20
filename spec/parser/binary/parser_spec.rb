@@ -1,6 +1,6 @@
 require "paradoxical"
 
-RSpec.describe Paradoxical::BinaryParser do
+RSpec.describe Paradoxical::Binary::Parser do
   # A few token IDs reused across examples. Real Paradox binaries use
   # whatever IDs the game's token table assigns; we pick values
   # outside the scalar-type-code ranges (any 2-byte int that isn't
@@ -67,7 +67,7 @@ RSpec.describe Paradoxical::BinaryParser do
   end
 
   def parse(bytes, tokens: TOKENS)
-    Paradoxical::BinaryParser.parse(bytes, tokens: tokens)
+    Paradoxical::Binary::Parser.parse(bytes, tokens: tokens)
   end
 
   # --- specs ----------------------------------------------------------------
@@ -174,7 +174,7 @@ RSpec.describe Paradoxical::BinaryParser do
       malformed = prop(TOKEN_KEY, u16(0x0243) + close)
 
       expect { parse(malformed) }
-        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected open token/)
+        .to raise_error(Paradoxical::Binary::Parser::ParseError, /expected open token/)
     end
 
     it "raises ParseError when the close `}` is missing after the alpha channel" do
@@ -188,7 +188,7 @@ RSpec.describe Paradoxical::BinaryParser do
         u16(TOKEN_ALPHA) + u32(4) +
         u16(0xDEAD)
       expect { parse(prop(TOKEN_KEY, bad)) }
-        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected close token/)
+        .to raise_error(Paradoxical::Binary::Parser::ParseError, /expected close token/)
     end
   end
 
@@ -473,6 +473,95 @@ RSpec.describe Paradoxical::BinaryParser do
     end
   end
 
+  describe "lookup-index resolution" do
+    # Phase 10f — `LOOKUP_*` tokens carry an integer index into a
+    # per-save `string_lookup` table. See MODERNIZATION.md phase 10f
+    # and `Paradoxical::Binary::StringLookup`.
+
+    # Tiny lookup table helper. Each entry is identified by its
+    # position; the parser resolves an index to the entry at that
+    # position.
+    let(:string_lookup) do
+      Paradoxical::Binary::StringLookup.new ["alpha", "beta", "gamma"]
+    end
+
+    # u8 lookup token: `0x0d40` + 1-byte index
+    def lookup_u8(idx)  = u16(0x0d40) + [idx].pack("C")
+    # u16 lookup token: `0x0d3e` + 2-byte little-endian index
+    def lookup_u16(idx) = u16(0x0d3e) + [idx].pack("v")
+
+    it "resolves an 8-bit lookup index against the supplied table" do
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(1)),
+                                              tokens: TOKENS,
+                                              string_lookup: string_lookup)
+      value = doc.first.value
+
+      expect(value).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(value.to_s).to eq("beta")
+      expect(value.lookup_index).to eq(1)
+    end
+
+    it "resolves a 16-bit lookup index against the supplied table" do
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u16(2)),
+                                              tokens: TOKENS,
+                                              string_lookup: string_lookup)
+      expect(doc.first.value.to_s).to eq("gamma")
+      expect(doc.first.value.lookup_index).to eq(2)
+    end
+
+    it "falls back to a hex-encoded Primitives::String when no table is supplied" do
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(1)), tokens: TOKENS)
+      value = doc.first.value
+
+      expect(value).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(value.to_s).to eq("0x0001")
+      expect(value.lookup_index).to eq(1)
+    end
+
+    it "raises when the index is out of range and a table *is* supplied" do
+      # Index 99 doesn't exist in our 3-entry table; mismatch between
+      # the binary and the lookup file should fail loudly.
+      expect {
+        Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(99)),
+                                          tokens: TOKENS,
+                                          string_lookup: string_lookup)
+      }.to raise_error(KeyError, /index 99 out of range/)
+    end
+
+    it "attaches the supplied string_lookup to the resulting Document" do
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(0)),
+                                              tokens: TOKENS,
+                                              string_lookup: string_lookup)
+
+      expect(doc.string_lookup).to be(string_lookup)
+    end
+
+    it "leaves Document#string_lookup nil when no table is supplied" do
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, uint32(1)), tokens: TOKENS)
+
+      expect(doc.string_lookup).to be_nil
+    end
+
+    describe "Primitives::String#lookup_index semantics" do
+      it "defaults to nil when not supplied" do
+        s = Paradoxical::Elements::Primitives::String.new "foo", quoted: false
+        expect(s.lookup_index).to be_nil
+      end
+
+      it "equality ignores lookup_index" do
+        a = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, lookup_index: 1
+        b = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, lookup_index: 999
+        expect(a).to eq(b)
+        expect(a).to eq("foo")
+      end
+
+      it "preserves lookup_index across dup" do
+        original = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, lookup_index: 42
+        expect(original.dup.lookup_index).to eq(42)
+      end
+    end
+  end
+
   describe "dates" do
     # `date = <hours since -5001.01.01>` — the integer value is converted
     # to a Primitives::Date on the property.
@@ -481,14 +570,14 @@ RSpec.describe Paradoxical::BinaryParser do
       expect(doc.first.key).to eq("date")
       expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Date)
       # 0 hours since -5001.01.01 → the epoch itself.
-      expect(doc.first.value).to eq(Paradoxical::BinaryParser::INITIAL_DATE)
+      expect(doc.first.value).to eq(Paradoxical::Binary::Parser::INITIAL_DATE)
     end
 
     it "advances by one day per 24 hours" do
       doc = parse(prop(TOKEN_DATE, uint32(24)))
       date = doc.first.value
       expect(date).to be_a(Paradoxical::Elements::Primitives::Date)
-      expect(date).to eq(Paradoxical::BinaryParser::INITIAL_DATE + 24.hours)
+      expect(date).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + 24.hours)
     end
 
     it "leaves non-`date` integers as Primitives::Integer" do
@@ -512,22 +601,22 @@ RSpec.describe Paradoxical::BinaryParser do
     end
 
     it "respects an explicit `tokens:` kwarg over `default_tokens`" do
-      Paradoxical::BinaryParser.default_tokens = { TOKEN_KEY => "from_default" }
-      doc = Paradoxical::BinaryParser.parse(
+      Paradoxical::Binary::Parser.default_tokens = { TOKEN_KEY => "from_default" }
+      doc = Paradoxical::Binary::Parser.parse(
         prop(TOKEN_KEY, uint32(1)),
         tokens: { TOKEN_KEY => "from_explicit" },
       )
       expect(doc.first.key).to eq("from_explicit")
     ensure
-      Paradoxical::BinaryParser.default_tokens = {}
+      Paradoxical::Binary::Parser.default_tokens = {}
     end
 
     it "uses `default_tokens` when no `tokens:` is passed" do
-      Paradoxical::BinaryParser.default_tokens = { TOKEN_KEY => "from_default" }
-      doc = Paradoxical::BinaryParser.parse(prop(TOKEN_KEY, uint32(1)))
+      Paradoxical::Binary::Parser.default_tokens = { TOKEN_KEY => "from_default" }
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, uint32(1)))
       expect(doc.first.key).to eq("from_default")
     ensure
-      Paradoxical::BinaryParser.default_tokens = {}
+      Paradoxical::Binary::Parser.default_tokens = {}
     end
   end
 
@@ -536,7 +625,7 @@ RSpec.describe Paradoxical::BinaryParser do
       # Property header but value cut off mid-uint32.
       truncated = u16(TOKEN_KEY) + eq_marker + u16(0x0014) + u16(0x0102)
       expect { parse(truncated) }
-        .to raise_error(Paradoxical::BinaryParser::ParseError, /end of input/)
+        .to raise_error(Paradoxical::Binary::Parser::ParseError, /end of input/)
     end
 
     it "treats a token not followed by `=` as a bare token-as-value, not an error" do

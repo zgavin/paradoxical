@@ -10,7 +10,7 @@
 # either per-parse via `tokens:` or once at the class level via
 # `default_tokens=`, which `paradoxical!`'s `binary_tokens:` kwarg
 # wires up for the active game.
-class Paradoxical::BinaryParser
+class Paradoxical::Binary::Parser
   class ParseError < StandardError
   end
 
@@ -70,20 +70,29 @@ class Paradoxical::BinaryParser
 
     # `data` is the raw bytes of the save body as a String (binary
     # encoding). `tokens` overrides `default_tokens` for this call.
-    def parse data, tokens: nil
-      new(tokens || default_tokens).parse(data)
+    # `string_lookup` is a per-save table (see `Paradoxical::Binary::StringLookup`)
+    # that resolves the `LOOKUP_*`-token indices into identifier
+    # strings; it's omitted for inspection-only parses or when no
+    # lookup file is available. Each save has its own — there's no
+    # class-level default because lookup tables aren't shareable
+    # across saves.
+    def parse data, tokens: nil, string_lookup: nil
+      new(tokens || default_tokens, string_lookup).parse(data)
     end
   end
 
-  attr_reader :tokens
+  attr_reader :tokens, :string_lookup
 
-  def initialize tokens
+  def initialize tokens, string_lookup = nil
     @tokens = tokens
+    @string_lookup = string_lookup
   end
 
   def parse data
     @bytes = data.unpack("C*")
-    read_doc
+    doc = read_doc
+    doc.string_lookup = @string_lookup
+    doc
   end
 
   private
@@ -199,11 +208,11 @@ class Paradoxical::BinaryParser
       when TokenKind::F64        then float 8
       when TokenKind::RGB        then rgb
       when TokenKind::I64        then signed_integer 8
-      when TokenKind::LOOKUP_08  then integer 1
-      when TokenKind::LOOKUP_24  then integer 3
-      when TokenKind::LOOKUP_16  then integer 2
-      when TokenKind::LOOKUP_08A then integer 1
-      when TokenKind::LOOKUP_16A then integer 2
+      when TokenKind::LOOKUP_08  then resolve_lookup_string integer(1).to_i
+      when TokenKind::LOOKUP_24  then resolve_lookup_string integer(3).to_i
+      when TokenKind::LOOKUP_16  then resolve_lookup_string integer(2).to_i
+      when TokenKind::LOOKUP_08A then resolve_lookup_string integer(1).to_i
+      when TokenKind::LOOKUP_16A then resolve_lookup_string integer(2).to_i
       when TokenKind::FIXED_U08  then fixed 1
       when TokenKind::FIXED_U16  then fixed 2
       when TokenKind::FIXED_U24  then fixed 3
@@ -336,6 +345,22 @@ class Paradoxical::BinaryParser
   def resolve_token_string token_int
     name = tokens[token_int] || "0x#{token_int.to_s(16).rjust(4, "0")}"
     Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
+  end
+
+  # Resolve a 1/2/3-byte `LOOKUP_*` index into a `Primitives::String`
+  # carrying its source `lookup_index` for round-trip. The behavior
+  # differs from `resolve_token_string`'s missing-table fallback:
+  # because lookup tables are per-save (and the parser receives them
+  # via the `string_lookup:` kwarg), an out-of-range index when a
+  # table *is* supplied implies a mismatch between the binary and the
+  # lookup — that's a hard error, not a graceful degradation. When no
+  # table is supplied we emit the hex-encoded `Primitives::String`
+  # shape `resolve_token_string` uses, with `lookup_index` set so
+  # round-trip still knows the original wire form. See
+  # MODERNIZATION.md phase 10f.
+  def resolve_lookup_string index
+    text = string_lookup ? string_lookup.resolve(index) : "0x#{index.to_s(16).rjust(4, "0")}"
+    Paradoxical::Elements::Primitives::String.new text, quoted: false, lookup_index: index
   end
 
   def fail msg

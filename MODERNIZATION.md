@@ -689,17 +689,32 @@ The leading-length / indexed-map *semantics* (recognize "first child is bare int
 
 Empirical verification: real EU5 ~40 MB save (172 MB gamestate) now parses fully end-to-end — 77 top-level entries.
 
-#### 10f. Binary parser: lookup-index resolution (the values-correctness issue)
+#### 10f. Binary parser: lookup-index resolution (landed)
 
-Lookup tokens (`LOOKUP_08` / `LOOKUP_16` / `LOOKUP_24` / `LOOKUP_08A` / `LOOKUP_16A`, all in the `0x0d3e..0x0d44` range) carry a 1/2/3-byte index into a `string_lookup` table that ships as a second file alongside `gamestate` in the save's zip. Currently `read_scalar` emits these as `Primitives::Integer`, breaking binary↔plaintext symmetry — the same logical value renders as an integer in binary parses but as a string in plaintext parses.
+Lookup tokens (`LOOKUP_08` / `LOOKUP_16` / `LOOKUP_24` / `LOOKUP_08A` / `LOOKUP_16A`, all in the `0x0d3e..0x0d44` range) carry a 1/2/3-byte index into a `string_lookup` table that ships as a second file alongside `gamestate` in the save's zip. Before 10f the parser surfaced these as raw `Primitives::Integer`, breaking binary↔plaintext symmetry — the same logical value rendered as an integer in binary parses but as a string in plaintext parses.
 
-Fix shape, per the shared design above:
+**Wire format**, reverse-engineered empirically from an EU5 save:
 
-- New `string_lookup:` kwarg on `BinaryParser.parse` (and matching `default_string_lookup=` class-level setter). The save-extraction wrapper reads the `string_lookup` file from the zip alongside `gamestate` and passes both in.
-- `read_scalar`'s `LOOKUP_NN` branches read the N-byte index and look it up. When found, emit `Primitives::String.new(text, quoted: false, lookup_index: idx)`. When not (or no table supplied), fall back to the existing `Primitives::Integer` so inspection callers without the side channel stay usable.
-- Wire format of the `string_lookup` file itself needs reverse-engineering — probably a sequence of length-prefixed UTF-8 strings indexed by position. A small dedicated helper in the binary module covers parsing it; first implementation step is figuring it out empirically against the user's save.
+- byte 0 — version (currently always `0x01`; unknown versions raise)
+- bytes 1-2 — entry count (`u16` little-endian)
+- bytes 3-4 — max entry length (`u16` little-endian; pre-allocation hint, validated against the parsed body)
+- body — repeated `u16(length) + length-bytes` entries, indexed by position
 
-Not a parsing blocker — without 10f, lookup-indexed values surface as `Integer` instead of `String`, which is wrong but parseable. Lower priority than 10e. Useful when correct values matter (DSL editing, search queries comparing against expected string literals, the token-mapping work the maintainer is currently focused on).
+Strict parsing: any header inconsistency (unknown version, entry length exceeding the max, count not matching the body, truncation) raises `Paradoxical::Binary::StringLookup::ParseError`. Lookup files are per-save and we control whether we feed them through, so loud failure beats silent best-effort. The probe save's table is 37,692 entries spanning 656 KB; resolved values include `age_1_traditions`, `pope_countries`, `turkish_language`, etc.
+
+**Namespace reorg rode along**: `lib/paradoxical/binary_parser.rb` → `lib/paradoxical/binary/parser.rb`, and the class renamed from `Paradoxical::BinaryParser` to `Paradoxical::Binary::Parser`. The new `Paradoxical::Binary::StringLookup` lives alongside it under the same module. Spec layout mirrors: `spec/parser/binary/{parser_spec.rb, string_lookup_spec.rb}`.
+
+**Implementation:**
+
+- `Paradoxical::Binary::StringLookup.parse(bytes)` → instance with `#size`, `#entries`, `#resolve(idx)` (raises `KeyError` on out-of-range).
+- `Binary::Parser.parse(bytes, tokens:, string_lookup:)` — per-save kwarg only; no class-level default because tables aren't shareable across saves.
+- `read_scalar`'s `LOOKUP_*` branches now dispatch through `resolve_lookup_string(idx)` which produces a `Primitives::String` with `lookup_index:` set in every case. Resolved → the table's entry. No table supplied → hex-encoded text `"0xNNNN"` (matching the missing-token convention from 10e). Index out of range with a table supplied → raise (binary↔lookup mismatch is a hard error, not graceful degradation).
+- `Primitives::String` gains an optional `lookup_index:` kwarg paralleling `token_index:` — same equality-and-hash-ignore-it semantics, preserved across `dup`.
+- `Document` grows a `string_lookup` accessor; the parser attaches the supplied table after construction so a future binary writer can re-emit the same lookup file alongside the round-tripped gamestate.
+
+**Tests**: 9 new `StringLookup` specs (well-formed parse, empty table, unknown version, truncation, max-length violation, trailing bytes, `#resolve` happy path + out-of-range) + 9 new parser specs covering 8/16-bit resolved-shape, no-table hex fallback, out-of-range raises, Document attachment, and `Primitives::String#lookup_index` value semantics. **613 / 0** full suite.
+
+**Empirical verification**: real EU5 ~40 MB save parses end-to-end with the lookup attached — 77 top-level Document entries, **2,505,232 lookup-indexed strings resolved** to real values across the gamestate.
 
 #### 10h. Binary-encoding metadata for round-trip
 
@@ -721,7 +736,7 @@ Not blocking anything; pure round-trip prep. Lands when a binary writer becomes 
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. 10a/10c/10e/10g are landed; the EU5 gamestate parses end-to-end. 10f and 10h are independent follow-ups — 10f gives string-value correctness for `LOOKUP_*` tokens (currently parseable but wrong); 10h is round-trip prep that lands when a binary writer becomes the next priority. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. 10a/10c/10e/10g/10f are landed; the EU5 gamestate parses end-to-end and lookup-indexed values resolve to real strings. 10h is the remaining round-trip prep that lands when a binary writer becomes the next priority. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 
@@ -746,4 +761,5 @@ Captured here so we don't re-litigate them.
 - **Game-namespaced DSL via mixin.** Mirrors the existing jomini-version dispatch in `Game`, avoids inheritance gymnastics.
 - **Phase 10 added: compound keys.** Surfaced when both the script and binary parsers failed mid-EU5-save at the `}={` shape — Paradox saves encode "map keyed by sub-list" structures (e.g. demand-spec → pop IDs) the existing grammar and binary `read_next` flow can't express. New phase rather than a slot under phase 8 because this is a `Property` *shape* extension, not a new primitive — different concern, different file surface. Structurally independent of 8e and 9 so can run in parallel; the only ordering is internal (10a audit → 10b/10c parser paths → 10d accessors).
 - **Unified `Primitives::String` w/ source-token kwargs for 10e and 10f.** EU5 binary saves resolve identifier-shaped values through three distinct tokenizations: key tokens via per-game `tokens:`, value tokens via the same (10e), lookup-indices via per-save `string_lookup:` (10f). Considered typed wrappers (`Primitives::TokenRef`, `Primitives::LookupRef`) mirroring `VariableRef`'s pattern from 8e-2. Rejected because the *Ruby-side semantic* in all three cases is the same — an identifier-shaped string — and inventing wrappers would make binary↔plaintext asymmetric (plaintext produces `Primitives::String`, binary would produce typed wrappers). Settled on `Primitives::String` carrying optional `token_index:` / `lookup_index:` round-trip metadata that equality/hash ignore. Future binary writer dispatches on which kwarg is set. The shape difference vs. 8e-2's `VariableRef`: the script grammar itself distinguishes `@varname` from a plain string, so a typed primitive is engine-symmetric; the binary tokenizations are pure compression of identical string semantics, so a single primitive type with metadata is the symmetric fit.
+- **`Paradoxical::Binary::*` namespace adopted in 10f.** The original `Paradoxical::BinaryParser` class (PR #81) was a single file. By 10f the binary work had grown a sibling type (`StringLookup`) plus per-save state worth grouping, so the namespace was lifted out: `lib/paradoxical/binary/{parser,string_lookup}.rb` under `Paradoxical::Binary::{Parser, StringLookup}`. No backwards-compat alias for the old `BinaryParser` constant — the feature is recent, the consumer surface is small (`paradoxical!`'s `binary_tokens:` plumbing + a single spec file), and the maintainer prefers a clean rename over compat shims (see [[user_paradoxical_project]]). Asymmetric class-vs-kwarg pattern for the two side-channel tables: `tokens:` retains the class-level `default_tokens=` because per-game token tables are shareable across saves (and `paradoxical!` sets one default per game); `string_lookup:` is per-call only because each save embeds its own lookup file and the tables aren't reusable.
 - **Smoke parallelism: nogvl + Thread pool, not Ractors.** Investigated a Ractor-pool architecture for `parse_file` (each parse dispatched to a worker Ractor; `parse_file` returns a `Future`; `parse_files` becomes `files.map { parse_file(f) }.map(&:value)`). Working implementation preserved on the `experiment/ractor-pool` branch. Net result: doesn't beat the simpler nogvl + Thread pool approach already on main, and runs slower than serial parse for small per-file workloads. Measured at 250-290 files/s (Ractor pool) vs 318 files/s (serial) vs 470 files/s (nogvl + threads) on imperator. The per-job dispatch overhead (Ractor#send + port.receive + future lifecycle) dominates the parallelism win when each parse is ~3 ms. Even the simplest sliced-Ractor design (no pool, no future infrastructure) tops out at ~2x scaling — same Amdahl wall as nogvl. To revisit if Ruby's Ractor implementation matures or if a future workload (much larger files, or many concurrent Game instances) shifts the per-parse cost enough to amortize the message overhead. The `rb_ext_ractor_safe(true)` flag is set in the magnus init so users CAN call `Paradoxical::Parser.parse` from non-main Ractors in their own code; the framework just doesn't itself.
