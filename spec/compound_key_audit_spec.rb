@@ -17,7 +17,14 @@ RSpec.describe "compound-key audit (MODERNIZATION phase 10a)" do
   let(:int)          { Paradoxical::Elements::Primitives::Integer.new(1) }
   let(:compound)     { Paradoxical::Elements::Property.new(compound_key, "=", int) }
   let(:string_keyed) { Paradoxical::Elements::Property.new("name", "=", Paradoxical::Elements::Primitives::Integer.new(2)) }
-  let(:list)         { Paradoxical::Elements::List.new("outer", [compound, string_keyed]) }
+  let(:var_ref_keyed) do
+    Paradoxical::Elements::Property.new(
+      Paradoxical::Elements::Primitives::VariableRef.new("@cost"),
+      "=",
+      Paradoxical::Elements::Primitives::Integer.new(3),
+    )
+  end
+  let(:list) { Paradoxical::Elements::List.new("outer", [compound, string_keyed, var_ref_keyed]) }
 
   describe "Arrayable#value_for" do
     it "skips compound-keyed entries and returns the string-keyed value" do
@@ -27,11 +34,20 @@ RSpec.describe "compound-key audit (MODERNIZATION phase 10a)" do
     it "returns nil when no string-keyed entry matches" do
       expect(list.value_for("nonexistent")).to be_nil
     end
+
+    it "finds VariableRef-keyed entries by their source form" do
+      expect(list.value_for("@cost").to_i).to eq(3)
+    end
   end
 
   describe "Search::PropertyMatcher#matches?" do
     it "skips compound-keyed entries when matching by name" do
       m = Paradoxical::Search::PropertyMatcher.new("name", operator: "=", value: 2)
+      expect(m.matches?(list)).to be true
+    end
+
+    it "matches VariableRef-keyed entries by their source form" do
+      m = Paradoxical::Search::PropertyMatcher.new("@cost", operator: "=", value: 3)
       expect(m.matches?(list)).to be true
     end
 
@@ -51,6 +67,18 @@ RSpec.describe "compound-key audit (MODERNIZATION phase 10a)" do
     it "still matches string-keyed nodes" do
       m = Paradoxical::Search::FunctionMatcher.new("key_matches", arguments: ["am"])
       expect(m.matches?(string_keyed)).to be true
+    end
+
+    it "matches VariableRef-keyed nodes against the source form" do
+      m = Paradoxical::Search::FunctionMatcher.new("key_matches", arguments: ["@cost"])
+      expect(m.matches?(var_ref_keyed)).to be true
+    end
+
+    it "matches a regex against the VariableRef source form" do
+      # `=~` returns the match position (0 here), so test for truthiness.
+      m = Paradoxical::Search::FunctionMatcher.new("key_matches", arguments: [/^@/])
+      expect(m.matches?(var_ref_keyed)).to be_truthy
+      expect(m.matches?(string_keyed)).to be_falsey
     end
   end
 

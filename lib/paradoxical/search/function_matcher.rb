@@ -55,12 +55,13 @@ class Paradoxical::Search::FunctionMatcher
 
   def key_matches node
     return false unless node.respond_to? :key
-    # Compound-keyed entries (List on the LHS of `=` in PDX saves) can't
-    # match regex / substring tests; skip non-string keys. See
-    # MODERNIZATION.md phase 10.
-    return false unless node.key.is_a? String
+    # String and VariableRef keys are both name-string-like (VariableRef's
+    # `to_s` returns the source `@foo` form). Compound-keyed entries
+    # (List on the LHS of `=` in PDX saves) can't match regex / substring
+    # tests; skip them. See MODERNIZATION.md phase 10.
+    return false unless node.key.is_a?(String) or node.key.is_a?(Paradoxical::Elements::Primitives::VariableRef)
 
     arg = arguments.first
-    arg.is_a?(Regexp) ? arg =~ node.key : node.key.include?(arg.to_s)
+    arg.is_a?(Regexp) ? arg =~ node.key.to_s : node.key.to_s.include?(arg.to_s)
   end
 end
