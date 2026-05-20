@@ -27,7 +27,14 @@ class Paradoxical::Elements::Document
   end
 
   def dup children: nil, path: nil
-    self.class.new ( children or @children).map(&:dup), whitespace: @whitespace.dup, path: path, bom: @bom
+    copy = self.class.new (children or @children).map(&:dup), whitespace: @whitespace.dup, path: path, bom: @bom
+    # Shallow-copy the string_lookup reference — the table itself is
+    # potentially large (37k+ entries in real saves) and immutable
+    # from the doc's perspective, so sharing it across dups is fine
+    # for now. If a future caller mutates the lookup post-dup we can
+    # revisit.
+    copy.string_lookup = @string_lookup
+    copy
   end
 
   def eql? other

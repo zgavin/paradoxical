@@ -542,6 +542,15 @@ RSpec.describe Paradoxical::Binary::Parser do
       expect(doc.string_lookup).to be_nil
     end
 
+    it "carries string_lookup across Document#dup (by reference)" do
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(0)),
+                                              tokens: TOKENS,
+                                              string_lookup: string_lookup)
+      copy = doc.dup
+
+      expect(copy.string_lookup).to be(doc.string_lookup)
+    end
+
     describe "Primitives::String#lookup_index semantics" do
       it "defaults to nil when not supplied" do
         s = Paradoxical::Elements::Primitives::String.new "foo", quoted: false
