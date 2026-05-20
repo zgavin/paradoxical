@@ -254,7 +254,7 @@ class Paradoxical::BinaryParser
 
     fail "expected token, got: #{n}" if n[:token].nil?
 
-    key = tokens[n[:token]] || n[:token]
+    key = resolve_token_string n[:token]
 
     eql = read_scalar
 
@@ -265,17 +265,42 @@ class Paradoxical::BinaryParser
 
   # Shared tail of `read_next`: once we have a key and the trailing `=`,
   # read the value and assemble either a List (if `{ … }`) or a Property
-  # (if a primitive). The compound-key branch above and the regular
-  # token-key branch both end here.
+  # (if a primitive or a bare token). The compound-key branch above and
+  # the regular token-key branch both end here.
   def read_property_with_key key
     maybe_open = read_scalar is_date: key == "date"
 
-    if maybe_open.is_a?(Hash) and maybe_open[:open] then
-      read_list key:
-    elsif not maybe_open.is_a?(Hash) then
-      Paradoxical::Elements::Property.new key, "=", maybe_open
+    if maybe_open.is_a?(Hash) then
+      if maybe_open[:open] then
+        read_list key:
+      elsif maybe_open[:token] then
+        # Token in value position — see MODERNIZATION.md phase 10e.
+        # EU5 compresses repeated RHS identifiers (`yes`/`no`, enum
+        # names) as raw 2-byte tokens instead of length-prefixed
+        # strings; resolve via the same `tokens:` table the key path
+        # uses.
+        Paradoxical::Elements::Property.new key, "=", resolve_token_string(maybe_open[:token])
+      else
+        fail "unexpected control token after `#{key}`: #{maybe_open}"
+      end
     else
-      fail "unexpected control token after `#{key}`: #{maybe_open}"
+      Paradoxical::Elements::Property.new key, "=", maybe_open
+    end
+  end
+
+  # Look up a 2-byte token in the supplied `tokens` table and wrap the
+  # resolved identifier as a `Primitives::String` carrying its source
+  # `token_index` for round-trip. Falls back to a wrapped `Integer`
+  # when the table has no entry — keeps the parser usable for
+  # inspection without a per-game tokens map, matching how missing
+  # entries degrade today on the key path. See MODERNIZATION.md
+  # phase 10e.
+  def resolve_token_string token_int
+    name = tokens[token_int]
+    if name then
+      Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
+    else
+      Paradoxical::Elements::Primitives::Integer.new token_int
     end
   end
 

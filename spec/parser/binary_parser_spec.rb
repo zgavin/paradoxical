@@ -314,6 +314,75 @@ RSpec.describe Paradoxical::BinaryParser do
     end
   end
 
+  describe "token resolution" do
+    # Phase 10e — `Primitives::String` with `token_index:` is the shape
+    # the binary parser emits for any identifier resolved via the
+    # per-game `tokens:` table, regardless of whether the token appeared
+    # in key or value position. See MODERNIZATION.md phase 10e.
+    TOKEN_VAL = 0x3000
+
+    it "wraps resolved keys in Primitives::String with token_index set" do
+      doc = parse(prop(TOKEN_KEY, uint32(1)))
+      key = doc.first.key
+
+      expect(key).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(key.to_s).to eq("key")
+      expect(key.token_index).to eq(TOKEN_KEY)
+      expect(key).not_to be_quoted
+    end
+
+    it "falls back to Primitives::Integer for unresolved keys" do
+      doc = parse(prop(0xDEAD, uint32(1)), tokens: {})
+
+      expect(doc.first.key).to be_a(Paradoxical::Elements::Primitives::Integer)
+      expect(doc.first.key.to_i).to eq(0xDEAD)
+    end
+
+    it "resolves a bare token in value position" do
+      # `key = <token>` — EU5's compression for repeated RHS identifiers
+      # like `yes`/`no` and enum names.
+      doc = parse(u16(TOKEN_KEY) + eq_marker + u16(TOKEN_VAL),
+                  tokens: TOKENS.merge(TOKEN_VAL => "yes"))
+      value = doc.first.value
+
+      expect(value).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(value.to_s).to eq("yes")
+      expect(value.token_index).to eq(TOKEN_VAL)
+      expect(value).not_to be_quoted
+    end
+
+    it "falls back to Primitives::Integer for an unresolved value-position token" do
+      doc = parse(u16(TOKEN_KEY) + eq_marker + u16(0xCAFE),
+                  tokens: TOKENS)
+      value = doc.first.value
+
+      expect(value).to be_a(Paradoxical::Elements::Primitives::Integer)
+      expect(value.to_i).to eq(0xCAFE)
+    end
+
+    describe "Primitives::String#token_index semantics" do
+      it "defaults to nil when not supplied" do
+        s = Paradoxical::Elements::Primitives::String.new "foo", quoted: false
+        expect(s.token_index).to be_nil
+      end
+
+      it "is round-trip metadata — equality ignores it" do
+        a = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, token_index: 1
+        b = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, token_index: 999
+        c = Paradoxical::Elements::Primitives::String.new "foo", quoted: false
+
+        expect(a).to eq(b)
+        expect(a).to eq(c)
+        expect(a).to eq("foo")
+      end
+
+      it "is preserved across dup" do
+        original = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, token_index: 42
+        expect(original.dup.token_index).to eq(42)
+      end
+    end
+  end
+
   describe "dates" do
     # `date = <hours since -5001.01.01>` — the integer value is converted
     # to a Primitives::Date on the property.
