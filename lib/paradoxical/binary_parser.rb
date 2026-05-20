@@ -148,13 +148,13 @@ class Paradoxical::BinaryParser
     bytes.shift length
   end
 
-  # Non-consuming check for the 2-byte `=` marker (`0x0001` little-endian)
-  # at the front of the byte stream. Used by `read_next` to decide
-  # whether a primitive scalar should be treated as a property key or a
-  # bare value. EOF or any other byte sequence returns false. See
+  # Non-consuming check for the `=` token (`TokenKind::EQUAL`) at the
+  # front of the byte stream. Used by `read_next` to decide whether a
+  # primitive scalar should be treated as a property key or a bare
+  # value. EOF or any other byte sequence returns false. See
   # MODERNIZATION.md phase 10g.
   def peek_equals?
-    bytes.length >= 2 and bytes[0] == 0x01 and bytes[1] == 0x00
+    bytes.length >= 2 and (bytes[1] << 8 | bytes[0]) == TokenKind::EQUAL
   end
 
   # The body of an rgb value is `{ red <u32> green <u32> blue <u32> [alpha <u32>] }` —
