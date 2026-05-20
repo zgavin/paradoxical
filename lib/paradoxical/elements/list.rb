@@ -127,6 +127,7 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
     return false unless child.respond_to? :key
 
     return true if child.is_a? Paradoxical::Elements::Property
+    return false unless child.key.is_a? String # compound-keyed sub-list; see MODERNIZATION.md phase 10
     return true if %w{add_resource resource_stockpile_compare}.include? child.key
     return true if /_variable$/ =~ child.key
 

@@ -355,7 +355,16 @@ module Paradoxical::Elements::Concerns::Arrayable
   def value_for key
     key = key.to_s.downcase
 
-    @children.find do |obj| obj.is_a? Paradoxical::Elements::Property and obj.key.downcase == key end&.value
+    # String and VariableRef keys are both name-lookup-able (VariableRef's
+    # `to_s` returns the source `@foo` form). Compound-keyed entries (a
+    # List on the LHS of `=`, used in PDX save files) are skipped — a
+    # name lookup can't match a structural key. See MODERNIZATION.md
+    # phase 10.
+    @children.find do |obj|
+      obj.is_a? Paradoxical::Elements::Property and
+        (obj.key.is_a?(String) or obj.key.is_a?(Paradoxical::Elements::Primitives::VariableRef)) and
+        obj.key.to_s.downcase == key
+    end&.value
   end
 
   private

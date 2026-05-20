@@ -16,8 +16,15 @@ class Paradoxical::Search::PropertyMatcher
   def matches? node
     return false unless node.is_a? Paradoxical::Elements::Document or node.is_a? Paradoxical::Elements::List
 
+    # String and VariableRef keys are both name-lookup-able (VariableRef's
+    # `to_s` returns the source `@foo` form, so `[@foo]` selectors match).
+    # Compound-keyed entries (a List on the LHS of `=`, used in PDX save
+    # files) are skipped — a name selector can't match a structural key.
+    # See MODERNIZATION.md phase 10.
     properties = node.send(:children).select do |node|
-      node.is_a? Paradoxical::Elements::Property and node.key.downcase == key
+      node.is_a? Paradoxical::Elements::Property and
+        (node.key.is_a?(String) or node.key.is_a?(Paradoxical::Elements::Primitives::VariableRef)) and
+        node.key.to_s.downcase == key
     end
 
     return false if properties.empty?
