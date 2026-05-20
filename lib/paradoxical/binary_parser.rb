@@ -148,6 +148,15 @@ class Paradoxical::BinaryParser
     bytes.shift length
   end
 
+  # Non-consuming check for the 2-byte `=` marker (`0x0001` little-endian)
+  # at the front of the byte stream. Used by `read_next` to decide
+  # whether a primitive scalar should be treated as a property key or a
+  # bare value. EOF or any other byte sequence returns false. See
+  # MODERNIZATION.md phase 10g.
+  def peek_equals?
+    bytes.length >= 2 and bytes[0] == 0x01 and bytes[1] == 0x00
+  end
+
   # The body of an rgb value is `{ red <u32> green <u32> blue <u32> [alpha <u32>] }` —
   # equivalent in the script grammar to: `rgb { red N green N blue N (alpha N)? }`.
   # Two details worth knowing:
@@ -236,32 +245,59 @@ class Paradoxical::BinaryParser
   def read_next
     n = read_scalar
 
-    return Paradoxical::Elements::Value.new n unless n.is_a? Hash
+    unless n.is_a? Hash then
+      # A primitive in key position — PDX saves use this for shapes like
+      # `duration={ 66 0=0 1=0 … 65=0 }` (length-prefixed indexed map)
+      # and any other case where an integer/date/string-shaped value
+      # appears as a property's key. Peek the next 2 bytes: if they're
+      # the `=` marker, this scalar is a key, not a bare value. See
+      # MODERNIZATION.md phase 10g.
+      if peek_equals? then
+        shift_bytes 2
+        return read_property_with_key n
+      end
+
+      return Paradoxical::Elements::Value.new n
+    end
 
     return n if n[:close]
 
-    # A `{` at the position a key token would normally occupy is a
-    # PDX-save compound key — the key is itself a sub-list (e.g.
-    # `{ demand=pop_demand }={ 37 43 47 … }`). Consume the sub-list,
-    # then expect `=`, then read the value. See MODERNIZATION.md
-    # phase 10.
+    # A `{` at the position a key token would normally occupy is one
+    # of two PDX-save shapes:
+    #   - a compound key: `{ inner }={ value }` — the key is itself a
+    #     sub-list (e.g. `{ demand=pop_demand }={ 37 43 47 … }`); see
+    #     phase 10c.
+    #   - a keyless list: `{ … }` standalone, as a sibling of other
+    #     children inside the enclosing list (or at document top level).
+    # The disambiguation is the same peek-equals lookup 10g uses for
+    # primitive scalars: peek after the matching `}` — `=` next means
+    # compound key, otherwise it's a keyless list.
     if n[:open] then
-      compound_key = read_list key: nil
-      eql = read_scalar
-      fail "expected `=` after compound key, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
+      inner = read_list key: nil
 
-      return read_property_with_key compound_key
+      if peek_equals? then
+        shift_bytes 2
+        return read_property_with_key inner
+      end
+
+      return inner
     end
 
     fail "expected token, got: #{n}" if n[:token].nil?
 
-    key = resolve_token_string n[:token]
+    resolved = resolve_token_string n[:token]
 
-    eql = read_scalar
+    # Same peek-equals lookup as the primitive and compound-key branches:
+    # the resolved identifier is a key if `=` follows, a bare value
+    # otherwise. EU5 saves carry tokens in both positions — see the
+    # 10e plan's empirical question, finally answered yes by the
+    # ~7.4 MB-deep failure that motivated this expansion of 10g.
+    if peek_equals? then
+      shift_bytes 2
+      return read_property_with_key resolved
+    end
 
-    fail "expected `=` after key #{key.inspect}, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
-
-    read_property_with_key key
+    Paradoxical::Elements::Value.new resolved
   end
 
   # Shared tail of `read_next`: once we have a key and the trailing `=`,

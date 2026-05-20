@@ -307,12 +307,97 @@ RSpec.describe Paradoxical::BinaryParser do
       expect(compound.map { |v| v.value.to_i }).to eq([37, 43, 47])
     end
 
-    it "raises ParseError when a compound key isn't followed by `=`" do
-      # `{ 42 } 100` — close brace, then a value where `=` should be.
+    it "treats a `{ … }` not followed by `=` as a keyless list, not a compound key" do
+      # `{ 42 } 100` — close brace then a value, no `=`. The leading
+      # `{...}` is a keyless sub-list at the same level as the trailing
+      # bare value. See MODERNIZATION.md phase 10g.
       body = open + uint32(42) + close + uint32(100)
 
-      expect { parse(body) }
-        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected `=` after compound key/)
+      doc = parse(body)
+
+      expect(doc.size).to eq(2)
+      expect(doc.first).to be_a(Paradoxical::Elements::List)
+      expect(doc.first.key).to be_nil
+      expect(doc.first.map { |c| c.value.to_i }).to eq([42])
+      expect(doc[1]).to be_a(Paradoxical::Elements::Value)
+      expect(doc[1].value.to_i).to eq(100)
+    end
+  end
+
+  describe "scalar-keyed properties (peek-equals lookup)" do
+    # Phase 10g — `read_next` peeks for `=` after every parsed thing
+    # (primitive, sub-list, token) to decide key-vs-value. See
+    # MODERNIZATION.md phase 10g.
+
+    it "treats an integer in a list as a key when followed by `=`" do
+      # `key = { 0 = 1 }` — single integer-keyed property inside a
+      # list. Without 10g, the `0` would be read as a bare Value and
+      # the `=` would crash the parser.
+      body = u16(TOKEN_KEY) + eq_marker + open +
+             int32(0) + eq_marker + int32(1) +
+             close
+
+      list = parse(body).first
+      expect(list).to be_a(Paradoxical::Elements::List)
+      expect(list.size).to eq(1)
+      expect(list.first).to be_a(Paradoxical::Elements::Property)
+      expect(list.first.key.to_i).to eq(0)
+      expect(list.first.value.to_i).to eq(1)
+    end
+
+    it "parses the EU5 length-prefixed indexed-map shape (`duration={ N 0=v 1=v … }`)" do
+      # `duration={ 3 0=10 1=20 2=30 }` — leading bare int + three
+      # integer-keyed properties. The leading int is the count; the
+      # parser stays structurally neutral and represents it as the
+      # literal mix.
+      body = u16(TOKEN_KEY) + eq_marker + open +
+             int32(3) +
+             int32(0) + eq_marker + int32(10) +
+             int32(1) + eq_marker + int32(20) +
+             int32(2) + eq_marker + int32(30) +
+             close
+
+      list = parse(body).first
+      expect(list.size).to eq(4)
+      expect(list[0]).to be_a(Paradoxical::Elements::Value)
+      expect(list[0].value.to_i).to eq(3)
+      expect(list[1..3].map { |p| [p.key.to_i, p.value.to_i] }).to eq([[0, 10], [1, 20], [2, 30]])
+    end
+
+    it "treats a token in a list as a key when followed by `=`, value otherwise" do
+      # `key = { TOKEN_INNER = 1 TOKEN_INNER }` — first occurrence is
+      # a key (followed by `=`), second is a bare value (followed by
+      # `}`).
+      body = u16(TOKEN_KEY) + eq_marker + open +
+             u16(TOKEN_INNER) + eq_marker + uint32(1) +
+             u16(TOKEN_INNER) +
+             close
+
+      list = parse(body).first
+      expect(list.size).to eq(2)
+      expect(list[0]).to be_a(Paradoxical::Elements::Property)
+      expect(list[0].key.to_s).to eq("inner")
+      expect(list[0].value.to_i).to eq(1)
+      expect(list[1]).to be_a(Paradoxical::Elements::Value)
+      expect(list[1].value.to_s).to eq("inner")
+    end
+
+    it "parses a keyless sub-list as a sibling of other children" do
+      # `key = { 1 { 2 3 } 4 }` — bare value, keyless sub-list, bare
+      # value. The sub-list has key=nil and contains two values.
+      body = u16(TOKEN_KEY) + eq_marker + open +
+             uint32(1) +
+             open + uint32(2) + uint32(3) + close +
+             uint32(4) +
+             close
+
+      list = parse(body).first
+      expect(list.size).to eq(3)
+      expect(list[0].value.to_i).to eq(1)
+      expect(list[1]).to be_a(Paradoxical::Elements::List)
+      expect(list[1].key).to be_nil
+      expect(list[1].map { |c| c.value.to_i }).to eq([2, 3])
+      expect(list[2].value.to_i).to eq(4)
     end
   end
 
@@ -454,10 +539,18 @@ RSpec.describe Paradoxical::BinaryParser do
         .to raise_error(Paradoxical::BinaryParser::ParseError, /end of input/)
     end
 
-    it "raises ParseError when `=` is missing between key and value" do
-      bad = u16(TOKEN_KEY) + uint32(1)
-      expect { parse(bad) }
-        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected `=`/)
+    it "treats a token not followed by `=` as a bare token-as-value, not an error" do
+      # `<token> <uint32>` at top level — two siblings, no property
+      # relationship. The token resolves to its identifier-shaped
+      # `Primitives::String` and gets wrapped as a Value rather than
+      # waiting for an `=`. See MODERNIZATION.md phase 10g.
+      doc = parse(u16(TOKEN_KEY) + uint32(1))
+
+      expect(doc.size).to eq(2)
+      expect(doc[0]).to be_a(Paradoxical::Elements::Value)
+      expect(doc[0].value.to_s).to eq("key")
+      expect(doc[1]).to be_a(Paradoxical::Elements::Value)
+      expect(doc[1].value.to_i).to eq(1)
     end
   end
 end
