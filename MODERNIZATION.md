@@ -701,11 +701,27 @@ Fix shape, per the shared design above:
 
 Not a parsing blocker — without 10f, lookup-indexed values surface as `Integer` instead of `String`, which is wrong but parseable. Lower priority than 10e. Useful when correct values matter (DSL editing, search queries comparing against expected string literals, the token-mapping work the maintainer is currently focused on).
 
+#### 10h. Binary-encoding metadata for round-trip
+
+Forward-looking work for binary→AST→binary lossless round-trip. No writer exists yet; this phase adds the kwargs so primitives carry their source binary encoding, and the future writer dispatches on it to emit the original wire shape. Same `token_index:`-style metadata pattern from 10e — optional kwarg, equality/hash ignore it, the writer matches on the constant to recover wire shape.
+
+Most primitives need exactly one new kwarg, `binary_encoding:`, taking a `TokenKind::*` constant that fully specifies the wire format (sign, byte width, payload shape). Per type:
+
+- **`Primitives::Integer`** — records `U32` / `U64` / `I32` / `I64`, or any `LOOKUP_*` (08/16/24/08A/16A) when the source was a lookup token that fell back to Integer because no `string_lookup:` was supplied (the 10f wrapper covers the resolved case via `lookup_index:`; this kwarg covers the fallback case for symmetry on round-trip).
+- **`Primitives::Float`** — records `F32` / `F64` or any `FIXED_*` (positive widths 1..7 / negative widths 1..7 — 14 variants total, the constant fully specifies width + sign-via-token-range). **Requires wrapping IEEE floats in `Primitives::Float`** — currently the parser emits raw `::Float` for `F32`/`F64` per a deliberate design choice (the binary form has no source-string for `to_pdx`). 10h shifts that: `Primitives::Float`'s BigDecimal storage represents the IEEE bits exactly, so the wrap is lossless, and the metadata is what carries the F32-vs-F64 distinction the raw `::Float` couldn't.
+- **`Primitives::String`** — no new metadata. `quoted` already distinguishes `QUOTED` / `UNQUOTED`; `token_index` (10e) covers token-encoded shapes; `lookup_index` (10f) covers lookup-index resolution. Fully covered.
+- **`Primitives::Date`** — int32 hours-since-epoch is empirically the only wire shape, so no per-instance kwarg needed. But: the *forward* parsing path needs a token-name allowlist (`date_tokens:` kwarg or class-level list) — today only the literal `key == "date"` triggers the int→Date conversion, but EU5 saves carry multiple date-typed fields (`last_battle_date`, etc.) that currently flow through as raw integers. Empirically catalog the date-typed token names during implementation.
+- **Booleans** — single token, two values; the writer emits `TokenKind::BOOL` + 1/0 regardless. No metadata; raw Ruby `true`/`false` stays as-is, consistent with the existing "don't wrap booleans" decision.
+
+Plaintext-derived primitives have `binary_encoding: nil`; the writer picks a default ("smallest token that fits" for ints/floats) so plaintext→binary doesn't need exact-shape knowledge. The engine appears tolerant of any legal encoding for a given value — the wire format itself has multiple legal encodings for the same logical value (e.g., `U32` and `I32` both represent positive 32-bit ints), which strongly implies the engine reads what it gets rather than expecting a specific shape per field.
+
+Not blocking anything; pure round-trip prep. Lands when a binary writer becomes the next priority — either a `to_pdx_binary` API for the existing Document or a save-editing workflow on the binary side.
+
 #### Suggested sequence
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f. 10a/10c/10e/10g are all landed; the EU5 gamestate parses end-to-end as of 10g. 10f remains a values-correctness follow-up: without it lookup-indexed values surface as integers — semantically wrong but parseable. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. 10a/10c/10e/10g are landed; the EU5 gamestate parses end-to-end. 10f and 10h are independent follow-ups — 10f gives string-value correctness for `LOOKUP_*` tokens (currently parseable but wrong); 10h is round-trip prep that lands when a binary writer becomes the next priority. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 
