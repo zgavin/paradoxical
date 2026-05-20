@@ -37,30 +37,32 @@ class Paradoxical::Binary::StringLookup
   attr_reader :entries
 
   def self.parse data
-    fail ParseError, "header truncated: got #{data.bytesize} bytes, need #{HEADER_SIZE}" if data.bytesize < HEADER_SIZE
+    raise ParseError, "header truncated: got #{data.bytesize} bytes, need #{HEADER_SIZE}" if data.bytesize < HEADER_SIZE
 
     version, count, max_length = data.byteslice(0, HEADER_SIZE).unpack("Cvv")
 
-    fail ParseError, "unknown string_lookup version: #{version} (expected #{HEADER_VERSION})" unless version == HEADER_VERSION
+    raise ParseError,
+          "unknown string_lookup version: #{version} (expected #{HEADER_VERSION})" unless version == HEADER_VERSION
 
     strings = []
     pos = HEADER_SIZE
     count.times do |i|
-      fail ParseError, "ran out of bytes reading length of entry #{i}" if pos + 2 > data.bytesize
+      raise ParseError, "ran out of bytes reading length of entry #{i}" if pos + 2 > data.bytesize
 
       length = data.byteslice(pos, 2).unpack1("v")
 
-      fail ParseError, "entry #{i}: length #{length} exceeds header max_length #{max_length}" if length > max_length
+      raise ParseError, "entry #{i}: length #{length} exceeds header max_length #{max_length}" if length > max_length
 
       pos += 2
 
-      fail ParseError, "ran out of bytes reading entry #{i} (need #{length}, have #{data.bytesize - pos})" if pos + length > data.bytesize
+      raise ParseError,
+            "ran out of bytes reading entry #{i} (need #{length}, have #{data.bytesize - pos})" if pos + length > data.bytesize
 
       strings << data.byteslice(pos, length)
       pos += length
     end
 
-    fail ParseError, "trailing bytes after #{count} entries: #{data.bytesize - pos}" unless pos == data.bytesize
+    raise ParseError, "trailing bytes after #{count} entries: #{data.bytesize - pos}" unless pos == data.bytesize
 
     new strings
   end
