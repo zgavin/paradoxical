@@ -615,13 +615,16 @@ Risk to budget for: the 22,229-file smoke baseline is currently empty-allowlist 
 
 Open question: does the script form *only* appear in save files, or does any mod-data file ship compound keys? Empirical sweep across the installed games' game-data trees will answer this. If save-files-only, the grammar change isn't load-bearing for the parse-smoke baselines (saves aren't smoked today), which lowers the risk.
 
-#### 10c. Binary parser: compound-key handling
+#### 10c. Binary parser: compound-key handling (landed)
 
-In `read_next`, when `read_scalar` returns `{open: true}` at the position currently expecting a token, recurse into `read_list(key: nil)` to consume the sub-list as a compound key, then expect `=`, then read the value (scalar or sub-list). Build `Property.new(compound_key_list, "=", value)`.
+`read_next` now branches on `{open: true}` at the position a key token would normally occupy: it consumes the sub-list via `read_list(key: nil)`, expects `=`, then dispatches the tail through a new `read_property_with_key` helper (extracted from the existing token-key path so both code paths share value-reading). Two output shapes per the rest-of-parser convention:
 
-Smaller diff than 10b — no grammar work, just one branch in `read_next` plus a List-with-nil-key path through `read_list`. Can land before 10b if save-file parsing is the only near-term need.
+- compound key + primitive value → `Property.new(compound_key, "=", primitive)`
+- compound key + list value → `List.new(compound_key, [children])` (matches the existing "RHS is `{…}` → keyed List" pattern)
 
-Test fixtures: synthesize binary with the compound-key pattern (open, open, inner-property, close, equal, open, scalars, close, close) and assert the resulting `Property.key` is a List with the expected child.
+4 new synthesized fixtures in `spec/parser/binary_parser_spec.rb` exercise the primitive-value form, the list-value form, the realistic outer-keyed-list-of-compound-pairs shape, and the "compound block not followed by `=`" error path. 584 / 0 across the full suite.
+
+**Empirical verification: partial.** Parsing a real EU5 binary save (~40 MB gamestate, no token table supplied) makes it deep into the gamestate but fails at a different shape — `unexpected control token after \`225\`: {token: 11478}`. That's a separate EU5 quirk, tracked below as **10e — token-as-value**: the engine encodes some right-hand-side identifiers as raw 2-byte tokens (presumably compression for repeated literals like `yes`/`no` and enum names) instead of as type-discriminated quoted/unquoted strings. The current `read_scalar` `else { token: type }` branch only intends to surface key tokens; in value position the code expects a type-discriminated scalar and there isn't one.
 
 #### 10d. Document accessors
 
@@ -633,11 +636,21 @@ Test fixtures: synthesize binary with the compound-key pattern (open, open, inne
 
 Defer the call until a concrete consumer materializes. The first one will almost certainly want enumeration ("walk every compound-keyed entry in this list"), not structural lookup.
 
+#### 10e. Binary parser: token-as-value
+
+Surfaced when verifying 10c against a real EU5 save: the engine encodes some right-hand-side identifiers (probably `yes`/`no`, enum names, and other frequently-repeated literals) as raw 2-byte tokens instead of as type-discriminated quoted/unquoted strings. `read_scalar`'s `else { token: type }` branch returns `{token: N}` for these; `read_property_with_key` then sees a Hash without `:open` and raises `unexpected control token after \`<key>\`: {token: N}`.
+
+Likely fix shape: in `read_property_with_key` (and possibly anywhere a value is consumed inside `read_list`), recognize `{token: N}` in value position and look it up in the supplied `tokens` table — emit a `Primitives::String` (unquoted, since these are identifier-shaped) when found, fall back to the raw integer when the token table doesn't have an entry. The fallback shape matches how key-side tokens degrade today.
+
+Empirical question to answer first: do these tokens-as-values appear *only* as bare RHS scalars, or also as bare elements inside a `{ … }` list (e.g. `tags = { token_a token_b token_c }`)? `read_list` calls `read_next` for each child, which currently routes `{token: N}` through the `key=value` path — so a bare token in a list child position would already error out for a different reason. The fix may need to cover both positions.
+
+Not strictly part of phase 10's "compound keys" framing — it's a separate binary-format extension — but lives in the same Phase 10 since it surfaced while validating compound-key parsing end-to-end. Could be promoted to its own phase if the binary-format work grows much beyond this.
+
 #### Suggested sequence
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths because the audit catches anywhere a non-string `key` would silently break. 10b and 10c are independent — either order works.
 
-**If save-file parsing is the only near-term need**, the shortest path is **10a → 10c** alone. The grammar and accessor pieces can come later when a script-side or DSL-side consumer surfaces.
+**If save-file parsing is the only near-term need**, the shortest path is **10a → 10c → 10e** — and 10e is required to actually parse a full EU5 save, not just compound-key fixtures. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 

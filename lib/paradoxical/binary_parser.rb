@@ -240,6 +240,18 @@ class Paradoxical::BinaryParser
 
     return n if n[:close]
 
+    # A `{` at the position a key token would normally occupy is a
+    # PDX-save compound key — the key is itself a sub-list (e.g.
+    # `{ demand=pop_demand }={ 37 43 47 … }`). Consume the sub-list,
+    # then expect `=`, then read the value. See MODERNIZATION.md
+    # phase 10.
+    if n[:open] then
+      compound_key = read_list key: nil
+      eql = read_scalar
+      fail "expected `=` after compound key, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
+      return read_property_with_key compound_key
+    end
+
     fail "expected token, got: #{n}" if n[:token].nil?
 
     key = tokens[n[:token]] || n[:token]
@@ -248,6 +260,14 @@ class Paradoxical::BinaryParser
 
     fail "expected `=` after key #{key.inspect}, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
 
+    read_property_with_key key
+  end
+
+  # Shared tail of `read_next`: once we have a key and the trailing `=`,
+  # read the value and assemble either a List (if `{ … }`) or a Property
+  # (if a primitive). The compound-key branch above and the regular
+  # token-key branch both end here.
+  def read_property_with_key key
     maybe_open = read_scalar is_date: key == "date"
 
     if maybe_open.is_a?(Hash) and maybe_open[:open] then

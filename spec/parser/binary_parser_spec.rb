@@ -236,6 +236,84 @@ RSpec.describe Paradoxical::BinaryParser do
     end
   end
 
+  describe "compound keys" do
+    # PDX save files use a `{ … }={ … }` shape — a sub-list on the LHS of `=` —
+    # for maps keyed by an object rather than an identifier. EU5 alone ships
+    # 24,541 of these in one probe save. See MODERNIZATION.md phase 10.
+
+    it "parses a compound-key Property when the value is a primitive" do
+      # `{ key=42 } = 100` at document top level.
+      body = open +
+             u16(TOKEN_KEY) + eq_marker + uint32(42) +
+             close +
+             eq_marker +
+             uint32(100)
+
+      doc = parse(body)
+      prop = doc.first
+
+      expect(prop).to be_a(Paradoxical::Elements::Property)
+      expect(prop.operator).to eq("=")
+      expect(prop.key).to be_a(Paradoxical::Elements::List)
+      expect(prop.key.first).to be_a(Paradoxical::Elements::Property)
+      expect(prop.key.first.key).to eq("key")
+      expect(prop.key.first.value.to_i).to eq(42)
+      expect(prop.value.to_i).to eq(100)
+    end
+
+    it "parses a compound-key List when the value is itself a list" do
+      # `{ key=1 } = { 37 43 47 }` — mirrors the EU5 demand-spec → pop-IDs
+      # shape. The result is a List (compound key + list value), not a
+      # Property, matching the rest of the parser's "RHS is `{…}` → List"
+      # convention.
+      body = open +
+             u16(TOKEN_KEY) + eq_marker + uint32(1) +
+             close +
+             eq_marker +
+             open + uint32(37) + uint32(43) + uint32(47) + close
+
+      doc = parse(body)
+      list = doc.first
+
+      expect(list).to be_a(Paradoxical::Elements::List)
+      expect(list.key).to be_a(Paradoxical::Elements::List)
+      expect(list.key.first.key).to eq("key")
+      expect(list.key.first.value.to_i).to eq(1)
+      expect(list.map { |v| v.value.to_i }).to eq([37, 43, 47])
+    end
+
+    it "parses a compound-keyed pair nested inside an outer keyed list" do
+      # `outer = { { key=1 }={ 37 43 47 } }` — the realistic shape, where
+      # the compound pair appears as a child of an outer keyed map.
+      inner =
+        open +
+          u16(TOKEN_KEY) + eq_marker + uint32(1) +
+        close +
+        eq_marker +
+        open + uint32(37) + uint32(43) + uint32(47) + close
+
+      doc = parse(u16(TOKEN_INNER) + eq_marker + open + inner + close)
+      outer = doc.first
+
+      expect(outer).to be_a(Paradoxical::Elements::List)
+      expect(outer.key).to eq("inner")
+      expect(outer.size).to eq(1)
+
+      compound = outer.first
+      expect(compound).to be_a(Paradoxical::Elements::List)
+      expect(compound.key).to be_a(Paradoxical::Elements::List)
+      expect(compound.map { |v| v.value.to_i }).to eq([37, 43, 47])
+    end
+
+    it "raises ParseError when a compound key isn't followed by `=`" do
+      # `{ 42 } 100` — close brace, then a value where `=` should be.
+      body = open + uint32(42) + close + uint32(100)
+
+      expect { parse(body) }
+        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected `=` after compound key/)
+    end
+  end
+
   describe "dates" do
     # `date = <hours since -5001.01.01>` — the integer value is converted
     # to a Primitives::Date on the property.
