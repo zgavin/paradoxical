@@ -661,28 +661,33 @@ Tests: 7 new specs in `spec/parser/binary_parser_spec.rb` covering resolved-key 
 
 **Empirical verification against a real ~40 MB EU5 binary save** (no token table supplied so all identifier-shapes appear as `Primitives::Integer` fallbacks): the parser now clears the token-as-value shape and gets *much* further in (~404 KB into the gamestate) before hitting yet another binary-format shape — a tuple-key pattern where multiple bare integers act as a compound key inside a list (`{ 1 0 = 0 }`). Tracked as 10g below. The empirical question 10e was supposed to answer — "do bare tokens appear in list-child position?" — didn't surface; the tuple-key case is structurally different and is what trips on real data first.
 
-#### 10g. Binary parser: tuple-key (multi-component bare-value keys)
+#### 10g. Binary parser: peek-equals key/value disambiguation (landed)
 
-Surfaced when verifying 10e against a real EU5 save. Inside a list, the wire occasionally carries shapes like:
+Surfaced when verifying 10e against a real EU5 save. Originally hypothesized as a "tuple key" (two bare i32s forming a compound key); empirical check against the plaintext save refuted that:
 
 ```
-{
-  <i32> <i32> = <value>
-  …
-}
+duration={ 1 0=0 }
+duration={ 66 0=0 1=0 2=0 3=0 … 64=0 65=0 }
 ```
 
-— i.e., two (or more) bare values function as a compound key, with no `{ … }` block wrapping. Different from 10c's block-keys (`{…}={…}`) and from an ordinary property's single-value key (`key=value`). Likely use case: maps keyed by tuples (coordinates, ID pairs, etc.).
+The actual shape is a list whose children mix *bare scalar values* with *integer-keyed properties*. The leading integer is a count (66 entries → 0..65 keys); the trailing entries are an indexed map. The blocker isn't a compound-key shape — it's that the binary parser was committing too early to "this thing is a bare value" without checking whether `=` follows.
 
-Fix shape: extend `read_list`'s child loop with a lookahead. After reading a `Value` for a child, peek the next 2 bytes — if they're the `=` (`0x0001`) marker, this value (plus any consecutive preceding bare values still pending) is the LHS of a compound-key pair, not a list element. Roll them into a `List` (or a dedicated "tuple key" container?), consume the `=`, read the value, emit a Property.
+Implementing the fix surfaced *two more* shapes that depend on the same disambiguation:
 
-Open design questions:
+- A `{ … }` block that turned out **not** to be a compound key — the next bytes were `{` (a new keyless sibling), not `=`. PDX saves carry keyless sub-lists like `key = { 1 { 2 3 } 4 }` at any nesting level.
+- A token (`{token: N}`) that turned out **not** to be a key — followed by `}` (close), making it a bare token-as-value. This is the empirical question 10e's plan asked but didn't surface until ~7.4 MB deep.
 
-- **How many components.** Probably variable; the lookahead should keep collecting consecutive bare values until it sees `=`. Don't bake in a fixed arity.
-- **AST shape.** Two natural representations: (a) wrap the components in a keyless `List` and store it as the Property's compound key (matches 10c's shape — the same `Property.key.is_a?(List)` guard from the 10a audit already covers it); (b) introduce a dedicated `Tuple` primitive. (a) reuses existing infrastructure; (b) preserves "block-key vs tuple-key" distinction for round-trip, but adds primitive surface for no Ruby-side semantic gain.
-- **Empirical question for implementation.** Do tuple-keys ever mix with non-value components (e.g., `<i32> <token> = …`)? If yes, the lookahead has to roll up whatever was previously read, not just bare values.
+All three reduce to the same lookup: peek the next 2 bytes for the `=` (`0x0001`) marker. If present, the just-read thing is a key — consume the `=` and dispatch through `read_property_with_key`. If absent, it's a stand-alone value (bare Value for primitives + resolved tokens; the List directly for sub-lists, since keyless lists are first-class in the AST).
 
-Currently the parsing blocker for full EU5-save coverage — real saves stop ~404 KB into the gamestate without this.
+Implementation:
+
+- New `peek_equals?` helper: `bytes[0] == 0x01 and bytes[1] == 0x00` without consuming; safe at EOF.
+- Three branches of `read_next` each gain the same peek-and-consume pattern (after a primitive scalar, after a sub-list, after a resolved token). The three "is this a key" branch points stay duplicated rather than extracted — each has its own correct-result-when-not-a-key (Value-wrap for primitives/tokens, list-direct for sub-lists), so a shared helper would buy little.
+- No AST-shape changes: the existing `Property.new(any_kind_of_key, "=", value)` path the 10a audit already verified handles all three key shapes.
+
+The leading-length / indexed-map *semantics* (recognize "first child is bare int, remaining children are ascending integer-keyed entries, count matches" → typed Vector) is downstream of parsing and a candidate for a later phase. The parser's job is faithfully representing the wire shape; collapsing into a typed wrapper would lose information when those rules don't hold.
+
+Empirical verification: real EU5 ~40 MB save (172 MB gamestate) now parses fully end-to-end — 77 top-level entries.
 
 #### 10f. Binary parser: lookup-index resolution (the values-correctness issue)
 
@@ -696,11 +701,27 @@ Fix shape, per the shared design above:
 
 Not a parsing blocker — without 10f, lookup-indexed values surface as `Integer` instead of `String`, which is wrong but parseable. Lower priority than 10e. Useful when correct values matter (DSL editing, search queries comparing against expected string literals, the token-mapping work the maintainer is currently focused on).
 
+#### 10h. Binary-encoding metadata for round-trip
+
+Forward-looking work for binary→AST→binary lossless round-trip. No writer exists yet; this phase adds the kwargs so primitives carry their source binary encoding, and the future writer dispatches on it to emit the original wire shape. Same `token_index:`-style metadata pattern from 10e — optional kwarg, equality/hash ignore it, the writer matches on the constant to recover wire shape.
+
+Most primitives need exactly one new kwarg, `binary_encoding:`, taking a `TokenKind::*` constant that fully specifies the wire format (sign, byte width, payload shape). Per type:
+
+- **`Primitives::Integer`** — records `U32` / `U64` / `I32` / `I64`, or any `LOOKUP_*` (08/16/24/08A/16A) when the source was a lookup token that fell back to Integer because no `string_lookup:` was supplied (the 10f wrapper covers the resolved case via `lookup_index:`; this kwarg covers the fallback case for symmetry on round-trip).
+- **`Primitives::Float`** — records `F32` / `F64` or any `FIXED_*` (positive widths 1..7 / negative widths 1..7 — 14 variants total, the constant fully specifies width + sign-via-token-range). **Requires wrapping IEEE floats in `Primitives::Float`** — currently the parser emits raw `::Float` for `F32`/`F64` per a deliberate design choice (the binary form has no source-string for `to_pdx`). 10h shifts that: `Primitives::Float`'s BigDecimal storage represents the IEEE bits exactly, so the wrap is lossless, and the metadata is what carries the F32-vs-F64 distinction the raw `::Float` couldn't.
+- **`Primitives::String`** — no new metadata. `quoted` already distinguishes `QUOTED` / `UNQUOTED`; `token_index` (10e) covers token-encoded shapes; `lookup_index` (10f) covers lookup-index resolution. Fully covered.
+- **`Primitives::Date`** — int32 hours-since-epoch is empirically the only wire shape, so no per-instance kwarg needed. But: the *forward* parsing path needs a token-name allowlist (`date_tokens:` kwarg or class-level list) — today only the literal `key == "date"` triggers the int→Date conversion, but EU5 saves carry multiple date-typed fields (`last_battle_date`, etc.) that currently flow through as raw integers. Empirically catalog the date-typed token names during implementation.
+- **Booleans** — single token, two values; the writer emits `TokenKind::BOOL` + 1/0 regardless. No metadata; raw Ruby `true`/`false` stays as-is, consistent with the existing "don't wrap booleans" decision.
+
+Plaintext-derived primitives have `binary_encoding: nil`; the writer picks a default ("smallest token that fits" for ints/floats) so plaintext→binary doesn't need exact-shape knowledge. The engine appears tolerant of any legal encoding for a given value — the wire format itself has multiple legal encodings for the same logical value (e.g., `U32` and `I32` both represent positive 32-bit ints), which strongly implies the engine reads what it gets rather than expecting a specific shape per field.
+
+Not blocking anything; pure round-trip prep. Lands when a binary writer becomes the next priority — either a `to_pdx_binary` API for the existing Document or a save-editing workflow on the binary side.
+
 #### Suggested sequence
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f. 10e and 10g are the parsing blockers (each surfaced as the next one landed); 10f then aligns the values with what plaintext parses produce. Without 10e/10g the parser raises before completing; without 10f lookup-indexed values surface as integers — semantically wrong but parseable. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. 10a/10c/10e/10g are landed; the EU5 gamestate parses end-to-end. 10f and 10h are independent follow-ups — 10f gives string-value correctness for `LOOKUP_*` tokens (currently parseable but wrong); 10h is round-trip prep that lands when a binary writer becomes the next priority. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 
