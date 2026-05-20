@@ -208,11 +208,11 @@ class Paradoxical::Binary::Parser
       when TokenKind::F64        then float 8
       when TokenKind::RGB        then rgb
       when TokenKind::I64        then signed_integer 8
-      when TokenKind::LOOKUP_08  then resolve_lookup_string integer(1).to_i
-      when TokenKind::LOOKUP_24  then resolve_lookup_string integer(3).to_i
-      when TokenKind::LOOKUP_16  then resolve_lookup_string integer(2).to_i
-      when TokenKind::LOOKUP_08A then resolve_lookup_string integer(1).to_i
-      when TokenKind::LOOKUP_16A then resolve_lookup_string integer(2).to_i
+      when TokenKind::LOOKUP_08  then lookup 1
+      when TokenKind::LOOKUP_24  then lookup 3
+      when TokenKind::LOOKUP_16  then lookup 2
+      when TokenKind::LOOKUP_08A then lookup 1
+      when TokenKind::LOOKUP_16A then lookup 2
       when TokenKind::FIXED_U08  then fixed 1
       when TokenKind::FIXED_U16  then fixed 2
       when TokenKind::FIXED_U24  then fixed 3
@@ -347,18 +347,20 @@ class Paradoxical::Binary::Parser
     Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
   end
 
-  # Resolve a 1/2/3-byte `LOOKUP_*` index into a `Primitives::String`
-  # carrying its source `lookup_index` for round-trip. The behavior
-  # differs from `resolve_token_string`'s missing-table fallback:
-  # because lookup tables are per-save (and the parser receives them
-  # via the `string_lookup:` kwarg), an out-of-range index when a
-  # table *is* supplied implies a mismatch between the binary and the
-  # lookup — that's a hard error, not a graceful degradation. When no
-  # table is supplied we emit the hex-encoded `Primitives::String`
-  # shape `resolve_token_string` uses, with `lookup_index` set so
-  # round-trip still knows the original wire form. See
-  # MODERNIZATION.md phase 10f.
-  def resolve_lookup_string index
+  # Read an `length`-byte little-endian index from the wire and
+  # resolve it into a `Primitives::String` carrying its source
+  # `lookup_index` for round-trip. `length` is 1, 2, or 3 — the three
+  # widths the `LOOKUP_*` token range covers. The behavior differs
+  # from `resolve_token_string`'s missing-table fallback: because
+  # lookup tables are per-save (and the parser receives them via the
+  # `string_lookup:` kwarg), an out-of-range index when a table *is*
+  # supplied implies a mismatch between the binary and the lookup —
+  # that's a hard error, not a graceful degradation. When no table is
+  # supplied we emit the hex-encoded `Primitives::String` shape
+  # `resolve_token_string` uses, with `lookup_index` set so round-trip
+  # still knows the original wire form. See MODERNIZATION.md phase 10f.
+  def lookup length
+    index = integer(length).to_i
     text = string_lookup ? string_lookup.resolve(index) : "0x#{index.to_s(16).rjust(4, "0")}"
     Paradoxical::Elements::Primitives::String.new text, quoted: false, lookup_index: index
   end
