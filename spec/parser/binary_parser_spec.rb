@@ -10,6 +10,16 @@ RSpec.describe Paradoxical::BinaryParser do
   TOKEN_DATE = 0x1001
   TOKEN_INNER = 0x1002
 
+  # Channel identifier tokens used inside an `rgb { ... }` block.
+  # The binary parser doesn't validate these against the token table
+  # (the structure of the block is enough), so they don't need to be
+  # registered in TOKENS to round-trip — but real game data does
+  # carry the `red`/`green`/`blue`/`alpha` mapping.
+  TOKEN_RED = 0x2001
+  TOKEN_GREEN = 0x2002
+  TOKEN_BLUE = 0x2003
+  TOKEN_ALPHA = 0x2004
+
   TOKENS = {
     TOKEN_KEY => "key",
     TOKEN_DATE => "date",
@@ -46,6 +56,15 @@ RSpec.describe Paradoxical::BinaryParser do
 
   # 24-bit fixed: stored as raw int / 100_000. 250_000 → 2.5
   def fixed24(raw) = u16(0x0d4a) + [raw].pack("V")[0, 3]
+
+  # 0x0243 then `{ red <u32> green <u32> blue <u32> [alpha <u32>] }`.
+  # Channel values are raw little-endian uint32s — no per-channel
+  # 0x0014 type prefix (the outer 0x0243 marker is the typing context).
+  def rgb_value(r, g, b, alpha: nil)
+    inner = u16(TOKEN_RED) + u32(r) + u16(TOKEN_GREEN) + u32(g) + u16(TOKEN_BLUE) + u32(b)
+    inner += u16(TOKEN_ALPHA) + u32(alpha) unless alpha.nil?
+    u16(0x0243) + open + inner + close
+  end
 
   def parse(bytes, tokens: TOKENS)
     Paradoxical::BinaryParser.parse(bytes, tokens: tokens)
@@ -120,6 +139,56 @@ RSpec.describe Paradoxical::BinaryParser do
       doc = parse(prop(TOKEN_KEY, fixed24(250_000)))
       expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Float)
       expect(doc.first.value.to_f).to eq(2.5)
+    end
+  end
+
+  describe "rgb" do
+    it "parses an rgb block without alpha into a Color::RGB" do
+      doc = parse(prop(TOKEN_KEY, rgb_value(255, 128, 0)))
+      rgb = doc.first.value
+
+      expect(rgb).to be_a(Paradoxical::Elements::Primitives::Color::RGB)
+      expect([rgb.r.to_i, rgb.g.to_i, rgb.b.to_i]).to eq([255, 128, 0])
+      expect(rgb.alpha).to be_nil
+    end
+
+    it "parses the optional alpha channel as the 4th component" do
+      doc = parse(prop(TOKEN_KEY, rgb_value(255, 128, 0, alpha: 200)))
+      rgb = doc.first.value
+
+      expect([rgb.r.to_i, rgb.g.to_i, rgb.b.to_i, rgb.alpha.to_i]).to eq([255, 128, 0, 200])
+    end
+
+    it "does not require the inner identifier tokens to be in the token table" do
+      # Channel tokens are intentionally absent from `tokens:`; the parser still
+      # accepts the block because it identifies the form by structure, not by name.
+      doc = parse(prop(TOKEN_KEY, rgb_value(10, 20, 30)),
+                  tokens: { TOKEN_KEY => "key" })
+      rgb = doc.first.value
+
+      expect([rgb.r.to_i, rgb.g.to_i, rgb.b.to_i]).to eq([10, 20, 30])
+    end
+
+    it "raises ParseError when the rgb body does not open with `{`" do
+      # 0x0243 followed immediately by `}` (0x0004) instead of `{` (0x0003).
+      malformed = prop(TOKEN_KEY, u16(0x0243) + close)
+
+      expect { parse(malformed) }
+        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected open token/)
+    end
+
+    it "raises ParseError when the close `}` is missing after the alpha channel" do
+      # Three channels, then a (bogus-but-shaped) alpha pair, then a bogus
+      # final close token instead of 0x0004.
+      bad =
+        u16(0x0243) + open +
+        u16(TOKEN_RED)   + u32(1) +
+        u16(TOKEN_GREEN) + u32(2) +
+        u16(TOKEN_BLUE)  + u32(3) +
+        u16(TOKEN_ALPHA) + u32(4) +
+        u16(0xDEAD)
+      expect { parse(prop(TOKEN_KEY, bad)) }
+        .to raise_error(Paradoxical::BinaryParser::ParseError, /expected close token/)
     end
   end
 
@@ -234,11 +303,6 @@ RSpec.describe Paradoxical::BinaryParser do
       bad = u16(TOKEN_KEY) + uint32(1)
       expect { parse(bad) }
         .to raise_error(Paradoxical::BinaryParser::ParseError, /expected `=`/)
-    end
-
-    it "raises ParseError for the unimplemented binary-rgb type" do
-      expect { parse(prop(TOKEN_KEY, u16(0x0243))) }
-        .to raise_error(Paradoxical::BinaryParser::ParseError, /binary rgb/)
     end
   end
 end
