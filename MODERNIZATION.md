@@ -578,6 +578,67 @@ Design surface to settle:
 
 Gated on 8e completing — once all the typed primitives exist we know the full set that might want per-game rules. Phase 8b's `validate!` work is the closest precedent and a useful reference.
 
+### 10. Compound keys (object-as-key maps)
+
+EU5 (and likely older PDX) save files use a "map keyed by a sub-list" pattern the current parsers don't model: a `{ … }` block on the LHS of `=`. Real example from an EU5 save:
+
+```
+needed={
+    {
+        demand=pop_demand
+    }={ 37 43 47 51 71 86 91 99 … }
+}
+```
+
+Read as: *"for each demand-spec object, the list of pop IDs that need it"*. One probe save (`plaintext.eu5`, ~300 MB, 1337.4.1) contains 24,541 such pairs.
+
+Both parsers fail at the same shape:
+
+- **Script grammar** restricts `property` and `keyed_head` to `primitive ~ ws ~ operator` — a `{ … }` block isn't a primitive, so `}={` is ungrammatical.
+- **Binary parser** `read_next` handles only value / close / token-key; encountering `{open: true}` (`0x0003`) where a key is expected raises `expected token, got: {open: true}`.
+
+Structurally independent of phases 8e and 9 — different concern (`Property` shape, not primitive richness). Can run in parallel with whichever 8e sub-PR is in flight; no ordering dependency between them.
+
+#### 10a. `Property` key-shape audit
+
+`Paradoxical::Elements::Property` is *already* polymorphic on `key` — `to_pdx` calls `key.to_pdx`, and a `List` key would render as `{ … }=` correctly today. So 10a is an audit, not a redesign: sweep every consumer that does `prop.key.is_a?(String)`, `prop.key.to_s`, or feeds `key` into a string-keyed Hash and decide per site whether to (a) skip non-string keys, (b) handle them, or (c) widen the type.
+
+Known sites to check: `Document#[]` / `value_for` / `keys`, `Property#==` and `#hash` (already structural — likely fine), the builder DSL's `pdx_obj` emission path, and anywhere the search subsystem joins on key.
+
+The `VariableRef` back-fill in `key=` (sets `key.owner = self`) is precedent for type-aware key handling and likely the right hook to mirror when a `List` key arrives (back-fill `list.parent = self` so resolution works from inside a compound key).
+
+#### 10b. Script grammar: compound-key shape
+
+Extend `script.pest` so a `{ … }` block can appear as the LHS of `=`. Likely shape: a new `compound_head` alternative inside `list_head`, ordered so the `}` + `=` lookahead disambiguates it from the existing `keyed_head` / `bare_head`. Rust side dispatches the captured sub-list into the Property's `key` field instead of a String.
+
+Risk to budget for: the 22,229-file smoke baseline is currently empty-allowlist across all five games. A new alternative tried too early in the alternation could regress files that already parse. Add it as the last fallthrough; `}` + `=` is a boundary no existing shape produces.
+
+Open question: does the script form *only* appear in save files, or does any mod-data file ship compound keys? Empirical sweep across the installed games' game-data trees will answer this. If save-files-only, the grammar change isn't load-bearing for the parse-smoke baselines (saves aren't smoked today), which lowers the risk.
+
+#### 10c. Binary parser: compound-key handling
+
+In `read_next`, when `read_scalar` returns `{open: true}` at the position currently expecting a token, recurse into `read_list(key: nil)` to consume the sub-list as a compound key, then expect `=`, then read the value (scalar or sub-list). Build `Property.new(compound_key_list, "=", value)`.
+
+Smaller diff than 10b — no grammar work, just one branch in `read_next` plus a List-with-nil-key path through `read_list`. Can land before 10b if save-file parsing is the only near-term need.
+
+Test fixtures: synthesize binary with the compound-key pattern (open, open, inner-property, close, equal, open, scalars, close, close) and assert the resulting `Property.key` is a List with the expected child.
+
+#### 10d. Document accessors
+
+`Document#[]` / `value_for` / `keys` currently assume string keys. Three options when compound-keyed entries are present:
+
+- **Skip silently** — simplest; existing string-keyed callers see no change, compound keys are reachable only via direct iteration.
+- **Separate `compound_entries` enumeration** — explicit access path for callers that want compound-keyed pairs without paying the cost of structural equality on every lookup.
+- **Structural-equality lookup** — `doc[{demand: "pop_demand"}]` etc. Most general, largest scope; requires `List#hash` / `#eql?` to behave correctly under arbitrary nesting, which is currently true by construction but worth re-verifying.
+
+Defer the call until a concrete consumer materializes. The first one will almost certainly want enumeration ("walk every compound-keyed entry in this list"), not structural lookup.
+
+#### Suggested sequence
+
+10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths because the audit catches anywhere a non-string `key` would silently break. 10b and 10c are independent — either order works.
+
+**If save-file parsing is the only near-term need**, the shortest path is **10a → 10c** alone. The grammar and accessor pieces can come later when a script-side or DSL-side consumer surfaces.
+
 ## Decision log
 
 Captured here so we don't re-litigate them.
@@ -599,4 +660,5 @@ Captured here so we don't re-litigate them.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
 - **Game-namespaced DSL via mixin.** Mirrors the existing jomini-version dispatch in `Game`, avoids inheritance gymnastics.
+- **Phase 10 added: compound keys.** Surfaced when both the script and binary parsers failed mid-EU5-save at the `}={` shape — Paradox saves encode "map keyed by sub-list" structures (e.g. demand-spec → pop IDs) the existing grammar and binary `read_next` flow can't express. New phase rather than a slot under phase 8 because this is a `Property` *shape* extension, not a new primitive — different concern, different file surface. Structurally independent of 8e and 9 so can run in parallel; the only ordering is internal (10a audit → 10b/10c parser paths → 10d accessors).
 - **Smoke parallelism: nogvl + Thread pool, not Ractors.** Investigated a Ractor-pool architecture for `parse_file` (each parse dispatched to a worker Ractor; `parse_file` returns a `Future`; `parse_files` becomes `files.map { parse_file(f) }.map(&:value)`). Working implementation preserved on the `experiment/ractor-pool` branch. Net result: doesn't beat the simpler nogvl + Thread pool approach already on main, and runs slower than serial parse for small per-file workloads. Measured at 250-290 files/s (Ractor pool) vs 318 files/s (serial) vs 470 files/s (nogvl + threads) on imperator. The per-job dispatch overhead (Ractor#send + port.receive + future lifecycle) dominates the parallelism win when each parse is ~3 ms. Even the simplest sliced-Ractor design (no pool, no future infrastructure) tops out at ~2x scaling — same Amdahl wall as nogvl. To revisit if Ruby's Ractor implementation matures or if a future workload (much larger files, or many concurrent Game instances) shifts the per-parse cost enough to amortize the message overhead. The `rb_ext_ractor_safe(true)` flag is set in the magnus init so users CAN call `Paradoxical::Parser.parse` from non-main Ractors in their own code; the framework just doesn't itself.

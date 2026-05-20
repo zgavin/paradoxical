@@ -16,8 +16,11 @@ class Paradoxical::Search::PropertyMatcher
   def matches? node
     return false unless node.is_a? Paradoxical::Elements::Document or node.is_a? Paradoxical::Elements::List
 
+    # The `key.is_a?(String)` guard skips compound-keyed entries (PDX
+    # save files use a List on the LHS of `=`); a name selector can't
+    # match a structural key. See MODERNIZATION.md phase 10.
     properties = node.send(:children).select do |node|
-      node.is_a? Paradoxical::Elements::Property and node.key.downcase == key
+      node.is_a? Paradoxical::Elements::Property and node.key.is_a?(String) and node.key.downcase == key
     end
 
     return false if properties.empty?

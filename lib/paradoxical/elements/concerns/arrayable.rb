@@ -355,7 +355,12 @@ module Paradoxical::Elements::Concerns::Arrayable
   def value_for key
     key = key.to_s.downcase
 
-    @children.find do |obj| obj.is_a? Paradoxical::Elements::Property and obj.key.downcase == key end&.value
+    # `obj.key.is_a?(String)` guards against compound-keyed entries (a List
+    # on the LHS of `=`, used in PDX save files); name-lookup can't match
+    # a structural key, so we skip them. See MODERNIZATION.md phase 10.
+    @children.find do |obj|
+      obj.is_a? Paradoxical::Elements::Property and obj.key.is_a?(String) and obj.key.downcase == key
+    end&.value
   end
 
   private

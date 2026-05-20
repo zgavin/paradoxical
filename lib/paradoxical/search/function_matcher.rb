@@ -55,6 +55,10 @@ class Paradoxical::Search::FunctionMatcher
 
   def key_matches node
     return false unless node.respond_to? :key
+    # Compound-keyed entries (List on the LHS of `=` in PDX saves) can't
+    # match regex / substring tests; skip non-string keys. See
+    # MODERNIZATION.md phase 10.
+    return false unless node.key.is_a? String
 
     arg = arguments.first
     arg.is_a?(Regexp) ? arg =~ node.key : node.key.include?(arg.to_s)
