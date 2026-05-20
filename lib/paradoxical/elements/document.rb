@@ -4,6 +4,15 @@ class Paradoxical::Elements::Document
 
   attr_reader :path, :whitespace, :owner, :encoding
 
+  # `string_lookup` is the per-save `Paradoxical::Binary::StringLookup`
+  # table that resolved this document's `LOOKUP_*` tokens, set by the
+  # binary parser after construction. Carried on the Document so a
+  # future binary writer can re-emit the same lookup file alongside
+  # the round-tripped gamestate. Nil for plaintext-parsed docs and
+  # binary parses that didn't supply a table. See MODERNIZATION.md
+  # phase 10f.
+  attr_accessor :string_lookup
+
   def initialize children = [], whitespace: nil, path: nil, owner: nil, bom: false, encoding: nil
     @children = children
     @whitespace = whitespace
@@ -18,7 +27,14 @@ class Paradoxical::Elements::Document
   end
 
   def dup children: nil, path: nil
-    self.class.new ( children or @children).map(&:dup), whitespace: @whitespace.dup, path: path, bom: @bom
+    copy = self.class.new (children or @children).map(&:dup), whitespace: @whitespace.dup, path: path, bom: @bom
+    # Shallow-copy the string_lookup reference — the table itself is
+    # potentially large (37k+ entries in real saves) and immutable
+    # from the doc's perspective, so sharing it across dups is fine
+    # for now. If a future caller mutates the lookup post-dup we can
+    # revisit.
+    copy.string_lookup = @string_lookup
+    copy
   end
 
   def eql? other

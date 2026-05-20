@@ -5,16 +5,21 @@ class Paradoxical::Elements::Primitives::String
 
   impersonate_infix_methods %i{!~ % * + =~ <<}
 
-  # `token_index` is round-trip metadata for binary-parsed strings that
-  # were resolved from a 2-byte token in the per-game `tokens:` table.
-  # Plaintext-parsed strings always leave it nil. When set, the future
-  # binary writer emits the 2-byte token instead of the
-  # quoted/unquoted-string token shape. Equality / hash intentionally
-  # ignore it — two strings with the same text are equal regardless of
-  # source format. See MODERNIZATION.md phase 10e.
-  attr_reader :token_index
+  # Round-trip metadata for binary-parsed strings. Plaintext-parsed
+  # strings always leave these nil. Equality / hash intentionally
+  # ignore them — two strings with the same text are equal regardless
+  # of source format.
+  #
+  # `token_index` is set when the string was resolved from a 2-byte
+  # token in the per-game `tokens:` table (phase 10e). `lookup_index`
+  # is set when the string was resolved from an integer index in the
+  # per-save `string_lookup:` table (phase 10f). At most one is
+  # populated on any given instance — the wire format uses a different
+  # opcode for each. The future binary writer dispatches on which is
+  # set to emit the matching token shape.
+  attr_reader :token_index, :lookup_index
 
-  def initialize string, quoted: nil, token_index: nil
+  def initialize string, quoted: nil, token_index: nil, lookup_index: nil
     if quoted.nil? then
       @quoted = (string.start_with? '"' and string.end_with? '"')
 
@@ -26,6 +31,7 @@ class Paradoxical::Elements::Primitives::String
     end
 
     @token_index = token_index
+    @lookup_index = lookup_index
   end
 
   def quoted?
@@ -33,7 +39,7 @@ class Paradoxical::Elements::Primitives::String
   end
 
   def dup
-    self.class.new @value, quoted: @quoted, token_index: @token_index
+    self.class.new @value, quoted: @quoted, token_index: @token_index, lookup_index: @lookup_index
   end
 
   def to_pdx

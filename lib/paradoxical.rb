@@ -12,6 +12,7 @@ module Paradoxical
   module Elements::Concerns end
   module Elements::Primitives end
   module Search end
+  module Binary end
 
   class << self
     def game= game
@@ -73,7 +74,8 @@ end
   search/property_matcher
   search/rule
 
-  binary_parser
+  binary/parser
+  binary/string_lookup
 }.each do |file|
   require "paradoxical/#{file}"
 end
@@ -141,11 +143,11 @@ def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil, 
   Paradoxical.game.mod = Paradoxical.game.mods.find { |m| m.name == mod } if mod
   Paradoxical.game.register_calendar
   Paradoxical.game.register_float_precision
-  # Binary-save token table — see `Paradoxical::BinaryParser`. The
+  # Binary-save token table — see `Paradoxical::Binary::Parser`. The
   # mapping is per-game and isn't distributed with this gem; callers
   # who parse binary saves supply it here so subsequent
-  # `BinaryParser.parse(bytes)` calls (no `tokens:` kwarg) pick it up.
-  Paradoxical::BinaryParser.default_tokens = binary_tokens if binary_tokens
+  # `Binary::Parser.parse(bytes)` calls (no `tokens:` kwarg) pick it up.
+  Paradoxical::Binary::Parser.default_tokens = binary_tokens if binary_tokens
 
   # `prepend` (vs `include`) so DSL methods win over Builder's base
   # ones — this is how EU4's variable-method override (different

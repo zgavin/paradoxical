@@ -10,7 +10,7 @@
 # either per-parse via `tokens:` or once at the class level via
 # `default_tokens=`, which `paradoxical!`'s `binary_tokens:` kwarg
 # wires up for the active game.
-class Paradoxical::BinaryParser
+class Paradoxical::Binary::Parser
   class ParseError < StandardError
   end
 
@@ -70,20 +70,29 @@ class Paradoxical::BinaryParser
 
     # `data` is the raw bytes of the save body as a String (binary
     # encoding). `tokens` overrides `default_tokens` for this call.
-    def parse data, tokens: nil
-      new(tokens || default_tokens).parse(data)
+    # `string_lookup` is a per-save table (see `Paradoxical::Binary::StringLookup`)
+    # that resolves the `LOOKUP_*`-token indices into identifier
+    # strings; it's omitted for inspection-only parses or when no
+    # lookup file is available. Each save has its own — there's no
+    # class-level default because lookup tables aren't shareable
+    # across saves.
+    def parse data, tokens: nil, string_lookup: nil
+      new(tokens || default_tokens, string_lookup).parse(data)
     end
   end
 
-  attr_reader :tokens
+  attr_reader :tokens, :string_lookup
 
-  def initialize tokens
+  def initialize tokens, string_lookup = nil
     @tokens = tokens
+    @string_lookup = string_lookup
   end
 
   def parse data
     @bytes = data.unpack("C*")
-    read_doc
+    doc = read_doc
+    doc.string_lookup = @string_lookup
+    doc
   end
 
   private
@@ -141,9 +150,9 @@ class Paradoxical::BinaryParser
   # Front-of-array shift with truncation detection. The bare
   # `Array#shift(n)` returns `[]` when the array is shorter than `n`,
   # which would silently yield zero-valued integers / empty strings
-  # downstream; raise instead so malformed input fails loudly.
+  # downstream; raise instead so malformed input errs loudly.
   def shift_bytes length
-    fail "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
+    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
 
     bytes.shift length
   end
@@ -169,14 +178,14 @@ class Paradoxical::BinaryParser
   #     form unambiguously
   def rgb
     open = integer 2
-    fail "expected open token got: 0x#{open.to_i.to_s(16).rjust 4, "0"}" unless open == TokenKind::OPEN
+    err "expected open token got: 0x#{open.to_i.to_s(16).rjust 4, "0"}" unless open == TokenKind::OPEN
 
     rtoken, r, gtoken, g, btoken, b = 3.times.flat_map { [integer(2), integer(4)] }
 
     close = integer 2
     atoken, a, close = close, integer(4), integer(2) unless close == TokenKind::CLOSE
 
-    fail "expected close token got: 0x#{close.to_i.to_s(16).rjust 4, "0"}" unless close == TokenKind::CLOSE
+    err "expected close token got: 0x#{close.to_i.to_s(16).rjust 4, "0"}" unless close == TokenKind::CLOSE
 
     Paradoxical::Elements::Primitives::Color::RGB.from r, g, b, alpha: a
   end
@@ -199,11 +208,11 @@ class Paradoxical::BinaryParser
       when TokenKind::F64        then float 8
       when TokenKind::RGB        then rgb
       when TokenKind::I64        then signed_integer 8
-      when TokenKind::LOOKUP_08  then integer 1
-      when TokenKind::LOOKUP_24  then integer 3
-      when TokenKind::LOOKUP_16  then integer 2
-      when TokenKind::LOOKUP_08A then integer 1
-      when TokenKind::LOOKUP_16A then integer 2
+      when TokenKind::LOOKUP_08  then lookup 1
+      when TokenKind::LOOKUP_24  then lookup 3
+      when TokenKind::LOOKUP_16  then lookup 2
+      when TokenKind::LOOKUP_08A then lookup 1
+      when TokenKind::LOOKUP_16A then lookup 2
       when TokenKind::FIXED_U08  then fixed 1
       when TokenKind::FIXED_U16  then fixed 2
       when TokenKind::FIXED_U24  then fixed 3
@@ -283,7 +292,7 @@ class Paradoxical::BinaryParser
       return inner
     end
 
-    fail "expected token, got: #{n}" if n[:token].nil?
+    err "expected token, got: #{n}" if n[:token].nil?
 
     resolved = resolve_token_string n[:token]
 
@@ -319,7 +328,7 @@ class Paradoxical::BinaryParser
       # uses.
       Paradoxical::Elements::Property.new key, "=", resolve_token_string(maybe_open[:token])
     else
-      fail "unexpected control token after `#{key}`: #{maybe_open}"
+      err "unexpected control token after `#{key}`: #{maybe_open}"
     end
   end
 
@@ -338,7 +347,25 @@ class Paradoxical::BinaryParser
     Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
   end
 
-  def fail msg
+  # Read an `length`-byte little-endian index from the wire and
+  # resolve it into a `Primitives::String` carrying its source
+  # `lookup_index` for round-trip. `length` is 1, 2, or 3 — the three
+  # widths the `LOOKUP_*` token range covers. The behavior differs
+  # from `resolve_token_string`'s missing-table fallback: because
+  # lookup tables are per-save (and the parser receives them via the
+  # `string_lookup:` kwarg), an out-of-range index when a table *is*
+  # supplied implies a mismatch between the binary and the lookup —
+  # that's a hard error, not a graceful degradation. When no table is
+  # supplied we emit the hex-encoded `Primitives::String` shape
+  # `resolve_token_string` uses, with `lookup_index` set so round-trip
+  # still knows the original wire form. See MODERNIZATION.md phase 10f.
+  def lookup length
+    index = integer(length).to_i
+    text = string_lookup ? string_lookup.resolve(index) : "0x#{index.to_s(16).rjust(4, "0")}"
+    Paradoxical::Elements::Primitives::String.new text, quoted: false, lookup_index: index
+  end
+
+  def err msg
     raise ParseError, msg
   end
 end
