@@ -20,6 +20,41 @@ class Paradoxical::BinaryParser
   # offset by 1 to skip year 0 and treat the epoch as -5001.
   INITIAL_DATE = Paradoxical::Elements::Primitives::Date.new "-5001.01.01"
 
+  module TokenKind
+    OPEN        = 0x0003 # open brace equivalent
+    CLOSE       = 0x0004 # close brace equivalent
+    EQUAL       = 0x0001 # assignment equivalent
+    U32         = 0x0014 # uint32
+    U64         = 0x029c # uint64
+    I32         = 0x000c # int32
+    BOOL        = 0x000e # boolean
+    QUOTED      = 0x000f # quoted string
+    UNQUOTED    = 0x0017 # unquoted string
+    F32         = 0x000d # float
+    F64         = 0x0167 # double
+    RGB         = 0x0243 # rgb
+    I64         = 0x0317 # int64
+    LOOKUP_08   = 0x0d40 #  8 bit lookup index
+    LOOKUP_16   = 0x0d3e # 16 bit lookup index
+    LOOKUP_24   = 0x0d41 # 24 bit lookup index
+    LOOKUP_08A  = 0x0d43 #  8 bit lookup index alternate
+    LOOKUP_16A  = 0x0d44 # 16 bit lookup index alternate
+    FIXED_U08   = 0x0d48 #  8 bit fixed
+    FIXED_U16   = 0x0d49 # 16 bit fixed
+    FIXED_U24   = 0x0d4a # 24 bit fixed
+    FIXED_U32   = 0x0d4b # 32 bit fixed
+    FIXED_U40   = 0x0d4c # 40 bit fixed
+    FIXED_U48   = 0x0d4d # 48 bit fixed
+    FIXED_U56   = 0x0d4e # 56 bit fixed
+    FIXED_I08   = 0x0d4f #  8 bit negative fixed
+    FIXED_I16   = 0x0d50 # 16 bit negative fixed
+    FIXED_I24   = 0x0d51 # 24 bit negative fixed
+    FIXED_I32   = 0x0d52 # 32 bit negative fixed
+    FIXED_I40   = 0x0d53 # 40 bit negative fixed
+    FIXED_I48   = 0x0d54 # 48 bit negative fixed
+    FIXED_I56   = 0x0d55 # 56 bit negative fixed
+  end
+
   class << self
     # Per-game default token table, used when `parse(data)` is called
     # without an explicit `tokens:`. `paradoxical!` sets this from
@@ -55,27 +90,86 @@ class Paradoxical::BinaryParser
 
   attr_reader :bytes
 
+  # integers have little-endian byte order, so the most significant byte is the last
+  # so we reverse, then shift by 1 byte and bitwise or with the next byte
   def integer length = nil, value: nil
-    # integers have little-endian byte order, so the most significant byte is the last
-    # so we reverse, then shift by 1 byte and bitwise or with the next byte
     raw = value || shift_bytes(length)
     n = raw.reverse_each.reduce(0) { |sum, byte| (sum << 8) | byte }
     Paradoxical::Elements::Primitives::Integer.new n
   end
 
+  # Two's-complement signed integer. `length` is in bytes (4 for int32,
+  # 8 for int64). Returns a wrapped `Primitives::Integer`.
+  def signed_integer length
+    n = integer(length).to_i
+    n -= (1 << (length * 8)) if n >= (1 << (length * 8 - 1))
+    Paradoxical::Elements::Primitives::Integer.new n
+  end
+
+  # Binary strings are u16-length-prefixed raw byte sequences (length is
+  # in bytes, not characters — non-ASCII handling stays at the
+  # Primitives::String layer). `quoted:` tracks whether the source token
+  # was 0x000f (quoted, treated as data) or 0x0017 (unquoted, treated as
+  # an identifier-shaped literal) so the round-trip writer can pick the
+  # right type code back out.
   def string quoted:
     length = integer(2).to_i
     Paradoxical::Elements::Primitives::String.new shift_bytes(length).pack("C*"), quoted:
   end
 
+  # IEEE 754, little-endian. `length` is the byte width: 4 for single
+  # precision (0x000d), 8 for double (0x0167). Returns a raw Ruby Float
+  # rather than a Primitives::Float — the binary form carries no
+  # source-string representation for us to preserve, unlike the script
+  # literal where precision and trailing zeros are part of the byte
+  # capture.
   def float length
     shift_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
   end
 
+  # Paradox's fixed-point representation: a raw little-endian integer
+  # divided by 100_000. `length` is the byte width (1..7; token IDs
+  # 0x0d48..0x0d4e for positive, 0x0d4f..0x0d55 for negative). Negativity
+  # is *not* two's-complement — it's conveyed by a separate token range,
+  # so `negative:` simply flips the sign after reading the magnitude.
   def fixed length, negative: false
     n = integer(length).to_i
     n *= -1 if negative
     Paradoxical::Elements::Primitives::Float.new((n / 100_000.0).to_s)
+  end
+
+  # Front-of-array shift with truncation detection. The bare
+  # `Array#shift(n)` returns `[]` when the array is shorter than `n`,
+  # which would silently yield zero-valued integers / empty strings
+  # downstream; raise instead so malformed input fails loudly.
+  def shift_bytes length
+    fail "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
+
+    bytes.shift length
+  end
+
+  # The body of an rgb value is `{ red <u32> green <u32> blue <u32> [alpha <u32>] }` —
+  # equivalent in the script grammar to: `rgb { red N green N blue N (alpha N)? }`.
+  # Two details worth knowing:
+  #   * channel values are bare little-endian uint32s, with none of the 0x0014 type
+  #     prefix a top-level uint32 would carry — the surrounding 0x0243 marker is
+  #     enough typing context
+  #   * the `red`/`green`/`blue`/`alpha` identifier tokens are game-specific, and
+  #     this method does not look them up or validate them; the open/close braces
+  #     plus the three-pairs-with-optional-fourth shape are enough to identify the
+  #     form unambiguously
+  def rgb
+    open = integer 2
+    fail "expected open token got: 0x#{open.to_i.to_s(16).rjust 4, "0"}" unless open == TokenKind::OPEN
+
+    rtoken, r, gtoken, g, btoken, b = 3.times.flat_map { [integer(2), integer(4)] }
+
+    close = integer 2
+    atoken, a, close = close, integer(4), integer(2) unless close == TokenKind::CLOSE
+
+    fail "expected close token got: 0x#{close.to_i.to_s(16).rjust 4, "0"}" unless close == TokenKind::CLOSE
+
+    Paradoxical::Elements::Primitives::Color::RGB.from r, g, b, alpha: a
   end
 
   def read_scalar is_date: false
@@ -83,36 +177,38 @@ class Paradoxical::BinaryParser
 
     v =
       case type
-      when 0x0003 then { open: true }
-      when 0x0004 then { close: true }
-      when 0x0001 then { equals: true }
-      when 0x0014 then integer 4                              # uint32
-      when 0x029c then integer 8                              # uint64
-      when 0x000c then signed_integer 4                       # int32
-      when 0x000e then shift_bytes(1).first == 1              # boolean
-      when 0x000f then string quoted: true                    # quoted string
-      when 0x0017 then string quoted: false                   # unquoted string
-      when 0x000d then float 4                                # float
-      when 0x0167 then float 8                                # double
-      when 0x0243 then fail "binary rgb (type 0x0243) not implemented"
-      when 0x0317 then signed_integer 8                       # int64
-      when 0x0d40, 0x0d43 then integer 1                      # 8 bit lookup index
-      when 0x0d41         then integer 3                      # 24 bit lookup index
-      when 0x0d3e, 0x0d44 then integer 2                      # 16 bit lookup index
-      when 0x0d48 then fixed 1                                # 8 bit fixed
-      when 0x0d49 then fixed 2                                # 16 bit fixed
-      when 0x0d4a then fixed 3                                # 24 bit fixed
-      when 0x0d4b then fixed 4                                # 32 bit fixed
-      when 0x0d4c then fixed 5                                # 40 bit fixed
-      when 0x0d4d then fixed 6                                # 48 bit fixed
-      when 0x0d4e then fixed 7                                # 56 bit fixed
-      when 0x0d4f then fixed 1, negative: true                # 8 bit negative fixed
-      when 0x0d50 then fixed 2, negative: true                # 16 bit negative fixed
-      when 0x0d51 then fixed 3, negative: true                # 24 bit negative fixed
-      when 0x0d52 then fixed 4, negative: true                # 32 bit negative fixed
-      when 0x0d53 then fixed 5, negative: true                # 40 bit negative fixed
-      when 0x0d54 then fixed 6, negative: true                # 48 bit negative fixed
-      when 0x0d55 then fixed 7, negative: true                # 56 bit negative fixed
+      when TokenKind::OPEN       then { open: true }
+      when TokenKind::CLOSE      then { close: true }
+      when TokenKind::EQUAL      then { equals: true }
+      when TokenKind::U32        then integer 4
+      when TokenKind::U64        then integer 8
+      when TokenKind::I32        then signed_integer 4
+      when TokenKind::BOOL       then shift_bytes(1).first == 1
+      when TokenKind::QUOTED     then string quoted: true
+      when TokenKind::UNQUOTED   then string quoted: false
+      when TokenKind::F32        then float 4
+      when TokenKind::F64        then float 8
+      when TokenKind::RGB        then rgb
+      when TokenKind::I64        then signed_integer 8
+      when TokenKind::LOOKUP_08  then integer 1
+      when TokenKind::LOOKUP_24  then integer 3
+      when TokenKind::LOOKUP_16  then integer 2
+      when TokenKind::LOOKUP_08A then integer 1
+      when TokenKind::LOOKUP_16A then integer 2
+      when TokenKind::FIXED_U08  then fixed 1
+      when TokenKind::FIXED_U16  then fixed 2
+      when TokenKind::FIXED_U24  then fixed 3
+      when TokenKind::FIXED_U32  then fixed 4
+      when TokenKind::FIXED_U40  then fixed 5
+      when TokenKind::FIXED_U48  then fixed 6
+      when TokenKind::FIXED_U56  then fixed 7
+      when TokenKind::FIXED_I08  then fixed 1, negative: true
+      when TokenKind::FIXED_I16  then fixed 2, negative: true
+      when TokenKind::FIXED_I24  then fixed 3, negative: true
+      when TokenKind::FIXED_I32  then fixed 4, negative: true
+      when TokenKind::FIXED_I40  then fixed 5, negative: true
+      when TokenKind::FIXED_I48  then fixed 6, negative: true
+      when TokenKind::FIXED_I56  then fixed 7, negative: true
       else { token: type }
       end
 
@@ -161,24 +257,6 @@ class Paradoxical::BinaryParser
     else
       fail "unexpected control token after `#{key}`: #{maybe_open}"
     end
-  end
-
-  # Two's-complement signed integer. `length` is in bytes (4 for int32,
-  # 8 for int64). Returns a wrapped `Primitives::Integer`.
-  def signed_integer length
-    n = integer(length).to_i
-    n -= (1 << (length * 8)) if n >= (1 << (length * 8 - 1))
-    Paradoxical::Elements::Primitives::Integer.new n
-  end
-
-  # Front-of-array shift with truncation detection. The bare
-  # `Array#shift(n)` returns `[]` when the array is shorter than `n`,
-  # which would silently yield zero-valued integers / empty strings
-  # downstream; raise instead so malformed input fails loudly.
-  def shift_bytes length
-    fail "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
-
-    bytes.shift length
   end
 
   def fail msg
