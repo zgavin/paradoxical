@@ -150,9 +150,9 @@ class Paradoxical::Binary::Parser
   # Front-of-array shift with truncation detection. The bare
   # `Array#shift(n)` returns `[]` when the array is shorter than `n`,
   # which would silently yield zero-valued integers / empty strings
-  # downstream; raise instead so malformed input fails loudly.
+  # downstream; raise instead so malformed input errs loudly.
   def shift_bytes length
-    fail "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
+    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
 
     bytes.shift length
   end
@@ -178,14 +178,14 @@ class Paradoxical::Binary::Parser
   #     form unambiguously
   def rgb
     open = integer 2
-    fail "expected open token got: 0x#{open.to_i.to_s(16).rjust 4, "0"}" unless open == TokenKind::OPEN
+    err "expected open token got: 0x#{open.to_i.to_s(16).rjust 4, "0"}" unless open == TokenKind::OPEN
 
     rtoken, r, gtoken, g, btoken, b = 3.times.flat_map { [integer(2), integer(4)] }
 
     close = integer 2
     atoken, a, close = close, integer(4), integer(2) unless close == TokenKind::CLOSE
 
-    fail "expected close token got: 0x#{close.to_i.to_s(16).rjust 4, "0"}" unless close == TokenKind::CLOSE
+    err "expected close token got: 0x#{close.to_i.to_s(16).rjust 4, "0"}" unless close == TokenKind::CLOSE
 
     Paradoxical::Elements::Primitives::Color::RGB.from r, g, b, alpha: a
   end
@@ -292,7 +292,7 @@ class Paradoxical::Binary::Parser
       return inner
     end
 
-    fail "expected token, got: #{n}" if n[:token].nil?
+    err "expected token, got: #{n}" if n[:token].nil?
 
     resolved = resolve_token_string n[:token]
 
@@ -328,7 +328,7 @@ class Paradoxical::Binary::Parser
       # uses.
       Paradoxical::Elements::Property.new key, "=", resolve_token_string(maybe_open[:token])
     else
-      fail "unexpected control token after `#{key}`: #{maybe_open}"
+      err "unexpected control token after `#{key}`: #{maybe_open}"
     end
   end
 
@@ -365,7 +365,7 @@ class Paradoxical::Binary::Parser
     Paradoxical::Elements::Primitives::String.new text, quoted: false, lookup_index: index
   end
 
-  def fail msg
+  def err msg
     raise ParseError, msg
   end
 end
