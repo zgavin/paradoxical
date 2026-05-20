@@ -25,6 +25,15 @@ class Paradoxical::Binary::StringLookup
   HEADER_VERSION = 1
   HEADER_SIZE = 5
 
+  # Each table entry is a `(string, count)` pair. `count` starts at 0
+  # at parse time and increments on every `#resolve` hit, so callers
+  # can inspect usage frequency after a parse — useful for verifying
+  # "are low-index entries the most-referenced ones?" hypotheses and
+  # for a future binary writer that wants to re-pack the table by
+  # frequency before emitting (smaller-index entries fit in fewer
+  # bytes via the `LOOKUP_08`/`LOOKUP_16`/`LOOKUP_24` token range).
+  Entry = Struct.new(:string, :count)
+
   attr_reader :entries
 
   def self.parse data
@@ -34,7 +43,7 @@ class Paradoxical::Binary::StringLookup
 
     fail ParseError, "unknown string_lookup version: #{version} (expected #{HEADER_VERSION})" unless version == HEADER_VERSION
 
-    entries = []
+    strings = []
     pos = HEADER_SIZE
     count.times do |i|
       fail ParseError, "ran out of bytes reading length of entry #{i}" if pos + 2 > data.bytesize
@@ -47,31 +56,38 @@ class Paradoxical::Binary::StringLookup
 
       fail ParseError, "ran out of bytes reading entry #{i} (need #{length}, have #{data.bytesize - pos})" if pos + length > data.bytesize
 
-      entries << data.byteslice(pos, length)
+      strings << data.byteslice(pos, length)
       pos += length
     end
 
     fail ParseError, "trailing bytes after #{count} entries: #{data.bytesize - pos}" unless pos == data.bytesize
 
-    new entries
+    new strings
   end
 
-  def initialize entries
-    @entries = entries
+  # Accepts an Array of plain Strings — counts are initialized to 0.
+  # Tests and other ad-hoc callers can do
+  # `StringLookup.new(["foo", "bar"])` without worrying about the
+  # internal Entry struct.
+  def initialize strings
+    @entries = strings.map do |s| Entry.new s, 0 end
   end
 
   def size
     @entries.size
   end
 
-  # Look up an integer index in the table. Raises on out-of-range —
-  # callers that want a graceful fallback handle the "no table supplied"
-  # case by not calling this at all.
+  # Look up an integer index in the table and increment the entry's
+  # `count`. Raises on out-of-range — callers that want a graceful
+  # fallback handle the "no table supplied" case by not calling this
+  # at all.
   def resolve index
     unless index.between?(0, @entries.size - 1) then
       raise KeyError, "string_lookup index #{index} out of range (0..#{@entries.size - 1})"
     end
 
-    @entries[index]
+    entry = @entries[index]
+    entry.count += 1
+    entry.string
   end
 end

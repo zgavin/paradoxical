@@ -17,7 +17,8 @@ RSpec.describe Paradoxical::Binary::StringLookup do
       lookup = described_class.parse lookup_bytes(["foo", "bar", "longer_string"])
 
       expect(lookup.size).to eq(3)
-      expect(lookup.entries).to eq(["foo", "bar", "longer_string"])
+      expect(lookup.entries.map(&:string)).to eq(["foo", "bar", "longer_string"])
+      expect(lookup.entries.map(&:count)).to eq([0, 0, 0])
     end
 
     it "parses an empty table" do
@@ -71,6 +72,15 @@ RSpec.describe Paradoxical::Binary::StringLookup do
     it "returns the entry at the given index" do
       expect(lookup.resolve(0)).to eq("alpha")
       expect(lookup.resolve(2)).to eq("gamma")
+    end
+
+    it "increments the entry's count on every hit" do
+      3.times { lookup.resolve(0) }
+      lookup.resolve(2)
+
+      expect(lookup.entries[0].count).to eq(3)
+      expect(lookup.entries[1].count).to eq(0)
+      expect(lookup.entries[2].count).to eq(1)
     end
 
     it "raises KeyError on an out-of-range index" do
