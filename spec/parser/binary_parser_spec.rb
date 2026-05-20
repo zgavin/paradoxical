@@ -243,11 +243,12 @@ RSpec.describe Paradoxical::BinaryParser do
 
     it "parses a compound-key Property when the value is a primitive" do
       # `{ key=42 } = 100` at document top level.
-      body = open +
-             u16(TOKEN_KEY) + eq_marker + uint32(42) +
-             close +
-             eq_marker +
-             uint32(100)
+      body =
+        open +
+        u16(TOKEN_KEY) + eq_marker + uint32(42) +
+        close +
+        eq_marker +
+        uint32(100)
 
       doc = parse(body)
       prop = doc.first
@@ -266,11 +267,12 @@ RSpec.describe Paradoxical::BinaryParser do
       # shape. The result is a List (compound key + list value), not a
       # Property, matching the rest of the parser's "RHS is `{…}` → List"
       # convention.
-      body = open +
-             u16(TOKEN_KEY) + eq_marker + uint32(1) +
-             close +
-             eq_marker +
-             open + uint32(37) + uint32(43) + uint32(47) + close
+      body =
+        open +
+        u16(TOKEN_KEY) + eq_marker + uint32(1) +
+        close +
+        eq_marker +
+        open + uint32(37) + uint32(43) + uint32(47) + close
 
       doc = parse(body)
       list = doc.first
@@ -287,7 +289,7 @@ RSpec.describe Paradoxical::BinaryParser do
       # the compound pair appears as a child of an outer keyed map.
       inner =
         open +
-          u16(TOKEN_KEY) + eq_marker + uint32(1) +
+        u16(TOKEN_KEY) + eq_marker + uint32(1) +
         close +
         eq_marker +
         open + uint32(37) + uint32(43) + uint32(47) + close

@@ -249,6 +249,7 @@ class Paradoxical::BinaryParser
       compound_key = read_list key: nil
       eql = read_scalar
       fail "expected `=` after compound key, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
+
       return read_property_with_key compound_key
     end
 
@@ -270,21 +271,19 @@ class Paradoxical::BinaryParser
   def read_property_with_key key
     maybe_open = read_scalar is_date: key == "date"
 
-    if maybe_open.is_a?(Hash) then
-      if maybe_open[:open] then
-        read_list key:
-      elsif maybe_open[:token] then
-        # Token in value position — see MODERNIZATION.md phase 10e.
-        # EU5 compresses repeated RHS identifiers (`yes`/`no`, enum
-        # names) as raw 2-byte tokens instead of length-prefixed
-        # strings; resolve via the same `tokens:` table the key path
-        # uses.
-        Paradoxical::Elements::Property.new key, "=", resolve_token_string(maybe_open[:token])
-      else
-        fail "unexpected control token after `#{key}`: #{maybe_open}"
-      end
-    else
+    if not maybe_open.is_a?(Hash) then
       Paradoxical::Elements::Property.new key, "=", maybe_open
+    elsif maybe_open[:open] then
+      read_list key:
+    elsif maybe_open[:token] then
+      # Token in value position — see MODERNIZATION.md phase 10e.
+      # EU5 compresses repeated RHS identifiers (`yes`/`no`, enum
+      # names) as raw 2-byte tokens instead of length-prefixed
+      # strings; resolve via the same `tokens:` table the key path
+      # uses.
+      Paradoxical::Elements::Property.new key, "=", resolve_token_string(maybe_open[:token])
+    else
+      fail "unexpected control token after `#{key}`: #{maybe_open}"
     end
   end
 
