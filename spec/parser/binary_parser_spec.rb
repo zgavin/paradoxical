@@ -331,11 +331,13 @@ RSpec.describe Paradoxical::BinaryParser do
       expect(key).not_to be_quoted
     end
 
-    it "falls back to Primitives::Integer for unresolved keys" do
+    it "renders unresolved keys as a hex-encoded Primitives::String with token_index set" do
       doc = parse(prop(0xDEAD, uint32(1)), tokens: {})
+      key = doc.first.key
 
-      expect(doc.first.key).to be_a(Paradoxical::Elements::Primitives::Integer)
-      expect(doc.first.key.to_i).to eq(0xDEAD)
+      expect(key).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(key.to_s).to eq("0xdead")
+      expect(key.token_index).to eq(0xDEAD)
     end
 
     it "resolves a bare token in value position" do
@@ -351,13 +353,14 @@ RSpec.describe Paradoxical::BinaryParser do
       expect(value).not_to be_quoted
     end
 
-    it "falls back to Primitives::Integer for an unresolved value-position token" do
+    it "renders an unresolved value-position token as a hex-encoded Primitives::String" do
       doc = parse(u16(TOKEN_KEY) + eq_marker + u16(0xCAFE),
                   tokens: TOKENS)
       value = doc.first.value
 
-      expect(value).to be_a(Paradoxical::Elements::Primitives::Integer)
-      expect(value.to_i).to eq(0xCAFE)
+      expect(value).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(value.to_s).to eq("0xcafe")
+      expect(value.token_index).to eq(0xCAFE)
     end
 
     describe "Primitives::String#token_index semantics" do
@@ -413,9 +416,12 @@ RSpec.describe Paradoxical::BinaryParser do
       expect(doc.first.key).to eq("key")
     end
 
-    it "falls back to the raw 2-byte integer when a token is missing" do
+    it "renders missing tokens as the hex-encoded form for visibility" do
       doc = parse(prop(0xDEAD, uint32(1)), tokens: {})
-      expect(doc.first.key).to eq(0xDEAD)
+      # The token-resolution describe covers the structural shape — this
+      # one anchors the "what does an unresolved key look like" answer
+      # next to its "table-hit" sibling above.
+      expect(doc.first.key).to eq("0xdead")
     end
 
     it "respects an explicit `tokens:` kwarg over `default_tokens`" do

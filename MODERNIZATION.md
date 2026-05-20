@@ -651,11 +651,13 @@ Graceful degradation when the side-channel table isn't supplied: fall back to th
 
 `Primitives::String` gained an optional `token_index:` kwarg (default nil, equality/hash ignore it, preserved across `dup`). Three sites in the binary parser now share a `resolve_token_string` helper that produces the same shape:
 
-- `read_next`'s key-resolution path: `resolve_token_string(n[:token])` instead of `tokens[n[:token]] || n[:token]`. Keys now arrive at `Property.new(...)` as `Primitives::String` with `token_index` set (or `Primitives::Integer` when the table doesn't have an entry — same graceful degradation the raw path had).
-- `read_property_with_key`'s value-position branch: when `maybe_open` is `{token: N}`, the same helper produces a `Primitives::String` (or `Primitives::Integer` fallback) for the property value.
+- `read_next`'s key-resolution path: `resolve_token_string(n[:token])` instead of `tokens[n[:token]] || n[:token]`. Keys now arrive at `Property.new(...)` as `Primitives::String` with `token_index` set.
+- `read_property_with_key`'s value-position branch: when `maybe_open` is `{token: N}`, the same helper produces a `Primitives::String` for the property value.
 - The shared `resolve_token_string` helper is the single source of truth for "binary token → identifier-shaped string."
 
-Tests: 7 new specs in `spec/parser/binary_parser_spec.rb` covering resolved-key shape, fallback shape, token-as-value resolution, value-position fallback, and `Primitives::String#token_index` value semantics (default nil, equality ignores it, preserved across dup). 591/0 full suite.
+Unresolved tokens (no entry in the supplied `tokens:` table, or no table at all) still produce a `Primitives::String` — with `"0x#{token_int.to_s(16).rjust(4, "0")}"` as the text, e.g. `"0x2cd6"`. The `token_index` field is set in both resolved and unresolved cases. Rationale: a `Primitives::Integer` fallback would be visually indistinguishable from a genuine integer value in the parsed Document; a hex-formatted string with the leading `0x` is unambiguously a binary-token artifact, making missed lookups easy to spot at a glance and grep for. The `0x` prefix matches the format the parser's existing error messages already use (the rgb branch's `"expected open token got: 0x..."`).
+
+Tests: 7 new specs in `spec/parser/binary_parser_spec.rb` covering resolved-key shape, unresolved-key hex shape, token-as-value resolution, value-position hex fallback, and `Primitives::String#token_index` value semantics (default nil, equality ignores it, preserved across dup). 591/0 full suite.
 
 **Empirical verification against a real ~40 MB EU5 binary save** (no token table supplied so all identifier-shapes appear as `Primitives::Integer` fallbacks): the parser now clears the token-as-value shape and gets *much* further in (~404 KB into the gamestate) before hitting yet another binary-format shape — a tuple-key pattern where multiple bare integers act as a compound key inside a list (`{ 1 0 = 0 }`). Tracked as 10g below. The empirical question 10e was supposed to answer — "do bare tokens appear in list-child position?" — didn't surface; the tuple-key case is structurally different and is what trips on real data first.
 

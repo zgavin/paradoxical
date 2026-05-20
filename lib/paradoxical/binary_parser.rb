@@ -290,18 +290,17 @@ class Paradoxical::BinaryParser
 
   # Look up a 2-byte token in the supplied `tokens` table and wrap the
   # resolved identifier as a `Primitives::String` carrying its source
-  # `token_index` for round-trip. Falls back to a wrapped `Integer`
-  # when the table has no entry — keeps the parser usable for
-  # inspection without a per-game tokens map, matching how missing
-  # entries degrade today on the key path. See MODERNIZATION.md
-  # phase 10e.
+  # `token_index` for round-trip. Unresolved tokens still produce a
+  # `Primitives::String` — but with the 4-char hex form of the token
+  # int (`0x2cd6`) as the text. That makes missed lookups visually
+  # distinct from real string values in the parsed Document (vs.
+  # surfacing as a `Primitives::Integer`, which would be indistinguishable
+  # from a genuine integer value at a glance). `token_index` is set in
+  # both cases, so the future binary writer can round-trip either shape
+  # via the same path. See MODERNIZATION.md phase 10e.
   def resolve_token_string token_int
-    name = tokens[token_int]
-    if name then
-      Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
-    else
-      Paradoxical::Elements::Primitives::Integer.new token_int
-    end
+    name = tokens[token_int] || "0x#{token_int.to_s(16).rjust(4, "0")}"
+    Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
   end
 
   def fail msg
