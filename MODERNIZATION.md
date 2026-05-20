@@ -647,17 +647,42 @@ Future binary writer ternary: `token_index` set → emit 2-byte token; `lookup_i
 
 Graceful degradation when the side-channel table isn't supplied: fall back to the raw integer surfacing the current code does. Matches how missing `tokens:` entries degrade today, and keeps inspection callers usable.
 
-#### 10e. Binary parser: token-as-value (the parsing blocker)
+#### 10e. Binary parser: token-as-value (landed)
 
-Surfaced when verifying 10c against a real EU5 save: the engine encodes some right-hand-side identifiers (`yes`/`no`, enum names, repeated literals) as raw 2-byte tokens instead of as type-discriminated quoted/unquoted strings. `read_scalar`'s `else { token: type }` branch returns `{token: N}` for these; `read_property_with_key` then sees a Hash without `:open` and raises `unexpected control token after \`<key>\`: {token: N}`.
+`Primitives::String` gained an optional `token_index:` kwarg (default nil, equality/hash ignore it, preserved across `dup`). Three sites in the binary parser now share a `resolve_token_string` helper that produces the same shape:
 
-Fix shape, per the shared design above:
+- `read_next`'s key-resolution path: `resolve_token_string(n[:token])` instead of `tokens[n[:token]] || n[:token]`. Keys now arrive at `Property.new(...)` as `Primitives::String` with `token_index` set.
+- `read_property_with_key`'s value-position branch: when `maybe_open` is `{token: N}`, the same helper produces a `Primitives::String` for the property value.
+- The shared `resolve_token_string` helper is the single source of truth for "binary token → identifier-shaped string."
 
-- In `read_property_with_key`: when `maybe_open` is `{token: N}`, resolve via `tokens:` and emit `Primitives::String.new(name, quoted: false, token_index: N)` (or fall back to `Primitives::Integer.new(N)` when the table is missing or has no entry for `N`).
-- Migrate the existing key-resolution path in `read_next` to the same shape — emit `Primitives::String.new(name, quoted: false, token_index: token_int)` instead of `tokens[…] || raw_int`. This is the cross-the-board consistency lift.
-- Empirical question to answer during implementation: do these tokens-as-values appear *only* as bare RHS scalars, or also as bare elements inside a `{ … }` list (e.g. `tags = { token_a token_b token_c }`)? `read_list` calls `read_next` for each child, which currently routes `{token: N}` through the `key=value` path — a bare token in list-child position would error for a different reason. If empirically present, the fix needs to cover both positions.
+Unresolved tokens (no entry in the supplied `tokens:` table, or no table at all) still produce a `Primitives::String` — with `"0x#{token_int.to_s(16).rjust(4, "0")}"` as the text, e.g. `"0x2cd6"`. The `token_index` field is set in both resolved and unresolved cases. Rationale: a `Primitives::Integer` fallback would be visually indistinguishable from a genuine integer value in the parsed Document; a hex-formatted string with the leading `0x` is unambiguously a binary-token artifact, making missed lookups easy to spot at a glance and grep for. The `0x` prefix matches the format the parser's existing error messages already use (the rgb branch's `"expected open token got: 0x..."`).
 
-Parsing blocker — the parser raises before completing on a real save without this. **Highest priority of the 10-series remaining.**
+Tests: 7 new specs in `spec/parser/binary_parser_spec.rb` covering resolved-key shape, unresolved-key hex shape, token-as-value resolution, value-position hex fallback, and `Primitives::String#token_index` value semantics (default nil, equality ignores it, preserved across dup). 591/0 full suite.
+
+**Empirical verification against a real ~40 MB EU5 binary save** (no token table supplied so all identifier-shapes appear as `Primitives::Integer` fallbacks): the parser now clears the token-as-value shape and gets *much* further in (~404 KB into the gamestate) before hitting yet another binary-format shape — a tuple-key pattern where multiple bare integers act as a compound key inside a list (`{ 1 0 = 0 }`). Tracked as 10g below. The empirical question 10e was supposed to answer — "do bare tokens appear in list-child position?" — didn't surface; the tuple-key case is structurally different and is what trips on real data first.
+
+#### 10g. Binary parser: tuple-key (multi-component bare-value keys)
+
+Surfaced when verifying 10e against a real EU5 save. Inside a list, the wire occasionally carries shapes like:
+
+```
+{
+  <i32> <i32> = <value>
+  …
+}
+```
+
+— i.e., two (or more) bare values function as a compound key, with no `{ … }` block wrapping. Different from 10c's block-keys (`{…}={…}`) and from an ordinary property's single-value key (`key=value`). Likely use case: maps keyed by tuples (coordinates, ID pairs, etc.).
+
+Fix shape: extend `read_list`'s child loop with a lookahead. After reading a `Value` for a child, peek the next 2 bytes — if they're the `=` (`0x0001`) marker, this value (plus any consecutive preceding bare values still pending) is the LHS of a compound-key pair, not a list element. Roll them into a `List` (or a dedicated "tuple key" container?), consume the `=`, read the value, emit a Property.
+
+Open design questions:
+
+- **How many components.** Probably variable; the lookahead should keep collecting consecutive bare values until it sees `=`. Don't bake in a fixed arity.
+- **AST shape.** Two natural representations: (a) wrap the components in a keyless `List` and store it as the Property's compound key (matches 10c's shape — the same `Property.key.is_a?(List)` guard from the 10a audit already covers it); (b) introduce a dedicated `Tuple` primitive. (a) reuses existing infrastructure; (b) preserves "block-key vs tuple-key" distinction for round-trip, but adds primitive surface for no Ruby-side semantic gain.
+- **Empirical question for implementation.** Do tuple-keys ever mix with non-value components (e.g., `<i32> <token> = …`)? If yes, the lookahead has to roll up whatever was previously read, not just bare values.
+
+Currently the parsing blocker for full EU5-save coverage — real saves stop ~404 KB into the gamestate without this.
 
 #### 10f. Binary parser: lookup-index resolution (the values-correctness issue)
 
@@ -675,7 +700,7 @@ Not a parsing blocker — without 10f, lookup-indexed values surface as `Integer
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**Save-file parsing path:** 10a → 10c → 10e → 10f. 10e is the parsing blocker; 10f then aligns the values with what plaintext parses produce. Without 10e the parser raises before completing; without 10f lookup-indexed values surface as integers — semantically wrong but parseable. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f. 10e and 10g are the parsing blockers (each surfaced as the next one landed); 10f then aligns the values with what plaintext parses produce. Without 10e/10g the parser raises before completing; without 10f lookup-indexed values surface as integers — semantically wrong but parseable. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 

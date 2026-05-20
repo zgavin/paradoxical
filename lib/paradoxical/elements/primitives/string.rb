@@ -5,7 +5,16 @@ class Paradoxical::Elements::Primitives::String
 
   impersonate_infix_methods %i{!~ % * + =~ <<}
 
-  def initialize string, quoted: nil
+  # `token_index` is round-trip metadata for binary-parsed strings that
+  # were resolved from a 2-byte token in the per-game `tokens:` table.
+  # Plaintext-parsed strings always leave it nil. When set, the future
+  # binary writer emits the 2-byte token instead of the
+  # quoted/unquoted-string token shape. Equality / hash intentionally
+  # ignore it — two strings with the same text are equal regardless of
+  # source format. See MODERNIZATION.md phase 10e.
+  attr_reader :token_index
+
+  def initialize string, quoted: nil, token_index: nil
     if quoted.nil? then
       @quoted = (string.start_with? '"' and string.end_with? '"')
 
@@ -15,6 +24,8 @@ class Paradoxical::Elements::Primitives::String
 
       super string
     end
+
+    @token_index = token_index
   end
 
   def quoted?
@@ -22,7 +33,7 @@ class Paradoxical::Elements::Primitives::String
   end
 
   def dup
-    self.class.new @value, quoted: @quoted
+    self.class.new @value, quoted: @quoted, token_index: @token_index
   end
 
   def to_pdx

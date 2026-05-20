@@ -249,12 +249,13 @@ class Paradoxical::BinaryParser
       compound_key = read_list key: nil
       eql = read_scalar
       fail "expected `=` after compound key, got: #{eql}" unless eql.is_a?(Hash) and eql[:equals]
+
       return read_property_with_key compound_key
     end
 
     fail "expected token, got: #{n}" if n[:token].nil?
 
-    key = tokens[n[:token]] || n[:token]
+    key = resolve_token_string n[:token]
 
     eql = read_scalar
 
@@ -265,18 +266,40 @@ class Paradoxical::BinaryParser
 
   # Shared tail of `read_next`: once we have a key and the trailing `=`,
   # read the value and assemble either a List (if `{ … }`) or a Property
-  # (if a primitive). The compound-key branch above and the regular
-  # token-key branch both end here.
+  # (if a primitive or a bare token). The compound-key branch above and
+  # the regular token-key branch both end here.
   def read_property_with_key key
     maybe_open = read_scalar is_date: key == "date"
 
-    if maybe_open.is_a?(Hash) and maybe_open[:open] then
-      read_list key:
-    elsif not maybe_open.is_a?(Hash) then
+    if not maybe_open.is_a?(Hash) then
       Paradoxical::Elements::Property.new key, "=", maybe_open
+    elsif maybe_open[:open] then
+      read_list key:
+    elsif maybe_open[:token] then
+      # Token in value position — see MODERNIZATION.md phase 10e.
+      # EU5 compresses repeated RHS identifiers (`yes`/`no`, enum
+      # names) as raw 2-byte tokens instead of length-prefixed
+      # strings; resolve via the same `tokens:` table the key path
+      # uses.
+      Paradoxical::Elements::Property.new key, "=", resolve_token_string(maybe_open[:token])
     else
       fail "unexpected control token after `#{key}`: #{maybe_open}"
     end
+  end
+
+  # Look up a 2-byte token in the supplied `tokens` table and wrap the
+  # resolved identifier as a `Primitives::String` carrying its source
+  # `token_index` for round-trip. Unresolved tokens still produce a
+  # `Primitives::String` — but with the 4-char hex form of the token
+  # int (`0x2cd6`) as the text. That makes missed lookups visually
+  # distinct from real string values in the parsed Document (vs.
+  # surfacing as a `Primitives::Integer`, which would be indistinguishable
+  # from a genuine integer value at a glance). `token_index` is set in
+  # both cases, so the future binary writer can round-trip either shape
+  # via the same path. See MODERNIZATION.md phase 10e.
+  def resolve_token_string token_int
+    name = tokens[token_int] || "0x#{token_int.to_s(16).rjust(4, "0")}"
+    Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
   end
 
   def fail msg

@@ -243,11 +243,12 @@ RSpec.describe Paradoxical::BinaryParser do
 
     it "parses a compound-key Property when the value is a primitive" do
       # `{ key=42 } = 100` at document top level.
-      body = open +
-             u16(TOKEN_KEY) + eq_marker + uint32(42) +
-             close +
-             eq_marker +
-             uint32(100)
+      body =
+        open +
+        u16(TOKEN_KEY) + eq_marker + uint32(42) +
+        close +
+        eq_marker +
+        uint32(100)
 
       doc = parse(body)
       prop = doc.first
@@ -266,11 +267,12 @@ RSpec.describe Paradoxical::BinaryParser do
       # shape. The result is a List (compound key + list value), not a
       # Property, matching the rest of the parser's "RHS is `{…}` → List"
       # convention.
-      body = open +
-             u16(TOKEN_KEY) + eq_marker + uint32(1) +
-             close +
-             eq_marker +
-             open + uint32(37) + uint32(43) + uint32(47) + close
+      body =
+        open +
+        u16(TOKEN_KEY) + eq_marker + uint32(1) +
+        close +
+        eq_marker +
+        open + uint32(37) + uint32(43) + uint32(47) + close
 
       doc = parse(body)
       list = doc.first
@@ -287,7 +289,7 @@ RSpec.describe Paradoxical::BinaryParser do
       # the compound pair appears as a child of an outer keyed map.
       inner =
         open +
-          u16(TOKEN_KEY) + eq_marker + uint32(1) +
+        u16(TOKEN_KEY) + eq_marker + uint32(1) +
         close +
         eq_marker +
         open + uint32(37) + uint32(43) + uint32(47) + close
@@ -311,6 +313,78 @@ RSpec.describe Paradoxical::BinaryParser do
 
       expect { parse(body) }
         .to raise_error(Paradoxical::BinaryParser::ParseError, /expected `=` after compound key/)
+    end
+  end
+
+  describe "token resolution" do
+    # Phase 10e — `Primitives::String` with `token_index:` is the shape
+    # the binary parser emits for any identifier resolved via the
+    # per-game `tokens:` table, regardless of whether the token appeared
+    # in key or value position. See MODERNIZATION.md phase 10e.
+    TOKEN_VAL = 0x3000
+
+    it "wraps resolved keys in Primitives::String with token_index set" do
+      doc = parse(prop(TOKEN_KEY, uint32(1)))
+      key = doc.first.key
+
+      expect(key).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(key.to_s).to eq("key")
+      expect(key.token_index).to eq(TOKEN_KEY)
+      expect(key).not_to be_quoted
+    end
+
+    it "renders unresolved keys as a hex-encoded Primitives::String with token_index set" do
+      doc = parse(prop(0xDEAD, uint32(1)), tokens: {})
+      key = doc.first.key
+
+      expect(key).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(key.to_s).to eq("0xdead")
+      expect(key.token_index).to eq(0xDEAD)
+    end
+
+    it "resolves a bare token in value position" do
+      # `key = <token>` — EU5's compression for repeated RHS identifiers
+      # like `yes`/`no` and enum names.
+      doc = parse(u16(TOKEN_KEY) + eq_marker + u16(TOKEN_VAL),
+                  tokens: TOKENS.merge(TOKEN_VAL => "yes"))
+      value = doc.first.value
+
+      expect(value).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(value.to_s).to eq("yes")
+      expect(value.token_index).to eq(TOKEN_VAL)
+      expect(value).not_to be_quoted
+    end
+
+    it "renders an unresolved value-position token as a hex-encoded Primitives::String" do
+      doc = parse(u16(TOKEN_KEY) + eq_marker + u16(0xCAFE),
+                  tokens: TOKENS)
+      value = doc.first.value
+
+      expect(value).to be_a(Paradoxical::Elements::Primitives::String)
+      expect(value.to_s).to eq("0xcafe")
+      expect(value.token_index).to eq(0xCAFE)
+    end
+
+    describe "Primitives::String#token_index semantics" do
+      it "defaults to nil when not supplied" do
+        s = Paradoxical::Elements::Primitives::String.new "foo", quoted: false
+        expect(s.token_index).to be_nil
+      end
+
+      it "is round-trip metadata — equality ignores it" do
+        a = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, token_index: 1
+        b = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, token_index: 999
+        c = Paradoxical::Elements::Primitives::String.new "foo", quoted: false
+
+        expect(a).to eq(b)
+        expect(a).to eq(c)
+        expect(a).to eq("foo")
+      end
+
+      it "is preserved across dup" do
+        original = Paradoxical::Elements::Primitives::String.new "foo", quoted: false, token_index: 42
+        expect(original.dup.token_index).to eq(42)
+      end
     end
   end
 
@@ -344,9 +418,12 @@ RSpec.describe Paradoxical::BinaryParser do
       expect(doc.first.key).to eq("key")
     end
 
-    it "falls back to the raw 2-byte integer when a token is missing" do
+    it "renders missing tokens as the hex-encoded form for visibility" do
       doc = parse(prop(0xDEAD, uint32(1)), tokens: {})
-      expect(doc.first.key).to eq(0xDEAD)
+      # The token-resolution describe covers the structural shape — this
+      # one anchors the "what does an unresolved key look like" answer
+      # next to its "table-hit" sibling above.
+      expect(doc.first.key).to eq("0xdead")
     end
 
     it "respects an explicit `tokens:` kwarg over `default_tokens`" do
