@@ -636,21 +636,46 @@ Open question: does the script form *only* appear in save files, or does any mod
 
 Defer the call until a concrete consumer materializes. The first one will almost certainly want enumeration ("walk every compound-keyed entry in this list"), not structural lookup.
 
-#### 10e. Binary parser: token-as-value
+**Shared design for 10e and 10f.** Both of the binary-parser extensions below resolve byte-shape tokens to identifier-shaped strings — value-position tokens via the per-game `tokens:` table (10e), and lookup-index values via a per-save `string_lookup:` table (10f). Rather than inventing per-shape primitive wrappers (`Primitives::TokenRef`, `Primitives::LookupRef` mirroring `VariableRef`), `Primitives::String` grows two optional kwargs:
 
-Surfaced when verifying 10c against a real EU5 save: the engine encodes some right-hand-side identifiers (probably `yes`/`no`, enum names, and other frequently-repeated literals) as raw 2-byte tokens instead of as type-discriminated quoted/unquoted strings. `read_scalar`'s `else { token: type }` branch returns `{token: N}` for these; `read_property_with_key` then sees a Hash without `:open` and raises `unexpected control token after \`<key>\`: {token: N}`.
+- `token_index:` — the `tokens:`-table integer the string was resolved from
+- `lookup_index:` — the `string_lookup:`-table integer the string was resolved from
 
-Likely fix shape: in `read_property_with_key` (and possibly anywhere a value is consumed inside `read_list`), recognize `{token: N}` in value position and look it up in the supplied `tokens` table — emit a `Primitives::String` (unquoted, since these are identifier-shaped) when found, fall back to the raw integer when the token table doesn't have an entry. The fallback shape matches how key-side tokens degrade today.
+Both default nil; equality / `hash` ignore them since they're round-trip metadata, not value state. Plaintext-parsed strings never set either. The existing key-resolution path in `read_next` migrates to emit `Primitives::String.new(name, quoted: false, token_index: …)` in place of the plain `::String` returned by `tokens[…] || …` today, so all three identifier-producing sites in the binary parser read identically — consistent "string-with-kwargs" strategy for binary tokens across the board.
 
-Empirical question to answer first: do these tokens-as-values appear *only* as bare RHS scalars, or also as bare elements inside a `{ … }` list (e.g. `tags = { token_a token_b token_c }`)? `read_list` calls `read_next` for each child, which currently routes `{token: N}` through the `key=value` path — so a bare token in a list child position would already error out for a different reason. The fix may need to cover both positions.
+Future binary writer ternary: `token_index` set → emit 2-byte token; `lookup_index` set → emit `LOOKUP_NN` + index bytes; neither set → emit standard `QUOTED`/`UNQUOTED` + length + bytes. Until the writer exists the metadata is dead state; one kwarg + accessor's worth of cost to avoid a `Primitives::String` shape change later.
 
-Not strictly part of phase 10's "compound keys" framing — it's a separate binary-format extension — but lives in the same Phase 10 since it surfaced while validating compound-key parsing end-to-end. Could be promoted to its own phase if the binary-format work grows much beyond this.
+Graceful degradation when the side-channel table isn't supplied: fall back to the raw integer surfacing the current code does. Matches how missing `tokens:` entries degrade today, and keeps inspection callers usable.
+
+#### 10e. Binary parser: token-as-value (the parsing blocker)
+
+Surfaced when verifying 10c against a real EU5 save: the engine encodes some right-hand-side identifiers (`yes`/`no`, enum names, repeated literals) as raw 2-byte tokens instead of as type-discriminated quoted/unquoted strings. `read_scalar`'s `else { token: type }` branch returns `{token: N}` for these; `read_property_with_key` then sees a Hash without `:open` and raises `unexpected control token after \`<key>\`: {token: N}`.
+
+Fix shape, per the shared design above:
+
+- In `read_property_with_key`: when `maybe_open` is `{token: N}`, resolve via `tokens:` and emit `Primitives::String.new(name, quoted: false, token_index: N)` (or fall back to `Primitives::Integer.new(N)` when the table is missing or has no entry for `N`).
+- Migrate the existing key-resolution path in `read_next` to the same shape — emit `Primitives::String.new(name, quoted: false, token_index: token_int)` instead of `tokens[…] || raw_int`. This is the cross-the-board consistency lift.
+- Empirical question to answer during implementation: do these tokens-as-values appear *only* as bare RHS scalars, or also as bare elements inside a `{ … }` list (e.g. `tags = { token_a token_b token_c }`)? `read_list` calls `read_next` for each child, which currently routes `{token: N}` through the `key=value` path — a bare token in list-child position would error for a different reason. If empirically present, the fix needs to cover both positions.
+
+Parsing blocker — the parser raises before completing on a real save without this. **Highest priority of the 10-series remaining.**
+
+#### 10f. Binary parser: lookup-index resolution (the values-correctness issue)
+
+Lookup tokens (`LOOKUP_08` / `LOOKUP_16` / `LOOKUP_24` / `LOOKUP_08A` / `LOOKUP_16A`, all in the `0x0d3e..0x0d44` range) carry a 1/2/3-byte index into a `string_lookup` table that ships as a second file alongside `gamestate` in the save's zip. Currently `read_scalar` emits these as `Primitives::Integer`, breaking binary↔plaintext symmetry — the same logical value renders as an integer in binary parses but as a string in plaintext parses.
+
+Fix shape, per the shared design above:
+
+- New `string_lookup:` kwarg on `BinaryParser.parse` (and matching `default_string_lookup=` class-level setter). The save-extraction wrapper reads the `string_lookup` file from the zip alongside `gamestate` and passes both in.
+- `read_scalar`'s `LOOKUP_NN` branches read the N-byte index and look it up. When found, emit `Primitives::String.new(text, quoted: false, lookup_index: idx)`. When not (or no table supplied), fall back to the existing `Primitives::Integer` so inspection callers without the side channel stay usable.
+- Wire format of the `string_lookup` file itself needs reverse-engineering — probably a sequence of length-prefixed UTF-8 strings indexed by position. A small dedicated helper in the binary module covers parsing it; first implementation step is figuring it out empirically against the user's save.
+
+Not a parsing blocker — without 10f, lookup-indexed values surface as `Integer` instead of `String`, which is wrong but parseable. Lower priority than 10e. Useful when correct values matter (DSL editing, search queries comparing against expected string literals, the token-mapping work the maintainer is currently focused on).
 
 #### Suggested sequence
 
-10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths because the audit catches anywhere a non-string `key` would silently break. 10b and 10c are independent — either order works.
+10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**If save-file parsing is the only near-term need**, the shortest path is **10a → 10c → 10e** — and 10e is required to actually parse a full EU5 save, not just compound-key fixtures. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10f. 10e is the parsing blocker; 10f then aligns the values with what plaintext parses produce. Without 10e the parser raises before completing; without 10f lookup-indexed values surface as integers — semantically wrong but parseable. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 
@@ -674,4 +699,5 @@ Captured here so we don't re-litigate them.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
 - **Game-namespaced DSL via mixin.** Mirrors the existing jomini-version dispatch in `Game`, avoids inheritance gymnastics.
 - **Phase 10 added: compound keys.** Surfaced when both the script and binary parsers failed mid-EU5-save at the `}={` shape — Paradox saves encode "map keyed by sub-list" structures (e.g. demand-spec → pop IDs) the existing grammar and binary `read_next` flow can't express. New phase rather than a slot under phase 8 because this is a `Property` *shape* extension, not a new primitive — different concern, different file surface. Structurally independent of 8e and 9 so can run in parallel; the only ordering is internal (10a audit → 10b/10c parser paths → 10d accessors).
+- **Unified `Primitives::String` w/ source-token kwargs for 10e and 10f.** EU5 binary saves resolve identifier-shaped values through three distinct tokenizations: key tokens via per-game `tokens:`, value tokens via the same (10e), lookup-indices via per-save `string_lookup:` (10f). Considered typed wrappers (`Primitives::TokenRef`, `Primitives::LookupRef`) mirroring `VariableRef`'s pattern from 8e-2. Rejected because the *Ruby-side semantic* in all three cases is the same — an identifier-shaped string — and inventing wrappers would make binary↔plaintext asymmetric (plaintext produces `Primitives::String`, binary would produce typed wrappers). Settled on `Primitives::String` carrying optional `token_index:` / `lookup_index:` round-trip metadata that equality/hash ignore. Future binary writer dispatches on which kwarg is set. The shape difference vs. 8e-2's `VariableRef`: the script grammar itself distinguishes `@varname` from a plain string, so a typed primitive is engine-symmetric; the binary tokenizations are pure compression of identical string semantics, so a single primitive type with metadata is the symmetric fit.
 - **Smoke parallelism: nogvl + Thread pool, not Ractors.** Investigated a Ractor-pool architecture for `parse_file` (each parse dispatched to a worker Ractor; `parse_file` returns a `Future`; `parse_files` becomes `files.map { parse_file(f) }.map(&:value)`). Working implementation preserved on the `experiment/ractor-pool` branch. Net result: doesn't beat the simpler nogvl + Thread pool approach already on main, and runs slower than serial parse for small per-file workloads. Measured at 250-290 files/s (Ractor pool) vs 318 files/s (serial) vs 470 files/s (nogvl + threads) on imperator. The per-job dispatch overhead (Ractor#send + port.receive + future lifecycle) dominates the parallelism win when each parse is ~3 ms. Even the simplest sliced-Ractor design (no pool, no future infrastructure) tops out at ~2x scaling — same Amdahl wall as nogvl. To revisit if Ruby's Ractor implementation matures or if a future workload (much larger files, or many concurrent Game instances) shifts the per-parse cost enough to amortize the message overhead. The `rb_ext_ractor_safe(true)` flag is set in the magnus init so users CAN call `Paradoxical::Parser.parse` from non-main Ractors in their own code; the framework just doesn't itself.
