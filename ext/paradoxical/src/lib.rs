@@ -178,6 +178,15 @@ fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                     did_set_key = true;
                 }
             }
+            // Compound key — the LHS of `=` is a `{ … }` block, used
+            // by PDX save files for maps keyed by an object. Only ever
+            // appears in the LHS slot (the property grammar's RHS is
+            // `primitive`-only), so we don't need a did_set_key guard.
+            // See MODERNIZATION.md phase 10b.
+            Rule::keyless_list => {
+                key = keyless_list(ruby, inner);
+                did_set_key = true;
+            }
             r => unreachable!("unexpected rule: {:?}", r),
         }
     }
@@ -214,6 +223,22 @@ fn list(ruby: &Ruby, pair: Pair<Rule>) -> Value {
                 kind_after_key = true;
             }
             Rule::gui_type => gui_type = true,
+            // Compound-key list head `{ inner }=` — see MODERNIZATION.md
+            // phase 10b. Pulled out as a distinct (non-silent) rule
+            // because the surrounding body also accepts `keyless_list`
+            // children, so we'd otherwise have no way to tell the
+            // head's block from a body element. Unpack the inner
+            // keyless_list / ws / operator manually.
+            Rule::compound_head => {
+                for sub in inner.into_inner() {
+                    match sub.as_rule() {
+                        Rule::keyless_list => key = keyless_list(ruby, sub),
+                        Rule::operator => operator = p(ruby, sub).as_value(),
+                        Rule::ws => whitespace.push(p(ruby, sub)).unwrap(),
+                        r => unreachable!("unexpected rule in compound_head: {:?}", r),
+                    }
+                }
+            }
             _ => {
                 let child = match inner.as_rule() {
                     Rule::comment => comment(ruby, inner),

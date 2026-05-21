@@ -607,13 +607,23 @@ Known sites to check: `Document#[]` / `value_for` / `keys`, `Property#==` and `#
 
 The `VariableRef` back-fill in `key=` (sets `key.owner = self`) is precedent for type-aware key handling and likely the right hook to mirror when a `List` key arrives (back-fill `list.parent = self` so resolution works from inside a compound key).
 
-#### 10b. Script grammar: compound-key shape
+#### 10b. Script grammar: compound-key shape (landed)
 
-Extend `script.pest` so a `{ … }` block can appear as the LHS of `=`. Likely shape: a new `compound_head` alternative inside `list_head`, ordered so the `}` + `=` lookahead disambiguates it from the existing `keyed_head` / `bare_head`. Rust side dispatches the captured sub-list into the Property's `key` field instead of a String.
+Extends `script.pest` so a `{ … }` block can appear as the LHS of `=` — the script-side counterpart to 10c's binary-parser handling. Two grammar additions:
 
-Risk to budget for: the 22,229-file smoke baseline is currently empty-allowlist across all five games. A new alternative tried too early in the alternation could regress files that already parse. Add it as the last fallthrough; `}` + `=` is a boundary no existing shape produces.
+- `property` widened from `primitive ~ ws ~ operator ~ ws ~ primitive` to `( keyless_list | primitive ) ~ ws ~ operator ~ ws ~ primitive` — covers `{ key=val }=primitive` shapes.
+- New `compound_head` alternative inside `list_head`, ordered before `keyed_head`. Non-silent so the Rust dispatcher can tell the head's keyless_list from body ones (`list`'s body also accepts `keyless_list` children, and a silent rule would collapse the two indistinguishably).
 
-Open question: does the script form *only* appear in save files, or does any mod-data file ship compound keys? Empirical sweep across the installed games' game-data trees will answer this. If save-files-only, the grammar change isn't load-bearing for the parse-smoke baselines (saves aren't smoked today), which lowers the risk.
+Rust side (`lib.rs`): `property()` gains a `Rule::keyless_list` arm that routes the LHS into Property's key; `list()` gains a `Rule::compound_head` arm that unpacks the inner `keyless_list` / `ws` / `operator` and routes the keyless_list into the List's key.
+
+Tests: 4 new script-parser specs in `spec/parser/list_spec.rb` covering the list-valued shape (`{ … }={ … }`), the primitive-valued shape (`{ … }=42`), nested-inside-outer-keyed-list (the realistic `needed={ {…}={…} … }` form), and a regression guard ensuring a standalone `{ … }` without trailing `=` still parses as a keyless list. **640 / 0** full suite.
+
+**Empirical verification:**
+
+- Real EU5 ~300 MB plaintext save parses end-to-end — 75 top-level Document entries in 183.8s (previously failed at byte 4,598,324 on the first `}={`).
+- Full parse-smoke baseline across all five games stays clean: EU4 8,373 / EU5 3,415 / Stellaris 3,001 / HOI4 5,330 / Imperator 2,118 — **22,237 / 22,237 files parse**, zero regressions vs. the pre-10b baseline. The open question from the original plan ("do mod-data files ship compound keys?") answered no — the smoke baselines are unchanged, so compound keys are save-file-exclusive.
+
+This unblocks the maintainer's token-mapping sweep workflow: both binary and plaintext saves now parse to a Document, so a diff between the two can identify which integer tokens correspond to which identifier names without a per-game tokens table on hand.
 
 #### 10c. Binary parser: compound-key handling (landed)
 
@@ -744,7 +754,7 @@ Plaintext-derived primitives have `binary_encoding: nil`; the writer picks a def
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. All landed. The EU5 gamestate parses end-to-end, lookup-indexed values resolve to real strings, and every numeric primitive carries the source-token metadata a future binary writer would need to round-trip the wire shape losslessly. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. All landed. The EU5 gamestate parses end-to-end, lookup-indexed values resolve to real strings, and every numeric primitive carries the source-token metadata a future binary writer would need to round-trip the wire shape losslessly. The script side caught up with 10b (compound keys in `script.pest`), so both binary and plaintext saves now parse to a Document for the token-mapping sweep workflow. The remaining 10d (Document accessors for compound entries) is still pending until a consumer surfaces.
 
 ## Decision log
 

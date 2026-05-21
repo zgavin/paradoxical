@@ -321,5 +321,72 @@ RSpec.describe Paradoxical::Parser do
         end
       end
     end
+
+    describe "compound keys (phase 10b)" do
+      # PDX save files use a `{ … }={ … }` shape for maps keyed by an
+      # object instead of an identifier. Real EU5 example from
+      # `plaintext.eu5` at byte ~71.7M:
+      #
+      #   needed={
+      #     {
+      #       demand=pop_demand
+      #     }={ 37 43 47 51 71 86 91 99 … }
+      #   }
+      #
+      # See MODERNIZATION.md phase 10b.
+
+      it "parses a compound-key list with a list value" do
+        # `{ demand=pop_demand } = { 37 43 47 }` — the realistic shape.
+        list = parse("{ demand=pop_demand }={ 37 43 47 }\n").first
+
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.key).to be_a(Paradoxical::Elements::List)
+        expect(list.key.first.key.to_s).to eq("demand")
+        expect(list.key.first.value.to_s).to eq("pop_demand")
+        expect(list.map { |v| v.value.to_i }).to eq([37, 43, 47])
+      end
+
+      it "parses a compound-key property with a primitive value" do
+        # Compound key but the RHS is a primitive, not a list — goes
+        # through `property` rather than `list`.
+        prop = parse("{ demand=pop_demand }=42\n").first
+
+        expect(prop).to be_a(Paradoxical::Elements::Property)
+        expect(prop.key).to be_a(Paradoxical::Elements::List)
+        expect(prop.key.first.key.to_s).to eq("demand")
+        expect(prop.value.to_i).to eq(42)
+      end
+
+      it "parses compound-keyed pairs nested inside an outer keyed list" do
+        # The realistic shape: `needed = { {…}={…} {…}={…} }`.
+        list = parse(<<~PDX).first
+          needed = {
+            { demand=pop_demand }={ 1 2 3 }
+            { demand=labor }={ 4 5 6 }
+          }
+        PDX
+
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.key.to_s).to eq("needed")
+        expect(list.size).to eq(2)
+        list.each do |child|
+          expect(child).to be_a(Paradoxical::Elements::List)
+          expect(child.key).to be_a(Paradoxical::Elements::List)
+        end
+        expect(list[0].map { |v| v.value.to_i }).to eq([1, 2, 3])
+        expect(list[1].map { |v| v.value.to_i }).to eq([4, 5, 6])
+      end
+
+      it "leaves `{ … }` without trailing `=` as a keyless list (doesn't greedily match compound_head)" do
+        # Regression guard — `compound_head` requires the `=` after
+        # `}`. Standalone `{ … }` should still parse as a keyless
+        # top-level list.
+        list = parse("{ 1 2 3 }\n").first
+
+        expect(list).to be_a(Paradoxical::Elements::List)
+        expect(list.key).to be_falsey
+        expect(list.map { |v| v.value.to_i }).to eq([1, 2, 3])
+      end
+    end
   end
 end
