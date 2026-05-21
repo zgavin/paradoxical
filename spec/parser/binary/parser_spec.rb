@@ -337,9 +337,10 @@ RSpec.describe Paradoxical::Binary::Parser do
       # `key = { 0 = 1 }` — single integer-keyed property inside a
       # list. Without 10g, the `0` would be read as a bare Value and
       # the `=` would crash the parser.
-      body = u16(TOKEN_KEY) + eq_marker + open +
-             int32(0) + eq_marker + int32(1) +
-             close
+      body =
+        u16(TOKEN_KEY) + eq_marker + open +
+        int32(0) + eq_marker + int32(1) +
+        close
 
       list = parse(body).first
       expect(list).to be_a(Paradoxical::Elements::List)
@@ -354,12 +355,13 @@ RSpec.describe Paradoxical::Binary::Parser do
       # integer-keyed properties. The leading int is the count; the
       # parser stays structurally neutral and represents it as the
       # literal mix.
-      body = u16(TOKEN_KEY) + eq_marker + open +
-             int32(3) +
-             int32(0) + eq_marker + int32(10) +
-             int32(1) + eq_marker + int32(20) +
-             int32(2) + eq_marker + int32(30) +
-             close
+      body =
+        u16(TOKEN_KEY) + eq_marker + open +
+        int32(3) +
+        int32(0) + eq_marker + int32(10) +
+        int32(1) + eq_marker + int32(20) +
+        int32(2) + eq_marker + int32(30) +
+        close
 
       list = parse(body).first
       expect(list.size).to eq(4)
@@ -372,10 +374,11 @@ RSpec.describe Paradoxical::Binary::Parser do
       # `key = { TOKEN_INNER = 1 TOKEN_INNER }` — first occurrence is
       # a key (followed by `=`), second is a bare value (followed by
       # `}`).
-      body = u16(TOKEN_KEY) + eq_marker + open +
-             u16(TOKEN_INNER) + eq_marker + uint32(1) +
-             u16(TOKEN_INNER) +
-             close
+      body =
+        u16(TOKEN_KEY) + eq_marker + open +
+        u16(TOKEN_INNER) + eq_marker + uint32(1) +
+        u16(TOKEN_INNER) +
+        close
 
       list = parse(body).first
       expect(list.size).to eq(2)
@@ -389,11 +392,12 @@ RSpec.describe Paradoxical::Binary::Parser do
     it "parses a keyless sub-list as a sibling of other children" do
       # `key = { 1 { 2 3 } 4 }` — bare value, keyless sub-list, bare
       # value. The sub-list has key=nil and contains two values.
-      body = u16(TOKEN_KEY) + eq_marker + open +
-             uint32(1) +
-             open + uint32(2) + uint32(3) + close +
-             uint32(4) +
-             close
+      body =
+        u16(TOKEN_KEY) + eq_marker + open +
+        uint32(1) +
+        open + uint32(2) + uint32(3) + close +
+        uint32(4) +
+        close
 
       list = parse(body).first
       expect(list.size).to eq(3)
@@ -489,15 +493,21 @@ RSpec.describe Paradoxical::Binary::Parser do
       Paradoxical::Binary::StringLookup.new ["alpha", "beta", "gamma"]
     end
 
-    # u8 lookup token: `0x0d40` + 1-byte index
-    def lookup_u8(idx)  = u16(0x0d40) + [idx].pack("C")
-    # u16 lookup token: `0x0d3e` + 2-byte little-endian index
-    def lookup_u16(idx) = u16(0x0d3e) + [idx].pack("v")
+    # Helpers for each LOOKUP_* variant — distinct token IDs but
+    # overlapping byte widths, which is why `binary_encoding` matters
+    # for round-trip.
+    def lookup_08(idx)  = u16(0x0d40) + [idx].pack("C")
+    def lookup_08a(idx) = u16(0x0d43) + [idx].pack("C")
+    def lookup_16(idx)  = u16(0x0d3e) + [idx].pack("v")
+    def lookup_16a(idx) = u16(0x0d44) + [idx].pack("v")
+    def lookup_24(idx)  = u16(0x0d41) + [idx].pack("V")[0, 3]
 
     it "resolves an 8-bit lookup index against the supplied table" do
-      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(1)),
-                                              tokens: TOKENS,
-                                              string_lookup: string_lookup)
+      doc = Paradoxical::Binary::Parser.parse(
+        prop(TOKEN_KEY, lookup_08(1)),
+        tokens: TOKENS,
+        string_lookup: string_lookup
+      )
       value = doc.first.value
 
       expect(value).to be_a(Paradoxical::Elements::Primitives::String)
@@ -506,15 +516,33 @@ RSpec.describe Paradoxical::Binary::Parser do
     end
 
     it "resolves a 16-bit lookup index against the supplied table" do
-      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u16(2)),
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_16(2)),
                                               tokens: TOKENS,
                                               string_lookup: string_lookup)
       expect(doc.first.value.to_s).to eq("gamma")
       expect(doc.first.value.lookup_index).to eq(2)
     end
 
+    {
+      "LOOKUP_08" => [Paradoxical::Binary::Parser::TokenKind::LOOKUP_08, :lookup_08],
+      "LOOKUP_08A" => [Paradoxical::Binary::Parser::TokenKind::LOOKUP_08A, :lookup_08a],
+      "LOOKUP_16" => [Paradoxical::Binary::Parser::TokenKind::LOOKUP_16, :lookup_16],
+      "LOOKUP_16A" => [Paradoxical::Binary::Parser::TokenKind::LOOKUP_16A, :lookup_16a],
+      "LOOKUP_24" => [Paradoxical::Binary::Parser::TokenKind::LOOKUP_24, :lookup_24],
+    }.each do |label, (encoding, helper)|
+      it "stamps Primitives::String with TokenKind::#{label} so byte-width-aliased variants can be round-tripped" do
+        doc = Paradoxical::Binary::Parser.parse(
+          prop(TOKEN_KEY, send(helper, 0)),
+          tokens: TOKENS,
+          string_lookup: string_lookup
+        )
+
+        expect(doc.first.value.binary_encoding).to eq(encoding)
+      end
+    end
+
     it "falls back to a hex-encoded Primitives::String when no table is supplied" do
-      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(1)), tokens: TOKENS)
+      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_08(1)), tokens: TOKENS)
       value = doc.first.value
 
       expect(value).to be_a(Paradoxical::Elements::Primitives::String)
@@ -526,16 +554,20 @@ RSpec.describe Paradoxical::Binary::Parser do
       # Index 99 doesn't exist in our 3-entry table; mismatch between
       # the binary and the lookup file should fail loudly.
       expect {
-        Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(99)),
-                                          tokens: TOKENS,
-                                          string_lookup: string_lookup)
+        Paradoxical::Binary::Parser.parse(
+          prop(TOKEN_KEY, lookup_08(99)),
+          tokens: TOKENS,
+          string_lookup: string_lookup
+        )
       }.to raise_error(KeyError, /index 99 out of range/)
     end
 
     it "attaches the supplied string_lookup to the resulting Document" do
-      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(0)),
-                                              tokens: TOKENS,
-                                              string_lookup: string_lookup)
+      doc = Paradoxical::Binary::Parser.parse(
+        prop(TOKEN_KEY, lookup_08(0)),
+        tokens: TOKENS,
+        string_lookup: string_lookup
+      )
 
       expect(doc.string_lookup).to be(string_lookup)
     end
@@ -547,9 +579,11 @@ RSpec.describe Paradoxical::Binary::Parser do
     end
 
     it "carries string_lookup across Document#dup (by reference)" do
-      doc = Paradoxical::Binary::Parser.parse(prop(TOKEN_KEY, lookup_u8(0)),
-                                              tokens: TOKENS,
-                                              string_lookup: string_lookup)
+      doc = Paradoxical::Binary::Parser.parse(
+        prop(TOKEN_KEY, lookup_08(0)),
+        tokens: TOKENS,
+        string_lookup: string_lookup
+      )
       copy = doc.dup
 
       expect(copy.string_lookup).to be(doc.string_lookup)
