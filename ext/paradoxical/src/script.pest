@@ -34,7 +34,12 @@ inline_ws             =  { whitespace_character* }
 
 value                 =  { ws ~ primitive }
 
-property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
+// LHS may be a `{ … }` block (compound key — PDX saves use this for
+// maps keyed by a sub-list, e.g. `{ demand=pop_demand }=42`) or a
+// primitive. RHS is always a primitive — when the RHS is itself a
+// `{ … }` block the wire is a `list` with a `compound_head`, not a
+// `property`. See MODERNIZATION.md phase 10b.
+property              =  { ws ~ ( keyless_list | primitive ) ~ ws ~ operator ~ ws ~ primitive }
 
 // One unified list shape. Each head alternative is silent, so the
 // inner ws/primitive/operator/kind tokens flow up to `list` regardless
@@ -46,7 +51,7 @@ property              =  { ws ~ primitive ~ ws ~ operator ~ ws ~ primitive }
 list                  =  { ws ~ list_head ~ ws ~ "{" ~ ( expression | value | keyless_list )* ~ ws ~ "}" }
 
 // Head shapes ordered most→least specific so PEG picks the right one.
-list_head             = _{ prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_kind_head | keyed_head | bare_head }
+list_head             = _{ prefixed_kind_head | gui_type_head | scripted_kind_head | keyed_kind_head | compound_head | keyed_head | bare_head }
 
 // All "kind keyword that prefixes a key without an operator" forms,
 // rolled into one rule so prefixed_kind_head reads the same shape as
@@ -100,6 +105,17 @@ scripted_kind_head    = _{ scripted_kind ~ ws ~ primitive ~ ws ~ operator }
 // unified `list` rule is the right home (kind=`cylindrical`).
 keyed_kind_head       = _{ primitive ~ ws ~ operator ~ ws ~ keyed_kind }
 keyed_kind            = @{ !( "hsv360" | "hsv" | "rgb" | "hex" ) ~ string }
+
+// Compound-key list head `{ inner }=` — the LHS is a `keyless_list`
+// block instead of a primitive identifier. PDX save files use this
+// for maps keyed by an object (e.g. `needed={ { demand=pop_demand }={ 37 43 47 … } }`).
+// Tried before `keyed_head` since both end in `~ ws ~ operator` but
+// `compound_head` requires the `{ … }` opener that `keyed_head`
+// (primitive) can't match. NOT silent — the surrounding `list` rule's
+// body also contains `keyless_list` children, so the Rust dispatcher
+// needs to distinguish the head's keyless_list from body ones.
+// See MODERNIZATION.md phase 10b.
+compound_head         =  { keyless_list ~ ws ~ operator }
 
 // Regular keyed list `foo =`.
 keyed_head            = _{ primitive ~ ws ~ operator }
