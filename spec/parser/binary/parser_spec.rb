@@ -122,16 +122,20 @@ RSpec.describe Paradoxical::Binary::Parser do
       expect(doc.first.value.quoted?).to be(false)
     end
 
-    it "returns raw Ruby ::Float for IEEE float (0x000d)" do
+    it "wraps IEEE float (0x000d) values in Primitives::Float with binary_encoding F32" do
       doc = parse(prop(TOKEN_KEY, float32(1.5)))
-      expect(doc.first.value).to be_a(::Float)
-      expect(doc.first.value).to be_within(1e-6).of(1.5)
+
+      expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Float)
+      expect(doc.first.value.to_f).to be_within(1e-6).of(1.5)
+      expect(doc.first.value.binary_encoding).to eq(Paradoxical::Binary::Parser::TokenKind::F32)
     end
 
-    it "returns raw Ruby ::Float for IEEE double (0x0167)" do
+    it "wraps IEEE double (0x0167) values in Primitives::Float with binary_encoding F64" do
       doc = parse(prop(TOKEN_KEY, float64(1.5)))
-      expect(doc.first.value).to be_a(::Float)
-      expect(doc.first.value).to eq(1.5)
+
+      expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Float)
+      expect(doc.first.value.to_f).to eq(1.5)
+      expect(doc.first.value.binary_encoding).to eq(Paradoxical::Binary::Parser::TokenKind::F64)
     end
 
     it "wraps 24-bit fixed-point values in Primitives::Float" do
@@ -592,6 +596,129 @@ RSpec.describe Paradoxical::Binary::Parser do
     it "leaves non-`date` integers as Primitives::Integer" do
       doc = parse(prop(TOKEN_KEY, uint32(0)))
       expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+    end
+
+    describe "date_tokens allowlist (phase 10h)" do
+      # EU5 ships several date-typed identifiers beyond the literal
+      # `date` key — `birth_date`, `start_date`, `death_date`, etc.
+      # The `date_tokens:` kwarg overrides the default `["date"]`
+      # allowlist so callers can extend per-game.
+      TOKEN_BIRTH_DATE = 0x4000
+      EU5_DATE_TOKENS = Set.new(%w[date birth_date])
+
+      it "converts keys in the supplied date_tokens allowlist to Date" do
+        doc = Paradoxical::Binary::Parser.parse(
+          prop(TOKEN_BIRTH_DATE, uint32(24)),
+          tokens: TOKENS.merge(TOKEN_BIRTH_DATE => "birth_date"),
+          date_tokens: EU5_DATE_TOKENS,
+        )
+
+        expect(doc.first.key.to_s).to eq("birth_date")
+        expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Date)
+        expect(doc.first.value).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + 24.hours)
+      end
+
+      it "leaves keys outside the allowlist as Primitives::Integer" do
+        # `date_tokens: ["date"]` (the default) — `birth_date` doesn't match.
+        doc = Paradoxical::Binary::Parser.parse(
+          prop(TOKEN_BIRTH_DATE, uint32(24)),
+          tokens: TOKENS.merge(TOKEN_BIRTH_DATE => "birth_date"),
+        )
+
+        expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+      end
+
+      it "respects an empty allowlist (no date conversion at all)" do
+        doc = Paradoxical::Binary::Parser.parse(
+          prop(TOKEN_DATE, uint32(24)),
+          date_tokens: Set.new,
+        )
+
+        expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+      end
+    end
+  end
+
+  describe "binary_encoding metadata (phase 10h)" do
+    # Each typed-scalar branch in `read_scalar` tags the resulting
+    # Primitives::Integer / Primitives::Float with the source
+    # `TokenKind::*` constant so a future binary writer can re-emit
+    # the same wire shape. See MODERNIZATION.md phase 10h.
+
+    {
+      "U32" => [Paradoxical::Binary::Parser::TokenKind::U32, ->(spec) { spec.send(:uint32, 5) }],
+      "U64" => [Paradoxical::Binary::Parser::TokenKind::U64, ->(spec) { spec.send(:uint64, 5) }],
+      "I32" => [Paradoxical::Binary::Parser::TokenKind::I32, ->(spec) { spec.send(:int32, -5) }],
+      "I64" => [Paradoxical::Binary::Parser::TokenKind::I64, ->(spec) { spec.send(:int64, -5) }],
+    }.each do |label, (encoding, value_bytes)|
+      it "stamps Primitives::Integer with TokenKind::#{label} for the matching wire type" do
+        doc = parse(prop(TOKEN_KEY, value_bytes.call(self)))
+
+        expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+        expect(doc.first.value.binary_encoding).to eq(encoding)
+      end
+    end
+
+    {
+      "F32" => [Paradoxical::Binary::Parser::TokenKind::F32, ->(spec) { spec.send(:float32, 1.5) }],
+      "F64" => [Paradoxical::Binary::Parser::TokenKind::F64, ->(spec) { spec.send(:float64, 1.5) }],
+    }.each do |label, (encoding, value_bytes)|
+      it "stamps Primitives::Float with TokenKind::#{label} for IEEE values" do
+        doc = parse(prop(TOKEN_KEY, value_bytes.call(self)))
+
+        expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Float)
+        expect(doc.first.value.binary_encoding).to eq(encoding)
+      end
+    end
+
+    it "stamps Primitives::Float with the matching FIXED_* token for a fixed-point read" do
+      # `fixed24` uses 0x0d4a → FIXED_U24.
+      doc = parse(prop(TOKEN_KEY, fixed24(250_000)))
+
+      expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Float)
+      expect(doc.first.value.binary_encoding).to eq(Paradoxical::Binary::Parser::TokenKind::FIXED_U24)
+    end
+
+    it "leaves binary_encoding nil for plaintext-parsed primitives" do
+      # Sanity check that the script parser doesn't accidentally set
+      # binary_encoding — only the binary parser does.
+      prop = Paradoxical::Parser.parse("foo = 42").first
+      expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+      expect(prop.value.binary_encoding).to be_nil
+    end
+
+    describe "Primitives::Integer#binary_encoding value semantics" do
+      it "defaults to nil when not supplied" do
+        i = Paradoxical::Elements::Primitives::Integer.new 1
+        expect(i.binary_encoding).to be_nil
+      end
+
+      it "equality ignores binary_encoding" do
+        a = Paradoxical::Elements::Primitives::Integer.new(5, binary_encoding: Paradoxical::Binary::Parser::TokenKind::U32)
+        b = Paradoxical::Elements::Primitives::Integer.new(5, binary_encoding: Paradoxical::Binary::Parser::TokenKind::I64)
+        c = Paradoxical::Elements::Primitives::Integer.new 5
+
+        expect(a).to eq(b)
+        expect(a).to eq(c)
+        expect(a).to eq(5)
+      end
+
+      it "preserves binary_encoding across dup" do
+        original = Paradoxical::Elements::Primitives::Integer.new(5, binary_encoding: Paradoxical::Binary::Parser::TokenKind::U32)
+        expect(original.dup.binary_encoding).to eq(Paradoxical::Binary::Parser::TokenKind::U32)
+      end
+    end
+
+    describe "Primitives::Float#binary_encoding value semantics" do
+      it "defaults to nil when not supplied" do
+        f = Paradoxical::Elements::Primitives::Float.new "1.5"
+        expect(f.binary_encoding).to be_nil
+      end
+
+      it "preserves binary_encoding across dup" do
+        original = Paradoxical::Elements::Primitives::Float.new("1.5", binary_encoding: Paradoxical::Binary::Parser::TokenKind::F64)
+        expect(original.dup.binary_encoding).to eq(Paradoxical::Binary::Parser::TokenKind::F64)
+      end
     end
   end
 

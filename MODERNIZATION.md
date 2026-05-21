@@ -716,27 +716,35 @@ Strict parsing: any header inconsistency (unknown version, entry length exceedin
 
 **Empirical verification**: real EU5 ~40 MB save parses end-to-end with the lookup attached — 77 top-level Document entries, **2,505,232 lookup-indexed strings resolved** to real values across the gamestate.
 
-#### 10h. Binary-encoding metadata for round-trip
+#### 10h. Binary-encoding metadata for round-trip (landed)
 
 Forward-looking work for binary→AST→binary lossless round-trip. No writer exists yet; this phase adds the kwargs so primitives carry their source binary encoding, and the future writer dispatches on it to emit the original wire shape. Same `token_index:`-style metadata pattern from 10e — optional kwarg, equality/hash ignore it, the writer matches on the constant to recover wire shape.
 
-Most primitives need exactly one new kwarg, `binary_encoding:`, taking a `TokenKind::*` constant that fully specifies the wire format (sign, byte width, payload shape). Per type:
+**Per-primitive changes:**
 
-- **`Primitives::Integer`** — records `U32` / `U64` / `I32` / `I64`, or any `LOOKUP_*` (08/16/24/08A/16A) when the source was a lookup token that fell back to Integer because no `string_lookup:` was supplied (the 10f wrapper covers the resolved case via `lookup_index:`; this kwarg covers the fallback case for symmetry on round-trip).
-- **`Primitives::Float`** — records `F32` / `F64` or any `FIXED_*` (positive widths 1..7 / negative widths 1..7 — 14 variants total, the constant fully specifies width + sign-via-token-range). **Requires wrapping IEEE floats in `Primitives::Float`** — currently the parser emits raw `::Float` for `F32`/`F64` per a deliberate design choice (the binary form has no source-string for `to_pdx`). 10h shifts that: `Primitives::Float`'s BigDecimal storage represents the IEEE bits exactly, so the wrap is lossless, and the metadata is what carries the F32-vs-F64 distinction the raw `::Float` couldn't.
-- **`Primitives::String`** — no new metadata. `quoted` already distinguishes `QUOTED` / `UNQUOTED`; `token_index` (10e) covers token-encoded shapes; `lookup_index` (10f) covers lookup-index resolution. Fully covered.
-- **`Primitives::Date`** — int32 hours-since-epoch is empirically the only wire shape, so no per-instance kwarg needed. But: the *forward* parsing path needs a token-name allowlist (`date_tokens:` kwarg or class-level list) — today only the literal `key == "date"` triggers the int→Date conversion, but EU5 saves carry multiple date-typed fields (`last_battle_date`, etc.) that currently flow through as raw integers. Empirically catalog the date-typed token names during implementation.
-- **Booleans** — single token, two values; the writer emits `TokenKind::BOOL` + 1/0 regardless. No metadata; raw Ruby `true`/`false` stays as-is, consistent with the existing "don't wrap booleans" decision.
+- **`Primitives::Integer`** — gains `binary_encoding:` kwarg recording `TokenKind::U32` / `U64` / `I32` / `I64`. The 10h plan originally also called for `LOOKUP_*` Integer cases (when no `string_lookup:` was supplied), but 10f's actual implementation made lookup-index resolution emit `Primitives::String` in both the resolved-and-fallback cases, so Integer never appears for those tokens — no kwarg coverage needed there.
+- **`Primitives::Float`** — gains the same `binary_encoding:` kwarg recording `F32` / `F64` or any of the 14 `FIXED_*` variants (positive widths 1..7 / negative widths 1..7, the constant fully specifying width + sign-via-token-range). The parser now wraps IEEE floats in `Primitives::Float` instead of returning raw `::Float`, which the pre-10h shape did per a deliberate design choice. The wrap is lossless: `Primitives::Float`'s `BigDecimal` storage exactly represents the IEEE bits when constructed from a `::Float`, so going `IEEE → BigDecimal` preserves all the FP bits; the `binary_encoding` is what carries the F32-vs-F64 distinction the raw `::Float` couldn't.
+- **`Primitives::String`** — already covered by 10e/10f (`token_index`, `lookup_index`, `quoted`); no new metadata.
+- **`Primitives::Date`** — int32 hours-since-epoch is the only wire shape, so no per-instance kwarg. The forward-parsing path replaces the hardcoded `key == "date"` check with a `date_tokens:` allowlist on `Binary::Parser`. Default is `Set.new(["date"])` for backward compat; per-call kwarg and class-level `default_date_tokens=` both available, matching the `tokens:` plumbing pattern.
+
+  *Empirical EU5 date-token catalog* (from a plaintext-side sweep against the probe save — populate `default_date_tokens` per game module to extend):
+  `date`, `date_dynasty`, `date_loc`, `birth_date` (20k+ occurrences), `start_date` (5.8k), `death_date` (4.2k), `end_date` (3.2k), `outbreak_date` (2.4k), `arrived_here_date` (417), `creation_date` (242), `start_regency_date` (28), `end_regency_date` (28), `canonization_date` (16), `playing_past_end_date` (1).
+- **Booleans** — no metadata; single token + two values, the writer emits `TokenKind::BOOL` + 1/0 regardless.
+
+**Parser-side changes:**
+
+- `integer` / `signed_integer` / `float` / `fixed` helpers each gain an optional `binary_encoding:` kwarg threaded down to the resulting primitive.
+- Each `read_scalar` case branch passes its own `TokenKind::*` constant through so the metadata is set at the call site (`integer 4, binary_encoding: TokenKind::U32` etc.). Internal-use calls (lookup-index reads, fixed-point integer reads, compound-key bookkeeping) leave `binary_encoding` nil since the result is consumed by the parser rather than landing in the Document.
 
 Plaintext-derived primitives have `binary_encoding: nil`; the writer picks a default ("smallest token that fits" for ints/floats) so plaintext→binary doesn't need exact-shape knowledge. The engine appears tolerant of any legal encoding for a given value — the wire format itself has multiple legal encodings for the same logical value (e.g., `U32` and `I32` both represent positive 32-bit ints), which strongly implies the engine reads what it gets rather than expecting a specific shape per field.
 
-Not blocking anything; pure round-trip prep. Lands when a binary writer becomes the next priority — either a `to_pdx_binary` API for the existing Document or a save-editing workflow on the binary side.
+**Tests:** 16 new specs covering U32/U64/I32/I64 stamping, F32/F64 wrap + stamping, `FIXED_*` stamping, plaintext-primitives leave `binary_encoding` nil, value-state semantics on `Primitives::Integer` / `Primitives::Float` (default nil, equality ignores, `dup` preserves), and the `date_tokens:` allowlist (override extends, empty set suppresses, default still works). 2 existing F32/F64 specs reworked from "raw `::Float`" assertions to "wrapped `Primitives::Float` with `binary_encoding`." **631 / 0** full suite.
 
 #### Suggested sequence
 
 10a → (10b in parallel with 10c) → 10d. 10a is the prerequisite for both parser paths; 10b and 10c are independent — either order works.
 
-**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. 10a/10c/10e/10g/10f are landed; the EU5 gamestate parses end-to-end and lookup-indexed values resolve to real strings. 10h is the remaining round-trip prep that lands when a binary writer becomes the next priority. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
+**Save-file parsing path:** 10a → 10c → 10e → 10g → 10f → 10h. All landed. The EU5 gamestate parses end-to-end, lookup-indexed values resolve to real strings, and every numeric primitive carries the source-token metadata a future binary writer would need to round-trip the wire shape losslessly. The grammar and accessor pieces (10b, 10d) can come later when a script-side or DSL-side consumer surfaces.
 
 ## Decision log
 
