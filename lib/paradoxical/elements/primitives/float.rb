@@ -64,6 +64,25 @@ class Paradoxical::Elements::Primitives::Float
     end
   end
 
+  # Round-trip metadata for binary-parsed floats — one of
+  # `TokenKind::F32` / `F64` (IEEE 754) or any `FIXED_*` (positive
+  # widths 1..7 / negative widths 1..7 — 14 variants total, with the
+  # constant fully specifying width + sign-via-token-range).
+  # Plaintext-parsed floats leave this nil; the future binary writer
+  # picks "smallest token that fits" as a default. Equality / hash
+  # intentionally ignore it — two floats with the same value are
+  # equal regardless of source format. See MODERNIZATION.md phase 10h.
+  attr_reader :binary_encoding
+
+  def initialize value, binary_encoding: nil
+    super value
+    @binary_encoding = binary_encoding
+  end
+
+  def dup
+    self.class.new @value.dup, binary_encoding: @binary_encoding
+  end
+
   def coerce something
     case something
     when ::Integer then [@value.to_i, something]

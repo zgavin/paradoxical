@@ -68,6 +68,21 @@ class Paradoxical::Binary::Parser
       @default_tokens ||= {}
     end
 
+    # Per-game date-token allowlist — set of identifier names whose
+    # `uint32` value is interpreted as hours-since-`-5001.01.01` and
+    # converted to `Primitives::Date`. Defaults to just `"date"` for
+    # backward compatibility; games with multiple date-typed fields
+    # (EU5 ships several beyond `date` — see the empirical sweep in
+    # MODERNIZATION.md phase 10h) override via `default_date_tokens=`
+    # or per-parse via the `date_tokens:` kwarg. The set semantics
+    # are deliberate — repeated lookups against this in `read_next`
+    # need to be `O(1)`, not `Array#include?`.
+    attr_writer :default_date_tokens
+
+    def default_date_tokens
+      @default_date_tokens ||= Set.new(["date"])
+    end
+
     # `data` is the raw bytes of the save body as a String (binary
     # encoding). `tokens` overrides `default_tokens` for this call.
     # `string_lookup` is a per-save table (see `Paradoxical::Binary::StringLookup`)
@@ -75,17 +90,19 @@ class Paradoxical::Binary::Parser
     # strings; it's omitted for inspection-only parses or when no
     # lookup file is available. Each save has its own — there's no
     # class-level default because lookup tables aren't shareable
-    # across saves.
-    def parse data, tokens: nil, string_lookup: nil
-      new(tokens || default_tokens, string_lookup).parse(data)
+    # across saves. `date_tokens` overrides `default_date_tokens` for
+    # this call.
+    def parse data, tokens: nil, string_lookup: nil, date_tokens: nil
+      new(tokens || default_tokens, string_lookup, date_tokens || default_date_tokens).parse(data)
     end
   end
 
-  attr_reader :tokens, :string_lookup
+  attr_reader :tokens, :string_lookup, :date_tokens
 
-  def initialize tokens, string_lookup = nil
+  def initialize tokens, string_lookup = nil, date_tokens = Set.new(["date"])
     @tokens = tokens
     @string_lookup = string_lookup
+    @date_tokens = date_tokens
   end
 
   def parse data
@@ -100,19 +117,24 @@ class Paradoxical::Binary::Parser
   attr_reader :bytes
 
   # integers have little-endian byte order, so the most significant byte is the last
-  # so we reverse, then shift by 1 byte and bitwise or with the next byte
-  def integer length = nil, value: nil
+  # so we reverse, then shift by 1 byte and bitwise or with the next byte.
+  # `binary_encoding:` (when supplied by a case branch) is the source
+  # `TokenKind::U32`/`U64`/etc. that produced this integer — preserved on
+  # the `Primitives::Integer` for round-trip. Internal calls that read
+  # raw bytes for parser bookkeeping (lookup indices, compound-key
+  # children, etc.) leave it nil. See MODERNIZATION.md phase 10h.
+  def integer length = nil, value: nil, binary_encoding: nil
     raw = value || shift_bytes(length)
     n = raw.reverse_each.reduce(0) { |sum, byte| (sum << 8) | byte }
-    Paradoxical::Elements::Primitives::Integer.new n
+    Paradoxical::Elements::Primitives::Integer.new n, binary_encoding: binary_encoding
   end
 
   # Two's-complement signed integer. `length` is in bytes (4 for int32,
   # 8 for int64). Returns a wrapped `Primitives::Integer`.
-  def signed_integer length
+  def signed_integer length, binary_encoding: nil
     n = integer(length).to_i
     n -= (1 << (length * 8)) if n >= (1 << (length * 8 - 1))
-    Paradoxical::Elements::Primitives::Integer.new n
+    Paradoxical::Elements::Primitives::Integer.new n, binary_encoding: binary_encoding
   end
 
   # Binary strings are u16-length-prefixed raw byte sequences (length is
@@ -127,13 +149,17 @@ class Paradoxical::Binary::Parser
   end
 
   # IEEE 754, little-endian. `length` is the byte width: 4 for single
-  # precision (0x000d), 8 for double (0x0167). Returns a raw Ruby Float
-  # rather than a Primitives::Float — the binary form carries no
-  # source-string representation for us to preserve, unlike the script
-  # literal where precision and trailing zeros are part of the byte
-  # capture.
-  def float length
-    shift_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
+  # precision (0x000d), 8 for double (0x0167). Returns a
+  # `Primitives::Float` carrying `binary_encoding:` for round-trip.
+  # Pre-10h emitted raw `::Float` because the binary form had no
+  # source-string to preserve — `Primitives::Float`'s `BigDecimal`
+  # storage represents the IEEE bits exactly when constructed from a
+  # `::Float` (no precision loss going `IEEE → BigDecimal`), and the
+  # `binary_encoding` is what carries the F32-vs-F64 distinction the
+  # raw `::Float` couldn't.
+  def float length, binary_encoding: nil
+    raw = shift_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
+    Paradoxical::Elements::Primitives::Float.new raw, binary_encoding: binary_encoding
   end
 
   # Paradox's fixed-point representation: a raw little-endian integer
@@ -141,10 +167,10 @@ class Paradoxical::Binary::Parser
   # 0x0d48..0x0d4e for positive, 0x0d4f..0x0d55 for negative). Negativity
   # is *not* two's-complement — it's conveyed by a separate token range,
   # so `negative:` simply flips the sign after reading the magnitude.
-  def fixed length, negative: false
+  def fixed length, negative: false, binary_encoding: nil
     n = integer(length).to_i
     n *= -1 if negative
-    Paradoxical::Elements::Primitives::Float.new((n / 100_000.0).to_s)
+    Paradoxical::Elements::Primitives::Float.new (n / 100_000.0).to_s, binary_encoding: binary_encoding
   end
 
   # Front-of-array shift with truncation detection. The bare
@@ -198,35 +224,35 @@ class Paradoxical::Binary::Parser
       when TokenKind::OPEN       then { open: true }
       when TokenKind::CLOSE      then { close: true }
       when TokenKind::EQUAL      then { equals: true }
-      when TokenKind::U32        then integer 4
-      when TokenKind::U64        then integer 8
-      when TokenKind::I32        then signed_integer 4
+      when TokenKind::U32        then integer 4, binary_encoding: TokenKind::U32
+      when TokenKind::U64        then integer 8, binary_encoding: TokenKind::U64
+      when TokenKind::I32        then signed_integer 4, binary_encoding: TokenKind::I32
       when TokenKind::BOOL       then shift_bytes(1).first == 1
       when TokenKind::QUOTED     then string quoted: true
       when TokenKind::UNQUOTED   then string quoted: false
-      when TokenKind::F32        then float 4
-      when TokenKind::F64        then float 8
+      when TokenKind::F32        then float 4, binary_encoding: TokenKind::F32
+      when TokenKind::F64        then float 8, binary_encoding: TokenKind::F64
       when TokenKind::RGB        then rgb
-      when TokenKind::I64        then signed_integer 8
-      when TokenKind::LOOKUP_08  then lookup 1
-      when TokenKind::LOOKUP_24  then lookup 3
-      when TokenKind::LOOKUP_16  then lookup 2
-      when TokenKind::LOOKUP_08A then lookup 1
-      when TokenKind::LOOKUP_16A then lookup 2
-      when TokenKind::FIXED_U08  then fixed 1
-      when TokenKind::FIXED_U16  then fixed 2
-      when TokenKind::FIXED_U24  then fixed 3
-      when TokenKind::FIXED_U32  then fixed 4
-      when TokenKind::FIXED_U40  then fixed 5
-      when TokenKind::FIXED_U48  then fixed 6
-      when TokenKind::FIXED_U56  then fixed 7
-      when TokenKind::FIXED_I08  then fixed 1, negative: true
-      when TokenKind::FIXED_I16  then fixed 2, negative: true
-      when TokenKind::FIXED_I24  then fixed 3, negative: true
-      when TokenKind::FIXED_I32  then fixed 4, negative: true
-      when TokenKind::FIXED_I40  then fixed 5, negative: true
-      when TokenKind::FIXED_I48  then fixed 6, negative: true
-      when TokenKind::FIXED_I56  then fixed 7, negative: true
+      when TokenKind::I64        then signed_integer 8, binary_encoding: TokenKind::I64
+      when TokenKind::LOOKUP_08  then lookup 1, binary_encoding: TokenKind::LOOKUP_08
+      when TokenKind::LOOKUP_24  then lookup 3, binary_encoding: TokenKind::LOOKUP_24
+      when TokenKind::LOOKUP_16  then lookup 2, binary_encoding: TokenKind::LOOKUP_16
+      when TokenKind::LOOKUP_08A then lookup 1, binary_encoding: TokenKind::LOOKUP_08A
+      when TokenKind::LOOKUP_16A then lookup 2, binary_encoding: TokenKind::LOOKUP_16A
+      when TokenKind::FIXED_U08  then fixed 1, binary_encoding: TokenKind::FIXED_U08
+      when TokenKind::FIXED_U16  then fixed 2, binary_encoding: TokenKind::FIXED_U16
+      when TokenKind::FIXED_U24  then fixed 3, binary_encoding: TokenKind::FIXED_U24
+      when TokenKind::FIXED_U32  then fixed 4, binary_encoding: TokenKind::FIXED_U32
+      when TokenKind::FIXED_U40  then fixed 5, binary_encoding: TokenKind::FIXED_U40
+      when TokenKind::FIXED_U48  then fixed 6, binary_encoding: TokenKind::FIXED_U48
+      when TokenKind::FIXED_U56  then fixed 7, binary_encoding: TokenKind::FIXED_U56
+      when TokenKind::FIXED_I08  then fixed 1, negative: true, binary_encoding: TokenKind::FIXED_I08
+      when TokenKind::FIXED_I16  then fixed 2, negative: true, binary_encoding: TokenKind::FIXED_I16
+      when TokenKind::FIXED_I24  then fixed 3, negative: true, binary_encoding: TokenKind::FIXED_I24
+      when TokenKind::FIXED_I32  then fixed 4, negative: true, binary_encoding: TokenKind::FIXED_I32
+      when TokenKind::FIXED_I40  then fixed 5, negative: true, binary_encoding: TokenKind::FIXED_I40
+      when TokenKind::FIXED_I48  then fixed 6, negative: true, binary_encoding: TokenKind::FIXED_I48
+      when TokenKind::FIXED_I56  then fixed 7, negative: true, binary_encoding: TokenKind::FIXED_I56
       else { token: type }
       end
 
@@ -314,7 +340,7 @@ class Paradoxical::Binary::Parser
   # (if a primitive or a bare token). The compound-key branch above and
   # the regular token-key branch both end here.
   def read_property_with_key key
-    maybe_open = read_scalar is_date: key == "date"
+    maybe_open = read_scalar is_date: date_tokens.include?(key.to_s)
 
     if not maybe_open.is_a?(Hash) then
       Paradoxical::Elements::Property.new key, "=", maybe_open
@@ -347,22 +373,32 @@ class Paradoxical::Binary::Parser
     Paradoxical::Elements::Primitives::String.new name, quoted: false, token_index: token_int
   end
 
-  # Read an `length`-byte little-endian index from the wire and
+  # Read a `length`-byte little-endian index from the wire and
   # resolve it into a `Primitives::String` carrying its source
-  # `lookup_index` for round-trip. `length` is 1, 2, or 3 — the three
-  # widths the `LOOKUP_*` token range covers. The behavior differs
-  # from `resolve_token_string`'s missing-table fallback: because
-  # lookup tables are per-save (and the parser receives them via the
-  # `string_lookup:` kwarg), an out-of-range index when a table *is*
-  # supplied implies a mismatch between the binary and the lookup —
-  # that's a hard error, not a graceful degradation. When no table is
-  # supplied we emit the hex-encoded `Primitives::String` shape
-  # `resolve_token_string` uses, with `lookup_index` set so round-trip
-  # still knows the original wire form. See MODERNIZATION.md phase 10f.
-  def lookup length
+  # `lookup_index` (for resolution) and `binary_encoding` (for
+  # round-trip). `length` is 1, 2, or 3 — the three widths the
+  # `LOOKUP_*` token range covers. `binary_encoding` is the specific
+  # `LOOKUP_*` constant — load-bearing for round-trip because byte
+  # width alone can't disambiguate `LOOKUP_08` vs `LOOKUP_08A`
+  # (both 1 byte) or `LOOKUP_16` vs `LOOKUP_16A` (both 2). The
+  # behavior differs from `resolve_token_string`'s missing-table
+  # fallback: because lookup tables are per-save (and the parser
+  # receives them via the `string_lookup:` kwarg), an out-of-range
+  # index when a table *is* supplied implies a mismatch between the
+  # binary and the lookup — that's a hard error, not a graceful
+  # degradation. When no table is supplied we emit the hex-encoded
+  # `Primitives::String` shape `resolve_token_string` uses, with
+  # `lookup_index` and `binary_encoding` still set so round-trip
+  # knows the original wire form. See MODERNIZATION.md phases 10f / 10h.
+  def lookup length, binary_encoding:
     index = integer(length).to_i
     text = string_lookup ? string_lookup.resolve(index) : "0x#{index.to_s(16).rjust(4, "0")}"
-    Paradoxical::Elements::Primitives::String.new text, quoted: false, lookup_index: index
+    Paradoxical::Elements::Primitives::String.new(
+      text,
+      quoted: false,
+      lookup_index: index,
+      binary_encoding: binary_encoding
+    )
   end
 
   def err msg
