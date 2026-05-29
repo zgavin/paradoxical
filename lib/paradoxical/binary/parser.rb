@@ -20,6 +20,18 @@ class Paradoxical::Binary::Parser
   # offset by 1 to skip year 0 and treat the epoch as -5001.
   INITIAL_DATE = Paradoxical::Elements::Primitives::Date.new "-5001.01.01"
 
+  # Singletons for the three field-less control-token shapes
+  # `read_scalar` can return. Pre-10h these were allocated fresh as
+  # `{ open: true }` etc. on every read; profiling against the
+  # 172 MB EU5 gamestate showed the resulting hash churn was a
+  # measurable contributor to the ~30% GC overhead. Frozen constants
+  # share one instance across the entire parse instead. The remaining
+  # `{ token: N }` shape still allocates per call (the value varies),
+  # but it's a smaller fraction of total reads.
+  OPEN_MARKER   = { open: true }.freeze
+  CLOSE_MARKER  = { close: true }.freeze
+  EQUALS_MARKER = { equals: true }.freeze
+
   module TokenKind
     OPEN        = 0x0003 # open brace equivalent
     CLOSE       = 0x0004 # close brace equivalent
@@ -116,23 +128,38 @@ class Paradoxical::Binary::Parser
 
   attr_reader :bytes
 
-  # integers have little-endian byte order, so the most significant byte is the last
-  # so we reverse, then shift by 1 byte and bitwise or with the next byte.
+  # Read a little-endian unsigned integer from the byte stream and
+  # return it as a plain Ruby `Integer`. Used internally by callers
+  # who consume the value directly (`fixed`'s magnitude, the 2-byte
+  # type discriminator in `read_scalar`, lookup indices, the string
+  # length prefix, etc.) and would only `.to_i` a wrapped result.
+  # Avoids the `Primitives::Integer` allocation and the
+  # `reverse_each.reduce` enumerator overhead for the common widths.
+  # See MODERNIZATION.md phase 10h.
+  def raw_int length
+    arr = shift_bytes(length)
+    case length
+    when 1 then arr[0]
+    when 2 then arr[0] | (arr[1] << 8)
+    when 3 then arr[0] | (arr[1] << 8) | (arr[2] << 16)
+    when 4 then arr[0] | (arr[1] << 8) | (arr[2] << 16) | (arr[3] << 24)
+    else arr.each_with_index.sum(0) { |byte, i| byte << (i * 8) }
+    end
+  end
+
   # `binary_encoding:` (when supplied by a case branch) is the source
-  # `TokenKind::U32`/`U64`/etc. that produced this integer — preserved on
-  # the `Primitives::Integer` for round-trip. Internal calls that read
-  # raw bytes for parser bookkeeping (lookup indices, compound-key
-  # children, etc.) leave it nil. See MODERNIZATION.md phase 10h.
-  def integer length = nil, value: nil, binary_encoding: nil
-    raw = value || shift_bytes(length)
-    n = raw.reverse_each.reduce(0) { |sum, byte| (sum << 8) | byte }
-    Paradoxical::Elements::Primitives::Integer.new n, binary_encoding: binary_encoding
+  # `TokenKind::U32`/`U64`/etc. that produced this integer — preserved
+  # on the `Primitives::Integer` for round-trip. The wrap is only
+  # needed when the integer becomes a Document value; bookkeeping
+  # reads (`raw_int` above) skip it. See MODERNIZATION.md phase 10h.
+  def integer length, binary_encoding: nil
+    Paradoxical::Elements::Primitives::Integer.new raw_int(length), binary_encoding: binary_encoding
   end
 
   # Two's-complement signed integer. `length` is in bytes (4 for int32,
   # 8 for int64). Returns a wrapped `Primitives::Integer`.
   def signed_integer length, binary_encoding: nil
-    n = integer(length).to_i
+    n = raw_int(length)
     n -= (1 << (length * 8)) if n >= (1 << (length * 8 - 1))
     Paradoxical::Elements::Primitives::Integer.new n, binary_encoding: binary_encoding
   end
@@ -144,7 +171,7 @@ class Paradoxical::Binary::Parser
   # an identifier-shaped literal) so the round-trip writer can pick the
   # right type code back out.
   def string quoted:
-    length = integer(2).to_i
+    length = raw_int(2)
     Paradoxical::Elements::Primitives::String.new shift_bytes(length).pack("C*"), quoted:
   end
 
@@ -168,7 +195,7 @@ class Paradoxical::Binary::Parser
   # is *not* two's-complement — it's conveyed by a separate token range,
   # so `negative:` simply flips the sign after reading the magnitude.
   def fixed length, negative: false, binary_encoding: nil
-    n = integer(length).to_i
+    n = raw_int(length)
     n *= -1 if negative
     Paradoxical::Elements::Primitives::Float.new (n / 100_000.0).to_s, binary_encoding: binary_encoding
   end
@@ -217,13 +244,13 @@ class Paradoxical::Binary::Parser
   end
 
   def read_scalar is_date: false
-    type = integer(2).to_i
+    type = raw_int(2)
 
     v =
       case type
-      when TokenKind::OPEN       then { open: true }
-      when TokenKind::CLOSE      then { close: true }
-      when TokenKind::EQUAL      then { equals: true }
+      when TokenKind::OPEN       then OPEN_MARKER
+      when TokenKind::CLOSE      then CLOSE_MARKER
+      when TokenKind::EQUAL      then EQUALS_MARKER
       when TokenKind::U32        then integer 4, binary_encoding: TokenKind::U32
       when TokenKind::U64        then integer 8, binary_encoding: TokenKind::U64
       when TokenKind::I32        then signed_integer 4, binary_encoding: TokenKind::I32
@@ -267,7 +294,7 @@ class Paradoxical::Binary::Parser
   def read_list key:
     obj = Paradoxical::Elements::List.new key, []
     n = read_next
-    (obj << n) and n = read_next until n.is_a?(Hash) and n[:close]
+    (obj << n) and n = read_next until n.class == Hash and n[:close]
     obj
   end
 
@@ -280,7 +307,7 @@ class Paradoxical::Binary::Parser
   def read_next
     n = read_scalar
 
-    unless n.is_a? Hash then
+    unless n.class == Hash then
       # A primitive in key position — PDX saves use this for shapes like
       # `duration={ 66 0=0 1=0 … 65=0 }` (length-prefixed indexed map)
       # and any other case where an integer/date/string-shaped value
@@ -342,7 +369,7 @@ class Paradoxical::Binary::Parser
   def read_property_with_key key
     maybe_open = read_scalar is_date: date_tokens.include?(key.to_s)
 
-    if not maybe_open.is_a?(Hash) then
+    if not maybe_open.class == Hash then
       Paradoxical::Elements::Property.new key, "=", maybe_open
     elsif maybe_open[:open] then
       read_list key:
@@ -391,7 +418,7 @@ class Paradoxical::Binary::Parser
   # `lookup_index` and `binary_encoding` still set so round-trip
   # knows the original wire form. See MODERNIZATION.md phases 10f / 10h.
   def lookup length, binary_encoding:
-    index = integer(length).to_i
+    index = raw_int(length)
     text = string_lookup ? string_lookup.resolve(index) : "0x#{index.to_s(16).rjust(4, "0")}"
     Paradoxical::Elements::Primitives::String.new(
       text,
