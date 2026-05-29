@@ -119,6 +119,7 @@ class Paradoxical::Binary::Parser
 
   def parse data
     @bytes = data.unpack("C*")
+    @pos = 0
     doc = read_doc
     doc.string_lookup = @string_lookup
     doc
@@ -126,24 +127,31 @@ class Paradoxical::Binary::Parser
 
   private
 
-  attr_reader :bytes
+  attr_reader :bytes, :pos
 
   # Read a little-endian unsigned integer from the byte stream and
-  # return it as a plain Ruby `Integer`. Used internally by callers
-  # who consume the value directly (`fixed`'s magnitude, the 2-byte
-  # type discriminator in `read_scalar`, lookup indices, the string
-  # length prefix, etc.) and would only `.to_i` a wrapped result.
-  # Avoids the `Primitives::Integer` allocation and the
-  # `reverse_each.reduce` enumerator overhead for the common widths.
-  # See MODERNIZATION.md phase 10h.
+  # return it as a plain Ruby `Integer`, advancing the cursor.
+  # Indexes `@bytes` directly rather than slicing — this is the
+  # hottest read in the parser (the 2-byte type tag fires once per
+  # scalar plus every integer/lookup/fixed magnitude), and slicing
+  # allocated a throwaway Array on each call. Direct indexing with an
+  # inlined bit-shift for the common 1-4 byte widths allocates
+  # nothing. See MODERNIZATION.md phase 10h.
   def raw_int length
-    arr = shift_bytes(length)
+    b = @bytes
+    p = @pos
+    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if p + length > b.length
+
+    @pos = p + length
     case length
-    when 1 then arr[0]
-    when 2 then arr[0] | (arr[1] << 8)
-    when 3 then arr[0] | (arr[1] << 8) | (arr[2] << 16)
-    when 4 then arr[0] | (arr[1] << 8) | (arr[2] << 16) | (arr[3] << 24)
-    else arr.each_with_index.sum(0) { |byte, i| byte << (i * 8) }
+    when 1 then b[p]
+    when 2 then b[p] | (b[p + 1] << 8)
+    when 3 then b[p] | (b[p + 1] << 8) | (b[p + 2] << 16)
+    when 4 then b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24)
+    else
+      n = 0
+      length.times { |i| n |= b[p + i] << (i * 8) }
+      n
     end
   end
 
@@ -172,7 +180,7 @@ class Paradoxical::Binary::Parser
   # right type code back out.
   def string quoted:
     length = raw_int(2)
-    Paradoxical::Elements::Primitives::String.new shift_bytes(length).pack("C*"), quoted:
+    Paradoxical::Elements::Primitives::String.new read_bytes(length).pack("C*"), quoted:
   end
 
   # IEEE 754, little-endian. `length` is the byte width: 4 for single
@@ -185,7 +193,7 @@ class Paradoxical::Binary::Parser
   # `binary_encoding` is what carries the F32-vs-F64 distinction the
   # raw `::Float` couldn't.
   def float length, binary_encoding: nil
-    raw = shift_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
+    raw = read_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
     Paradoxical::Elements::Primitives::Float.new raw, binary_encoding: binary_encoding
   end
 
@@ -200,23 +208,26 @@ class Paradoxical::Binary::Parser
     Paradoxical::Elements::Primitives::Float.new (n / 100_000.0).to_s, binary_encoding: binary_encoding
   end
 
-  # Front-of-array shift with truncation detection. The bare
-  # `Array#shift(n)` returns `[]` when the array is shorter than `n`,
-  # which would silently yield zero-valued integers / empty strings
-  # downstream; raise instead so malformed input errs loudly.
-  def shift_bytes length
-    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
+  # Read a `length`-byte slice from the cursor and advance past it,
+  # with truncation detection. Used by callers that need the raw byte
+  # sequence (`string`/`float` to `pack`, `bool` for its single byte);
+  # integer reads go through `raw_int` instead, which indexes without
+  # slicing. Raises so malformed input errs loudly rather than
+  # silently yielding short/empty data downstream.
+  def read_bytes length
+    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if @pos + length > @bytes.length
 
-    bytes.shift length
+    slice = @bytes[@pos, length]
+    @pos += length
+    slice
   end
 
   # Non-consuming check for the `=` token (`TokenKind::EQUAL`) at the
-  # front of the byte stream. Used by `read_next` to decide whether a
-  # primitive scalar should be treated as a property key or a bare
-  # value. EOF or any other byte sequence returns false. See
-  # MODERNIZATION.md phase 10g.
+  # cursor. Used by `read_next` to decide whether a primitive scalar
+  # should be treated as a property key or a bare value. EOF or any
+  # other byte sequence returns false. See MODERNIZATION.md phase 10g.
   def peek_equals?
-    bytes.length >= 2 and (bytes[1] << 8 | bytes[0]) == TokenKind::EQUAL
+    @pos + 2 <= @bytes.length and (@bytes[@pos + 1] << 8 | @bytes[@pos]) == TokenKind::EQUAL
   end
 
   # The body of an rgb value is `{ red <u32> green <u32> blue <u32> [alpha <u32>] }` —
@@ -254,7 +265,7 @@ class Paradoxical::Binary::Parser
       when TokenKind::U32        then integer 4, binary_encoding: TokenKind::U32
       when TokenKind::U64        then integer 8, binary_encoding: TokenKind::U64
       when TokenKind::I32        then signed_integer 4, binary_encoding: TokenKind::I32
-      when TokenKind::BOOL       then shift_bytes(1).first == 1
+      when TokenKind::BOOL       then read_bytes(1).first == 1
       when TokenKind::QUOTED     then string quoted: true
       when TokenKind::UNQUOTED   then string quoted: false
       when TokenKind::F32        then float 4, binary_encoding: TokenKind::F32
@@ -300,7 +311,7 @@ class Paradoxical::Binary::Parser
 
   def read_doc
     doc = Paradoxical::Elements::Document.new
-    doc << read_next until bytes.empty?
+    doc << read_next until @pos >= @bytes.length
     doc
   end
 
@@ -315,7 +326,7 @@ class Paradoxical::Binary::Parser
       # the `=` marker, this scalar is a key, not a bare value. See
       # MODERNIZATION.md phase 10g.
       if peek_equals? then
-        shift_bytes 2
+        read_bytes 2
         return read_property_with_key n
       end
 
@@ -338,7 +349,7 @@ class Paradoxical::Binary::Parser
       inner = read_list key: nil
 
       if peek_equals? then
-        shift_bytes 2
+        read_bytes 2
         return read_property_with_key inner
       end
 
@@ -355,7 +366,7 @@ class Paradoxical::Binary::Parser
     # 10e plan's empirical question, finally answered yes by the
     # ~7.4 MB-deep failure that motivated this expansion of 10g.
     if peek_equals? then
-      shift_bytes 2
+      read_bytes 2
       return read_property_with_key resolved
     end
 
