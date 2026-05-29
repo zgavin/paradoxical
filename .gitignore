@@ -16,3 +16,4 @@
 # Editor / IDE
 .vscode/
 *.code-workspace
+.idea/

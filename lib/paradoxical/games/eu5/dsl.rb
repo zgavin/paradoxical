@@ -96,4 +96,22 @@ module Paradoxical::Games::EU5::DSL
       list
     end
   end
+
+  def on_action action, suffix: nil, prefix: nil, &block
+    name = [prefix, action, suffix].compact.join("_")
+    l(action, l("on_actions", name)).single_line!
+    l(name, l("effect", &block))
+  end
+
+  def add_to_variable_list name, target, days: nil, weeks: nil, months: nil, years: nil
+    list = l "add_to_variable_list", p("name", name), p("target", target)
+    durations = { days:, weeks:, months:, years: }.compact
+    list.single_line! if durations.empty?
+    durations.each { |k, v| list << p(k, v) }
+    list
+  end
+
+  def remove_list_variable name, target
+    l("remove_list_variable", p("name", name), p("target", target)).single_line!
+  end
 end
