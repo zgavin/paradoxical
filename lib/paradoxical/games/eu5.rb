@@ -47,6 +47,8 @@ module Paradoxical::Games::EU5
     "cb31" => "1.2.1",   # publicly-displayed checksum (obfuscated) is e429
     "6005" => "1.2.2",   # publicly-displayed checksum (obfuscated) is fb04
     "78ec" => "1.2.3",   # publicly-displayed checksum (obfuscated) is 6a4a
+    "c9d1" => "1.2.4",   # publicly-displayed checksum (obfuscated) is e02d
+    "4e92" => "1.2.5",   # publicly-displayed checksum (obfuscated) is cf2f
   }.freeze
 
   def self.installed_version game
@@ -70,7 +72,7 @@ module Paradoxical::Games::EU5
   # stable through patches.
   CORRECTIONS = {
     # Earliest publicly-released build is 1.0.4. All three defects
-    # below are present from that release through the latest (1.2.2
+    # below are present from that release through the latest (1.2.5
     # at time of writing), so keying at 1.0.4 covers every known
     # build via `Corrections.resolve`'s `<= installed` selection.
     "1.0.4" => {
