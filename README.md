@@ -18,7 +18,7 @@ state:
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
   Stellaris / Imperator / HOI4 and their engine-default sibling dirs
-  (22,238 files total) — all parse cleanly.
+  (22,239 files total) — all parse cleanly.
 - See [`MODERNIZATION.md`](MODERNIZATION.md) for the phased plan and
   decision log.
 
@@ -33,8 +33,8 @@ stay so users on a back version can still tell if they're covered.
 | **Europa Universalis IV** | 1.37.5 | 100% | |
 | **Stellaris** | 4.3.5, 4.3.6, 4.3.7 | 100% | smoke validated against 4.3.7; 4.3.6 was a same-day emergency hotfix superseded by 4.3.7. |
 | **Imperator: Rome** | 2.0.5 | 100% | |
-| **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0, 1.2.1, 1.2.2, 1.2.3 | 100% | smoke validated against 1.0.4, 1.1.10, and 1.2.3; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
-| **Hearts of Iron IV** | 1.18.1.0 | 100% | |
+| **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0, 1.2.1, 1.2.2, 1.2.3, 1.2.4, 1.2.5 | 100% | smoke validated against 1.0.4, 1.1.10, 1.2.4, and 1.2.5; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
+| **Hearts of Iron IV** | 1.18.1.0, 1.18.2.0 | 100% | smoke validated against 1.18.2.0; the three brace/typo correction sites are unchanged from 1.18.1.0. |
 | **Crusader Kings II** | 3.3.5.1 | ~90% | EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
 | **Crusader Kings III** | — | unknown | placeholder — game module exists, no install validation yet |
 | **Victoria 3** | — | unknown | placeholder — game module exists, no install validation yet |
