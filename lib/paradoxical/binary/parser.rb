@@ -20,6 +20,18 @@ class Paradoxical::Binary::Parser
   # offset by 1 to skip year 0 and treat the epoch as -5001.
   INITIAL_DATE = Paradoxical::Elements::Primitives::Date.new "-5001.01.01"
 
+  # Singletons for the three field-less control-token shapes
+  # `read_scalar` can return. Pre-10h these were allocated fresh as
+  # `{ open: true }` etc. on every read; profiling against the
+  # 172 MB EU5 gamestate showed the resulting hash churn was a
+  # measurable contributor to the ~30% GC overhead. Frozen constants
+  # share one instance across the entire parse instead. The remaining
+  # `{ token: N }` shape still allocates per call (the value varies),
+  # but it's a smaller fraction of total reads.
+  OPEN_MARKER   = { open: true }.freeze
+  CLOSE_MARKER  = { close: true }.freeze
+  EQUALS_MARKER = { equals: true }.freeze
+
   module TokenKind
     OPEN        = 0x0003 # open brace equivalent
     CLOSE       = 0x0004 # close brace equivalent
@@ -107,6 +119,7 @@ class Paradoxical::Binary::Parser
 
   def parse data
     @bytes = data.unpack("C*")
+    @pos = 0
     doc = read_doc
     doc.string_lookup = @string_lookup
     doc
@@ -114,25 +127,47 @@ class Paradoxical::Binary::Parser
 
   private
 
-  attr_reader :bytes
+  attr_reader :bytes, :pos
 
-  # integers have little-endian byte order, so the most significant byte is the last
-  # so we reverse, then shift by 1 byte and bitwise or with the next byte.
+  # Read a little-endian unsigned integer from the byte stream and
+  # return it as a plain Ruby `Integer`, advancing the cursor.
+  # Indexes `@bytes` directly rather than slicing — this is the
+  # hottest read in the parser (the 2-byte type tag fires once per
+  # scalar plus every integer/lookup/fixed magnitude), and slicing
+  # allocated a throwaway Array on each call. Direct indexing with an
+  # inlined bit-shift for the common 1-4 byte widths allocates
+  # nothing. See MODERNIZATION.md phase 10h.
+  def raw_int length
+    b = @bytes
+    p = @pos
+    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if p + length > b.length
+
+    @pos = p + length
+    case length
+    when 1 then b[p]
+    when 2 then b[p] | (b[p + 1] << 8)
+    when 3 then b[p] | (b[p + 1] << 8) | (b[p + 2] << 16)
+    when 4 then b[p] | (b[p + 1] << 8) | (b[p + 2] << 16) | (b[p + 3] << 24)
+    else
+      n = 0
+      length.times { |i| n |= b[p + i] << (i * 8) }
+      n
+    end
+  end
+
   # `binary_encoding:` (when supplied by a case branch) is the source
-  # `TokenKind::U32`/`U64`/etc. that produced this integer — preserved on
-  # the `Primitives::Integer` for round-trip. Internal calls that read
-  # raw bytes for parser bookkeeping (lookup indices, compound-key
-  # children, etc.) leave it nil. See MODERNIZATION.md phase 10h.
-  def integer length = nil, value: nil, binary_encoding: nil
-    raw = value || shift_bytes(length)
-    n = raw.reverse_each.reduce(0) { |sum, byte| (sum << 8) | byte }
-    Paradoxical::Elements::Primitives::Integer.new n, binary_encoding: binary_encoding
+  # `TokenKind::U32`/`U64`/etc. that produced this integer — preserved
+  # on the `Primitives::Integer` for round-trip. The wrap is only
+  # needed when the integer becomes a Document value; bookkeeping
+  # reads (`raw_int` above) skip it. See MODERNIZATION.md phase 10h.
+  def integer length, binary_encoding: nil
+    Paradoxical::Elements::Primitives::Integer.new raw_int(length), binary_encoding: binary_encoding
   end
 
   # Two's-complement signed integer. `length` is in bytes (4 for int32,
   # 8 for int64). Returns a wrapped `Primitives::Integer`.
   def signed_integer length, binary_encoding: nil
-    n = integer(length).to_i
+    n = raw_int(length)
     n -= (1 << (length * 8)) if n >= (1 << (length * 8 - 1))
     Paradoxical::Elements::Primitives::Integer.new n, binary_encoding: binary_encoding
   end
@@ -144,8 +179,8 @@ class Paradoxical::Binary::Parser
   # an identifier-shaped literal) so the round-trip writer can pick the
   # right type code back out.
   def string quoted:
-    length = integer(2).to_i
-    Paradoxical::Elements::Primitives::String.new shift_bytes(length).pack("C*"), quoted:
+    length = raw_int(2)
+    Paradoxical::Elements::Primitives::String.new read_bytes(length).pack("C*"), quoted:
   end
 
   # IEEE 754, little-endian. `length` is the byte width: 4 for single
@@ -158,7 +193,7 @@ class Paradoxical::Binary::Parser
   # `binary_encoding` is what carries the F32-vs-F64 distinction the
   # raw `::Float` couldn't.
   def float length, binary_encoding: nil
-    raw = shift_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
+    raw = read_bytes(length).pack("C*").unpack1(length == 4 ? "e" : "E")
     Paradoxical::Elements::Primitives::Float.new raw, binary_encoding: binary_encoding
   end
 
@@ -168,28 +203,31 @@ class Paradoxical::Binary::Parser
   # is *not* two's-complement — it's conveyed by a separate token range,
   # so `negative:` simply flips the sign after reading the magnitude.
   def fixed length, negative: false, binary_encoding: nil
-    n = integer(length).to_i
+    n = raw_int(length)
     n *= -1 if negative
     Paradoxical::Elements::Primitives::Float.new (n / 100_000.0).to_s, binary_encoding: binary_encoding
   end
 
-  # Front-of-array shift with truncation detection. The bare
-  # `Array#shift(n)` returns `[]` when the array is shorter than `n`,
-  # which would silently yield zero-valued integers / empty strings
-  # downstream; raise instead so malformed input errs loudly.
-  def shift_bytes length
-    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if bytes.length < length
+  # Read a `length`-byte slice from the cursor and advance past it,
+  # with truncation detection. Used by callers that need the raw byte
+  # sequence (`string`/`float` to `pack`, `bool` for its single byte);
+  # integer reads go through `raw_int` instead, which indexes without
+  # slicing. Raises so malformed input errs loudly rather than
+  # silently yielding short/empty data downstream.
+  def read_bytes length
+    err "unexpected end of input (wanted #{length} byte#{"s" if length != 1})" if @pos + length > @bytes.length
 
-    bytes.shift length
+    slice = @bytes[@pos, length]
+    @pos += length
+    slice
   end
 
   # Non-consuming check for the `=` token (`TokenKind::EQUAL`) at the
-  # front of the byte stream. Used by `read_next` to decide whether a
-  # primitive scalar should be treated as a property key or a bare
-  # value. EOF or any other byte sequence returns false. See
-  # MODERNIZATION.md phase 10g.
+  # cursor. Used by `read_next` to decide whether a primitive scalar
+  # should be treated as a property key or a bare value. EOF or any
+  # other byte sequence returns false. See MODERNIZATION.md phase 10g.
   def peek_equals?
-    bytes.length >= 2 and (bytes[1] << 8 | bytes[0]) == TokenKind::EQUAL
+    @pos + 2 <= @bytes.length and (@bytes[@pos + 1] << 8 | @bytes[@pos]) == TokenKind::EQUAL
   end
 
   # The body of an rgb value is `{ red <u32> green <u32> blue <u32> [alpha <u32>] }` —
@@ -217,17 +255,17 @@ class Paradoxical::Binary::Parser
   end
 
   def read_scalar is_date: false
-    type = integer(2).to_i
+    type = raw_int(2)
 
     v =
       case type
-      when TokenKind::OPEN       then { open: true }
-      when TokenKind::CLOSE      then { close: true }
-      when TokenKind::EQUAL      then { equals: true }
+      when TokenKind::OPEN       then OPEN_MARKER
+      when TokenKind::CLOSE      then CLOSE_MARKER
+      when TokenKind::EQUAL      then EQUALS_MARKER
       when TokenKind::U32        then integer 4, binary_encoding: TokenKind::U32
       when TokenKind::U64        then integer 8, binary_encoding: TokenKind::U64
       when TokenKind::I32        then signed_integer 4, binary_encoding: TokenKind::I32
-      when TokenKind::BOOL       then shift_bytes(1).first == 1
+      when TokenKind::BOOL       then read_bytes(1).first == 1
       when TokenKind::QUOTED     then string quoted: true
       when TokenKind::UNQUOTED   then string quoted: false
       when TokenKind::F32        then float 4, binary_encoding: TokenKind::F32
@@ -267,20 +305,20 @@ class Paradoxical::Binary::Parser
   def read_list key:
     obj = Paradoxical::Elements::List.new key, []
     n = read_next
-    (obj << n) and n = read_next until n.is_a?(Hash) and n[:close]
+    (obj << n) and n = read_next until n.class == Hash and n[:close]
     obj
   end
 
   def read_doc
     doc = Paradoxical::Elements::Document.new
-    doc << read_next until bytes.empty?
+    doc << read_next until @pos >= @bytes.length
     doc
   end
 
   def read_next
     n = read_scalar
 
-    unless n.is_a? Hash then
+    unless n.class == Hash then
       # A primitive in key position — PDX saves use this for shapes like
       # `duration={ 66 0=0 1=0 … 65=0 }` (length-prefixed indexed map)
       # and any other case where an integer/date/string-shaped value
@@ -288,7 +326,7 @@ class Paradoxical::Binary::Parser
       # the `=` marker, this scalar is a key, not a bare value. See
       # MODERNIZATION.md phase 10g.
       if peek_equals? then
-        shift_bytes 2
+        read_bytes 2
         return read_property_with_key n
       end
 
@@ -311,7 +349,7 @@ class Paradoxical::Binary::Parser
       inner = read_list key: nil
 
       if peek_equals? then
-        shift_bytes 2
+        read_bytes 2
         return read_property_with_key inner
       end
 
@@ -328,7 +366,7 @@ class Paradoxical::Binary::Parser
     # 10e plan's empirical question, finally answered yes by the
     # ~7.4 MB-deep failure that motivated this expansion of 10g.
     if peek_equals? then
-      shift_bytes 2
+      read_bytes 2
       return read_property_with_key resolved
     end
 
@@ -342,7 +380,7 @@ class Paradoxical::Binary::Parser
   def read_property_with_key key
     maybe_open = read_scalar is_date: date_tokens.include?(key.to_s)
 
-    if not maybe_open.is_a?(Hash) then
+    if not maybe_open.class == Hash then
       Paradoxical::Elements::Property.new key, "=", maybe_open
     elsif maybe_open[:open] then
       read_list key:
@@ -391,7 +429,7 @@ class Paradoxical::Binary::Parser
   # `lookup_index` and `binary_encoding` still set so round-trip
   # knows the original wire form. See MODERNIZATION.md phases 10f / 10h.
   def lookup length, binary_encoding:
-    index = integer(length).to_i
+    index = raw_int(length)
     text = string_lookup ? string_lookup.resolve(index) : "0x#{index.to_s(16).rjust(4, "0")}"
     Paradoxical::Elements::Primitives::String.new(
       text,
