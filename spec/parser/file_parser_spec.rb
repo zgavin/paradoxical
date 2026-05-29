@@ -37,9 +37,9 @@ RSpec.describe Paradoxical::FileParser do
       expect(doc.line_break).to eq("\n")
     end
 
-    it "stamps the path and encoding on the document" do
+    it "stamps the resolved full path and encoding on the document" do
       doc = wrapper.parse("foo = 1\n", path: "some/file.txt", encoding: "Windows-1252")
-      expect(doc.path).to eq("some/file.txt")
+      expect(doc.path).to eq(wrapper.root.join("some/file.txt"))
       expect(doc.encoding).to eq("Windows-1252")
     end
 

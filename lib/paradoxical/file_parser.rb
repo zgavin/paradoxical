@@ -37,7 +37,8 @@ module Paradoxical::FileParser
   end
 
   def full_path_for path
-    path.to_s.start_with?("/") ? path : root.join(path)
+    path = Pathname.new path unless path.is_a? Pathname
+    path.absolute? ? path : root.join(path)
   end
 
   def parse_file path, mutex: nil, ignore_cache: false, encoding: nil
@@ -81,6 +82,8 @@ module Paradoxical::FileParser
 
   def parse data, path: nil, bom: false, encoding: nil
     document = Paradoxical::Parser.parse data
+
+    path = full_path_for path unless path.nil?
 
     document.instance_variable_set(:@owner, self)
     document.instance_variable_set(:@path, path)

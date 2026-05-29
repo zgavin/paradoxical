@@ -8,29 +8,12 @@ module Paradoxical::Helper
     Paradoxical.game
   end
 
-  def mods
-    game.mods
-  end
-
-  def glob s
-    game.glob s
-  end
-
-  def mod
-    game.mod
-  end
-
-  def exists? path
-    game.mod.exists? path
-  end
+  delegate :delete, :parse_files, :parse, :mods, :glob, :mod, :mod_name, to: :game
+  delegate :exists?, to: :mod
 
   def mod_enabled? name
     mod = mod_named(name)
     mod.present? and mod.enabled?
-  end
-
-  def mod_named name
-    game.mod_named name
   end
 
   def common_files dir
@@ -47,7 +30,7 @@ module Paradoxical::Helper
     Paradoxical::Elements::Document.new children, whitespace: whitespace, path: path, owner: (owner or mod)
   end
 
-  def write file_or_path, &block
+  def write file_or_path, bom: true, &block
     file =
       if file_or_path.is_a? Paradoxical::Elements::Document then
         file_or_path.tap do |doc|
@@ -61,7 +44,7 @@ module Paradoxical::Helper
         end
       elsif %w{.txt .gfx .gui}.include? File.extname file_or_path then
         children = build &block
-        Paradoxical::Elements::Document.new children, owner: mod, path: file_or_path
+        Paradoxical::Elements::Document.new children, owner: mod, path: file_or_path, bom:
       elsif %w{.yml .yaml}.include? File.extname file_or_path then
         values = block.call
         Paradoxical::Elements::Yaml.new values, owner: mod, path: file_or_path
@@ -70,18 +53,6 @@ module Paradoxical::Helper
       end
 
     mod.write file
-  end
-
-  def delete path
-    game.mod.delete path
-  end
-
-  def parse_files ...
-    game.parse_files(...)
-  end
-
-  def parse ...
-    game.parse(...)
   end
 
   def run_directly?

@@ -58,6 +58,8 @@ class Paradoxical::Builder
 
     args.concat(self.class.new.build self, &block) unless block.nil?
 
+    key = key.literal if key.respond_to? :literal and not key.try(:quoted?)
+
     push Paradoxical::Elements::List.new key, args, **opts
   end
   alias_method :l, :list

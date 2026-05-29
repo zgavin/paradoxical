@@ -17,7 +17,7 @@ class Paradoxical::Game
   #
   # The constructor wires up everything a mod script expects:
   # - install + user dirs (with userdir.txt fallback)
-  # - launcher dispatch (Sqlite / Json / Legacy stub)
+  # - launcher dispatch (Sqlite / JSON / Legacy stub)
   # - per-version corrections from the game module's CORRECTIONS hash
   def initialize game_module, root: nil, user_directory: nil
     @game_module = game_module
@@ -194,7 +194,7 @@ class Paradoxical::Game
   def mod_for_path relative_path, mod: nil
     return mod unless mod.nil?
 
-    _enabled_mods.reverse_each.find do |mod| mod.exists? relative_path end
+    _enabled_mods.reverse_each.find do |m| m.exists? relative_path end
   end
 end
 
@@ -213,17 +213,18 @@ class Paradoxical::Game
   end
 
   def steamapps_dir
-    @steamapps_dir ||= File.expand_path(
-      File.join(
-        *(
-          OS.linux? ? ["~", ".local", "share"] :
-          OS.mac?   ? ["~", "Library", "Application Support"] :
-                      ["C", "Program Files (x86)"]
-        ),
-        "Steam",
-        "steamapps",
-      )
-    )
+    @steamapps_dir ||= begin
+      prefix =
+        if OS.linux? then
+          ["~", ".local", "share"]
+        elsif OS.mac? then
+          ["~", "Library", "Application Support"]
+        else
+          ["C", "Program Files (x86)"]
+        end
+
+      File.expand_path(File.join(*prefix, "Steam", "steamapps",))
+    end
   end
 end
 
@@ -274,7 +275,7 @@ module SqliteConfig
           SQL
           db
             .execute(sql)
-            .map do |(id)| _mods.find do |mod| mod.id == id end end
+            .map do |id,| _mods.find do |mod| mod.id == id end end
         else
           _mods.dup
         end
