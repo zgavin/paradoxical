@@ -20,6 +20,14 @@ class Paradoxical::Binary::Parser
   # offset by 1 to skip year 0 and treat the epoch as -5001.
   INITIAL_DATE = Paradoxical::Elements::Primitives::Date.new "-5001.01.01"
 
+  # Lower bound (hours since INITIAL_DATE) for treating a date-keyed
+  # integer as an actual date. ~21M hours ≈ year -2604, just under the
+  # oldest date observed in real saves (a year -2560 `creation_date`).
+  # Below this lies the epoch-adjacent band where small counts/flags/ids
+  # would land, so it's the cutoff that keeps non-date integers under a
+  # date key from being mis-converted. See `read_scalar`.
+  MIN_DATE_HOURS = 21_000_000
+
   # Singletons for the three field-less control-token shapes
   # `read_scalar` can return. Pre-10h these were allocated fresh as
   # `{ open: true }` etc. on every read; profiling against the
@@ -297,7 +305,20 @@ class Paradoxical::Binary::Parser
     # See the file-level comment for date conversion.
     # `Primitives::Integer#is_a?(Integer)` returns true via the
     # impersonator concern, so this catches every wrapped integer type.
-    v = INITIAL_DATE + v.to_i.hours if is_date and v.is_a? Integer
+    #
+    # Range-guard against mis-converting a non-date integer that happens
+    # to sit under a date-typed key (`date_tokens`): only values plainly
+    # in the date range become Dates. A date is hours since the -5001
+    # epoch, so real saved dates are tens of millions of hours out
+    # (year -2560 ≈ 21.4M, the game era ≈ 55M, the "never" sentinel 9999
+    # ≈ 131M). Small counts/flags/ids map *near* the epoch (year ~-5001),
+    # i.e. far below the threshold, so a cheap `> MIN_DATE_HOURS` compare
+    # — done before allocating the Date — rejects them. No upper bound:
+    # a huge non-date integer under a date key is unobserved, and a
+    # wrong conversion is non-fatal and round-trips losslessly anyway.
+    if is_date and v.is_a?(Integer) and (hours = v.to_i) > MIN_DATE_HOURS then
+      v = INITIAL_DATE + hours.hours
+    end
 
     v
   end

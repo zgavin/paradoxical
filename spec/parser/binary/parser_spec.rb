@@ -610,25 +610,37 @@ RSpec.describe Paradoxical::Binary::Parser do
   end
 
   describe "dates" do
-    # `date = <hours since -5001.01.01>` — the integer value is converted
-    # to a Primitives::Date on the property.
-    it "converts integer values under the `date` key to Primitives::Date" do
-      doc = parse(prop(TOKEN_DATE, uint32(0)))
+    # `date = <hours since -5001.01.01>`. Values must clear MIN_DATE_HOURS
+    # (~21M, ≈ year -2604) to be treated as dates — below that lies the
+    # epoch-adjacent band where non-date integers would land. Use a
+    # realistic in-era hours value as the base.
+    DATE_BASE_HOURS = 55_512_120 # year 1337
+
+    it "converts in-range integer values under the `date` key to Primitives::Date" do
+      doc = parse(prop(TOKEN_DATE, uint32(DATE_BASE_HOURS)))
       expect(doc.first.key).to eq("date")
       expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Date)
-      # 0 hours since -5001.01.01 → the epoch itself.
-      expect(doc.first.value).to eq(Paradoxical::Binary::Parser::INITIAL_DATE)
+      expect(doc.first.value).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + DATE_BASE_HOURS.hours)
     end
 
     it "advances by one day per 24 hours" do
-      doc = parse(prop(TOKEN_DATE, uint32(24)))
+      doc = parse(prop(TOKEN_DATE, uint32(DATE_BASE_HOURS + 24)))
       date = doc.first.value
       expect(date).to be_a(Paradoxical::Elements::Primitives::Date)
-      expect(date).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + 24.hours)
+      expect(date).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + (DATE_BASE_HOURS + 24).hours)
+    end
+
+    it "leaves a sub-threshold integer under the `date` key as Primitives::Integer" do
+      # Range-guard: a small value (here 24h ≈ year -5001, near the epoch)
+      # is not a plausible date, so it stays an Integer rather than being
+      # mis-converted. See MIN_DATE_HOURS.
+      doc = parse(prop(TOKEN_DATE, uint32(24)))
+      expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Integer)
+      expect(doc.first.value.to_i).to eq(24)
     end
 
     it "leaves non-`date` integers as Primitives::Integer" do
-      doc = parse(prop(TOKEN_KEY, uint32(0)))
+      doc = parse(prop(TOKEN_KEY, uint32(DATE_BASE_HOURS)))
       expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Integer)
     end
 
@@ -642,14 +654,14 @@ RSpec.describe Paradoxical::Binary::Parser do
 
       it "converts keys in the supplied date_tokens allowlist to Date" do
         doc = Paradoxical::Binary::Parser.parse(
-          prop(TOKEN_BIRTH_DATE, uint32(24)),
+          prop(TOKEN_BIRTH_DATE, uint32(DATE_BASE_HOURS)),
           tokens: TOKENS.merge(TOKEN_BIRTH_DATE => "birth_date"),
           date_tokens: EU5_DATE_TOKENS,
         )
 
         expect(doc.first.key.to_s).to eq("birth_date")
         expect(doc.first.value).to be_a(Paradoxical::Elements::Primitives::Date)
-        expect(doc.first.value).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + 24.hours)
+        expect(doc.first.value).to eq(Paradoxical::Binary::Parser::INITIAL_DATE + DATE_BASE_HOURS.hours)
       end
 
       it "leaves keys outside the allowlist as Primitives::Integer" do
