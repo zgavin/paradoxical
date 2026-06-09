@@ -18,7 +18,7 @@ state:
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
   Stellaris / Imperator / HOI4 and their engine-default sibling dirs
-  (22,239 files total) — all parse cleanly.
+  (22,333 files total) — all parse cleanly.
 - See [`MODERNIZATION.md`](MODERNIZATION.md) for the phased plan and
   decision log.
 
@@ -28,16 +28,23 @@ The "supported versions" column lists every patch level we know
 about. New entries get added as Paradox ships patches; older entries
 stay so users on a back version can still tell if they're covered.
 
-| game | supported versions | coverage | notes |
-|---|---|---|---|
-| **Europa Universalis IV** | 1.37.5 | 100% | |
-| **Stellaris** | 4.3.5, 4.3.6, 4.3.7 | 100% | smoke validated against 4.3.7; 4.3.6 was a same-day emergency hotfix superseded by 4.3.7. |
-| **Imperator: Rome** | 2.0.5 | 100% | |
-| **Europa Universalis V** | 1.0.4, 1.0.7, 1.0.9, 1.0.10, 1.0.11<br>1.1.9, 1.1.10<br>1.2.0, 1.2.1, 1.2.2, 1.2.3, 1.2.4, 1.2.5 | 100% | smoke validated against 1.0.4, 1.1.10, 1.2.4, and 1.2.5; intermediate versions registered in `BUILD_VERSION_MAP` from patchnotes for correction-key dispatch (file-shape defects are stable across EU5's lifecycle). |
-| **Hearts of Iron IV** | 1.18.1.0, 1.18.2.0 | 100% | smoke validated against 1.18.2.0; the three brace/typo correction sites are unchanged from 1.18.1.0. |
-| **Crusader Kings II** | 3.3.5.1 | ~90% | EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works. |
-| **Crusader Kings III** | — | unknown | placeholder — game module exists, no install validation yet |
-| **Victoria 3** | — | unknown | placeholder — game module exists, no install validation yet |
+| game | supported versions | coverage |
+|---|---|---|
+| **Europa Universalis IV** | 1.37.5 | 100% |
+| **Stellaris** | 4.3.5, 4.3.6, 4.3.7 <sup>[1](#note-1)</sup> | 100% |
+| **Imperator: Rome** | 2.0.5 | 100% |
+| **Europa Universalis V** | 1.0.4-1.0.11<br>1.1.9-1.1.10<br>1.2.0-1.2.5<br>1.3.0 (open beta) <sup>[2](#note-2)</sup> | 100% |
+| **Hearts of Iron IV** | 1.18.1.0, 1.18.2.0 | 100% |
+| **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[3](#note-3)</sup> |
+| **Crusader Kings III** | — | unknown <sup>[4](#note-4)</sup> |
+| **Victoria 3** | — | unknown <sup>[4](#note-4)</sup> |
+
+Every listed version is smoke-validated except where a note says otherwise.
+
+1. <a id="note-1"></a> 4.3.6 was not smoked — a same-day emergency hotfix superseded by 4.3.7 before it could be run.
+2. <a id="note-2"></a> 1.0.5–1.0.8 were not smoked: they predate the smoke suite and can no longer be restored via Steam. (The pre-1.0.4 builds and the 1.1.0–1.1.8 open beta are unrestorable for the same reason, hence those range floors.) Unrun versions are still registered in `BUILD_VERSION_MAP` from patchnotes; EU5's file-shape defects are stable across the lifecycle, so the same corrections apply.
+3. <a id="note-3"></a> EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works.
+4. <a id="note-4"></a> Placeholder — game module exists, no install validation yet.
 
 ## Installation
 
