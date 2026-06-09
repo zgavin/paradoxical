@@ -83,10 +83,11 @@ module Paradoxical::FileParser
   def parse data, path: nil, bom: false, encoding: nil
     document = Paradoxical::Parser.parse data
 
-    path = full_path_for path unless path.nil?
+    full_path = full_path_for path unless path.nil?
 
     document.instance_variable_set(:@owner, self)
     document.instance_variable_set(:@path, path)
+    document.instance_variable_set(:@full_path, full_path)
     document.instance_variable_set(:@line_break, data.include?("\r") ? "\r\n" : "\n")
     document.instance_variable_set(:@bom, bom)
     document.instance_variable_set(:@encoding, encoding)

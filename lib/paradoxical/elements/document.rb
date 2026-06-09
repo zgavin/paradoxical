@@ -2,7 +2,7 @@ class Paradoxical::Elements::Document
   include Paradoxical::Elements::Concerns::Arrayable
   include Paradoxical::Elements::Concerns::Searchable
 
-  attr_reader :path, :whitespace, :owner, :encoding
+  attr_reader :path, :full_path, :whitespace, :owner, :encoding
 
   # `string_lookup` is the per-save `Paradoxical::Binary::StringLookup`
   # table that resolved this document's `LOOKUP_*` tokens, set by the
