@@ -13,7 +13,7 @@ module Paradoxical::Elements::Concerns::Arrayable
   }
 
   DELEGATED_ENUMERATOR_METHODS = %i{
-    collect cycle each each_index drop_while find_index index map reject reverse_each rindex select
+    collect cycle each each_index drop_while find_index index map filter reject reverse_each rindex select
     take_while
   }
 
@@ -23,7 +23,7 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   CUSTOM_METHODS = %i{
     << [] []= append clear collect! concat delete delete_at delete_if dig fill insert keep_if map!
-    pop prepend push reject! replace select! shift slice! unshift
+    pop prepend push filter! reject! replace select! shift slice! unshift
   }
 
   included do
@@ -254,7 +254,19 @@ module Paradoxical::Elements::Concerns::Arrayable
 
   alias_method :append, :push
 
-  def reject!
+  def filter! &block
+    return self.to_enum :filter! if block.nil?
+
+    @children.filter! do |object|
+      block.call(object).tap do |result|
+        object.send(:parent=, nil) unless result
+      end
+    end
+
+    self
+  end
+
+  def reject! &block
     return self.to_enum :reject! if block.nil?
 
     @children.reject! do |object|
