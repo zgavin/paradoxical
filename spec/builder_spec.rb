@@ -360,4 +360,30 @@ RSpec.describe Paradoxical::Builder do
       expect(prop.value).to be(explicit)
     end
   end
+
+  describe "#trigger_else / #trigger_else_if" do
+    # Trigger-context counterparts to `else`/`else_if` (effect context). Same
+    # leading-whitespace stripping so they render on the same line as the
+    # preceding `}` rather than getting the default newline.
+    it "emits a `trigger_else` keyed list" do
+      obj = builder.trigger_else(builder.l("a", 1))
+      expect(obj.key.to_s).to eq("trigger_else")
+      expect(obj.whitespace).to eq([" ", " ", " ", nil])
+    end
+
+    it "emits a `trigger_else_if` keyed list" do
+      obj = builder.trigger_else_if(builder.l("limit", builder.p("x", "yes")))
+      expect(obj.key.to_s).to eq("trigger_else_if")
+      expect(obj.whitespace).to eq([" ", " ", " ", nil])
+    end
+
+    it "renders on the same line as the preceding block" do
+      elements = builder.build do
+        pdx_if(l("limit", p("x", "yes")), l("a", 1))
+        trigger_else(l("b", 2))
+      end
+      rendered = elements.map(&:to_pdx).join
+      expect(rendered).to include("} trigger_else = {")
+    end
+  end
 end

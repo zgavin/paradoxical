@@ -279,4 +279,53 @@ RSpec.describe "per-game DSL prepended onto Builder" do
       expect(keys).to eq(%w[name multiply add])
     end
   end
+
+  describe "EU5 on_action" do
+    let(:builder) { builder_with(Paradoxical::Games::EU5::DSL) }
+
+    it "registers the action and wraps the body in `effect` by default" do
+      elements = builder.build do
+        on_action "yearly_pulse" do
+          l "add_treasury", 100
+        end
+      end
+
+      registration, definition = elements
+
+      # First node hooks the named handler onto the engine's on_actions list.
+      expect(registration.key.to_s).to eq("yearly_pulse")
+      expect(registration["on_actions"]).to be_a(Paradoxical::Elements::List)
+
+      # Second node is the handler definition; default form wraps in `effect`.
+      expect(definition.key.to_s).to eq("yearly_pulse")
+      expect(definition.map { |c| c.key.to_s }).to eq(%w[effect])
+    end
+
+    it "applies prefix/suffix to the generated handler name" do
+      elements = builder.build do
+        on_action "pulse", prefix: "country", suffix: "yearly" do
+          l "add_treasury", 1
+        end
+      end
+      registration, definition = elements
+
+      # Registration is keyed by the raw action; the full prefixed/suffixed
+      # name is what gets registered under `on_actions` and names the handler.
+      expect(registration.key.to_s).to eq("pulse")
+      expect(registration["on_actions"].first.value.to_s).to eq("country_pulse_yearly")
+      expect(definition.key.to_s).to eq("country_pulse_yearly")
+    end
+
+    it "emits the block directly under the handler when effect_only: false" do
+      # Some on_action handlers take non-effect bodies (e.g. `events = {}`),
+      # which must not be wrapped in an `effect` block.
+      elements = builder.build do
+        on_action "yearly_pulse", effect_only: false do
+          l "events", l("random_events")
+        end
+      end
+      definition = elements.last
+      expect(definition.map { |c| c.key.to_s }).to eq(%w[events])
+    end
+  end
 end

@@ -97,10 +97,14 @@ module Paradoxical::Games::EU5::DSL
     end
   end
 
-  def on_action action, suffix: nil, prefix: nil, &block
+  def on_action action, suffix: nil, prefix: nil, effect_only: true, &block
     name = [prefix, action, suffix].compact.join("_")
     l(action, l("on_actions", name)).single_line!
-    l(name, l("effect", &block))
+    if effect_only then
+      l name, l("effect", &block)
+    else
+      l name, &block
+    end
   end
 
   def add_to_variable_list name, target, days: nil, weeks: nil, months: nil, years: nil
