@@ -29,7 +29,15 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
   end
 
   def dup children: nil, key: nil
-    self.class.new((key or @key).dup, (children or @children).map(&:dup), whitespace: @whitespace.dup)
+    self.class.new(
+      (key or @key).dup,
+      (children or @children).map(&:dup),
+      whitespace: @whitespace.dup,
+      operator: @operator.dup,
+      gui_type: @gui_type,
+      kind: @kind.dup,
+      kind_after_key: @kind_after_key,
+    )
   end
 
   def eql? other
