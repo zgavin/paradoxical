@@ -228,22 +228,30 @@ class Paradoxical::Builder
 
   def pdx_else *args, &block
     obj = l "else", *args, &block
-
     obj.whitespace = [" ", " ", " ", nil]
-
     obj
   end
   alias_method :else_, :pdx_else
 
+  def trigger_else *args, &block
+    obj = l "trigger_else", *args, &block
+    obj.whitespace = [" ", " ", " ", nil]
+    obj
+  end
+
   def pdx_else_if *args, &block
     obj = l "else_if", *args, &block
-
     obj.whitespace = [" ", " ", " ", nil]
-
     obj
   end
   alias_method :else_if_, :pdx_else_if
   alias_method :else_if, :pdx_else_if
+
+  def trigger_else_if *args, &block
+    obj = l "trigger_else_if", *args, &block
+    obj.whitespace = [" ", " ", " ", nil]
+    obj
+  end
 
   def pdx_if_else_if iterable, &block
     iterable.each_with_index.map do |value, i|
