@@ -27,24 +27,31 @@ state:
 The "supported versions" column lists every patch level we know
 about. New entries get added as Paradox ships patches; older entries
 stay so users on a back version can still tell if they're covered.
+Completed minor lines are collapsed to `<minor>.x`; an in-progress
+line lists its individual builds instead, and footnotes carve out any
+builds within a range that weren't run or can no longer be restored.
 
 | game | supported versions | coverage |
 |---|---|---|
 | **Europa Universalis IV** | 1.37.5 | 100% |
-| **Stellaris** | 4.3.5, 4.3.6, 4.3.7, 4.4.1 <sup>[1](#note-1)</sup> | 100% |
+| **Stellaris** | 4.3.x <sup>[1](#note-1)</sup>, 4.4.1 | 100% |
 | **Imperator: Rome** | 2.0.5 | 100% |
-| **Europa Universalis V** | 1.0.4-1.0.11<br>1.1.9-1.1.10<br>1.2.0-1.2.5<br>1.3.0 (open beta), 1.3.2, 1.3.4 (beta) <sup>[2](#note-2)</sup> | 100% |
-| **Hearts of Iron IV** | 1.18.1.0, 1.18.2.0, 1.18.3.0, 1.19.0.1 | 100% |
-| **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[3](#note-3)</sup> |
-| **Crusader Kings III** | — | unknown <sup>[4](#note-4)</sup> |
-| **Victoria 3** | — | unknown <sup>[4](#note-4)</sup> |
+| **Europa Universalis V** | 1.0.x <sup>[2](#note-2)</sup><br>1.1.x <sup>[3](#note-3)</sup><br>1.2.x<br>1.3.0, 1.3.2, 1.3.4 <sup>[4](#note-4)</sup> | 100% |
+| **Hearts of Iron IV** | 1.18.x.x <sup>[5](#note-5)</sup>, 1.19.0.0 <sup>[6](#note-6)</sup>, 1.19.0.1 | 100% |
+| **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[7](#note-7)</sup> |
+| **Crusader Kings III** | — | unknown <sup>[8](#note-8)</sup> |
+| **Victoria 3** | — | unknown <sup>[8](#note-8)</sup> |
 
 Every listed version is smoke-validated except where a note says otherwise.
 
-1. <a id="note-1"></a> 4.3.6 was not smoked — a same-day emergency hotfix superseded by 4.3.7 before it could be run.
-2. <a id="note-2"></a> 1.0.5–1.0.8 were not smoked: they predate the smoke suite and can no longer be restored via Steam. (The pre-1.0.4 builds and the 1.1.0–1.1.8 open beta are unrestorable for the same reason, hence those range floors.) Unrun versions are still registered in `BUILD_VERSION_MAP` from patchnotes; EU5's file-shape defects are stable across the lifecycle, so the same corrections apply.
-3. <a id="note-3"></a> EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works.
-4. <a id="note-4"></a> Placeholder — game module exists, no install validation yet.
+1. <a id="note-1"></a> Within 4.3.x, smoked coverage spans 4.3.5–4.3.7; 4.3.6 itself was not run — a same-day emergency hotfix superseded it with 4.3.7 first.
+2. <a id="note-2"></a> Within 1.0.x the floor is 1.0.4 (earlier builds can no longer be restored via Steam); 1.0.5–1.0.8 predate the smoke suite and weren't run. Unrun builds are still registered in `BUILD_VERSION_MAP` from patchnotes — EU5's file-shape defects are stable across the lifecycle, so the same corrections apply.
+3. <a id="note-3"></a> Within 1.1.x only 1.1.9–1.1.10 are covered; 1.1.0–1.1.8 were an open beta that can no longer be restored.
+4. <a id="note-4"></a> 1.3.x is an in-progress beta line, so its builds are listed individually rather than as a completed range: 1.3.0 was the open beta, 1.3.1 and 1.3.3 were skipped by Paradox, and 1.3.2 / 1.3.4 are the smoked beta patches.
+5. <a id="note-5"></a> Smoked 1.18 builds are 1.18.1.0, 1.18.2.0, and 1.18.3.0.
+6. <a id="note-6"></a> 1.19.0.0 shipped for ~2 days before the 1.19.0.1 hotfix replaced it and is no longer independently restorable; its corrections are validated against 1.19.0.1.
+7. <a id="note-7"></a> EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works.
+8. <a id="note-8"></a> Placeholder — game module exists, no install validation yet.
 
 ## Installation
 
