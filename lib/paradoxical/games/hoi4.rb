@@ -50,6 +50,26 @@ module Paradoxical::Games::HOI4
       # accent character before parsing.
       "events/WUW_Germany.txt" => ->(data) { data.gsub!("base = ´45", "base = 45") },
     },
+
+    # New in the 1.19 content cycle (Australia / Siam focus-tree
+    # additions). All four parsed clean through 1.18.3.0 because the
+    # files didn't exist yet — first-known-broken is the 1.19 line.
+    # 1.19.0.0 shipped for ~2 days before the 1.19.0.1 hotfix; both
+    # carry these files, so key at 1.19.0.0 (the corrections are
+    # anchor/EOF fixups and no-op safely if a file is later patched).
+    # Each is the same single-missing-`}` shape as the 1.18.1.0 set:
+    # the outermost block runs off EOF still open, every inner block
+    # nests cleanly, so the missing close unambiguously belongs at EOF.
+    "1.19.0.0" => {
+      # Outer `ast_right_vs_left_campaign_empty_inlay_window = {` never closes.
+      "common/focus_inlay_windows/ast_right_vs_left_campaign_empty_inlay_window.txt" => APPEND_BRACE,
+      # Outer `scripted_gui = {` never closes.
+      "common/scripted_guis/AST_cabinet_trust_scripted_gui.txt" => APPEND_BRACE,
+      # Final `instant_effect = {` never closes.
+      "history/units/AST_1936.txt" => APPEND_BRACE,
+      # Outer `guiTypes = {` never closes.
+      "interface/sia_movie_theater_campaigns_scripted_gui.gui" => APPEND_BRACE,
+    },
   }
 
   SLOW_FILES = [].freeze

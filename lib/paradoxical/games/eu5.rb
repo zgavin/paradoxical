@@ -51,6 +51,7 @@ module Paradoxical::Games::EU5
     "4e92" => "1.2.5",   # publicly-displayed checksum (obfuscated) is cf2f
     "2774" => "1.3.0",   # open-beta build; publicly-displayed checksum (obfuscated) is 5ad0
     "fc9d" => "1.3.2",   # 1.3.1 skipped; publicly-displayed checksum (obfuscated) is ede5
+    "6064" => "1.3.4",   # 1.3.3 skipped; beta patch; publicly-displayed checksum (obfuscated) is 3244
   }.freeze
 
   def self.installed_version game
