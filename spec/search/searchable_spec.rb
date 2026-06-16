@@ -64,6 +64,26 @@ RSpec.describe Paradoxical::Elements::Concerns::Searchable do
       expect(doc.find_all("province ~ rank").first.value).to eq(3)
     end
 
+    it "filters by a nested search via &has(...)" do
+      # `&has(<search>)` re-runs its argument as a search rooted at each
+      # candidate node and matches when that nested search finds anything.
+      # Note: no space before `&` — a space is the descendant combinator,
+      # so `country&has(...)` keeps the matcher on the country rule itself.
+      results = doc.find_all("country&has(province)")
+      expect(results.size).to eq(1)
+      expect(results.first["name"].value.to_s).to eq("alice")
+
+      # both countries have a `name` child
+      expect(doc.find_all("country&has(name)").size).to eq(2)
+
+      # the &has argument may itself be a chained selector
+      nested = doc.find_all("country&has('province name')")
+      expect(nested.map { |c| c["name"].value.to_s }).to eq(["alice"])
+
+      # nothing has a `religion` child
+      expect(doc.find_all("country&has(religion)")).to be_empty
+    end
+
     it "accepts a pre-built array of Rule objects" do
       rule = Paradoxical::Search::Rule.new(
         "country",
