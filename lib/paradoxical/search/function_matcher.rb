@@ -64,4 +64,15 @@ class Paradoxical::Search::FunctionMatcher
     arg = arguments.first
     arg.is_a?(Regexp) ? arg =~ node.key.to_s : node.key.to_s.include?(arg.to_s)
   end
+
+  # Nested search: re-runs the argument as a search rooted at `node`,
+  # matching when that nested search finds at least one node. Only
+  # container nodes (List / Document) are searchable, so leaf nodes
+  # (Property, Value, Comment) — which `Rule#matches?` also feeds in —
+  # simply don't match.
+  def has node
+    return false unless node.respond_to? :find
+
+    node.find(arguments.first).present?
+  end
 end

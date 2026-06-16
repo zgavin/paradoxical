@@ -114,5 +114,23 @@ RSpec.describe Paradoxical::Search::FunctionMatcher do
         expect(described_class.new("key_matches", arguments: ["zzz"]).matches?(country)).to be_falsey
       end
     end
+
+    describe "nested-search matcher" do
+      it "&has matches when the argument (re-run as a search) finds a descendant" do
+        expect(described_class.new("has", arguments: ["name"]).matches?(country)).to be true
+        # the nested search can target a nested list too
+        expect(described_class.new("has", arguments: ["tags"]).matches?(country)).to be true
+      end
+
+      it "&has does not match when the nested search finds nothing" do
+        expect(described_class.new("has", arguments: ["religion"]).matches?(country)).to be false
+      end
+
+      it "&has does not match (rather than raising) on a non-searchable leaf node" do
+        # Rule#matches? feeds every candidate node through the function
+        # matchers, including leaves like Property that have no #find.
+        expect(described_class.new("has", arguments: ["name"]).matches?(name_property)).to be false
+      end
+    end
   end
 end
