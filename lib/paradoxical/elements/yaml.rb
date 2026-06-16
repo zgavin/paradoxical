@@ -1,20 +1,22 @@
 class Paradoxical::Elements::Yaml
-  attr_reader :path, :owner, :language, :extension
+  attr_reader :path, :owner, :language, :extension, :encoding
 
-  def initialize values = {}, path: nil, owner: nil
+  def initialize values = {}, path: nil, owner: nil, encoding: Encoding::UTF_8
     @values = values
     @path = path
     @owner = owner
     @extension = File.extname(path)[1..-1]
     @language = (path.match(/_l_(\w+)\.#{@extension}$/)&.to_a&.last or "english")
+    @encoding = encoding
   end
 
   def values
     @values.dup
   end
 
-  def dup path: nil, owner: nil
-    self.class.new @values.dup, path: (path or self.path), owner: (owner or self.owner)
+  def dup path: nil, owner: nil, encoding: nil
+    self.class.new @values.dup, path: (path or self.path), owner: (owner or self.owner),
+                                encoding: (encoding or self.encoding)
   end
 
   def eql? other
