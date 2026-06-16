@@ -21,6 +21,19 @@ module Paradoxical::Games::Stellaris
       "common/scripted_loc/scripted_loc_ruloc.txt" =>
         ->(data) { data << "\n}\n" },
     },
+
+    # New in 4.4.x (cosmic-storm "nomads" mesh definitions). Both
+    # parsed clean through 4.3.7 because the files didn't exist yet;
+    # 4.4.0 was skipped, so 4.4.1 is the first-known-broken release.
+    # Same missing-`}` shape: the outer `objectTypes = {` runs off EOF
+    # still open while every inner `pdxmesh`/`meshsettings` block
+    # nests cleanly, so append one closing brace at EOF.
+    "4.4.1" => {
+      "gfx/models/effects/nomads.gfx" =>
+        ->(data) { data << "\n}\n" },
+      "gfx/models/ui/nomads_frontend.gfx" =>
+        ->(data) { data << "\n}\n" },
+    },
   }
 
   SLOW_FILES = [].freeze
