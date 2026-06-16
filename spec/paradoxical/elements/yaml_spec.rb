@@ -20,4 +20,22 @@ RSpec.describe Paradoxical::Elements::Yaml do
       expect(yaml.encoding).to eq(Encoding::Windows_1252)
     end
   end
+
+  describe "#dup" do
+    let(:original) do
+      described_class.new(
+        { GREETING: "hi" },
+        path: "loc/test_l_english.yml",
+        encoding: Encoding::Windows_1252,
+      )
+    end
+
+    it "carries the encoding through" do
+      expect(original.dup.encoding).to eq(Encoding::Windows_1252)
+    end
+
+    it "still allows overriding the encoding" do
+      expect(original.dup(encoding: Encoding::UTF_8).encoding).to eq(Encoding::UTF_8)
+    end
+  end
 end

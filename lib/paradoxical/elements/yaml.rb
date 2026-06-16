@@ -14,8 +14,9 @@ class Paradoxical::Elements::Yaml
     @values.dup
   end
 
-  def dup path: nil, owner: nil
-    self.class.new @values.dup, path: (path or self.path), owner: (owner or self.owner)
+  def dup path: nil, owner: nil, encoding: nil
+    self.class.new @values.dup, path: (path or self.path), owner: (owner or self.owner),
+                                encoding: (encoding or self.encoding)
   end
 
   def eql? other
