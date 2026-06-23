@@ -64,6 +64,17 @@ class Paradoxical::Builder
   end
   alias_method :l, :list
 
+  # Clausewitz GUI keyword-prefixed blocks that take no `=` operator:
+  #   template NAME { ... }          -> template(name) { ... }
+  #   blockoverride "NAME" { ... }   -> blockoverride(name) { ... }   (name is quoted)
+  def template name, *args, &block
+    list name, *args, kind: "template", operator: nil, &block
+  end
+
+  def blockoverride name, *args, &block
+    list name.to_s.quote, *args, kind: "blockoverride", operator: nil, &block
+  end
+
   def property key, operator, value = nil, whitespace: nil
     # Mirror Property#initialize's nil-shift so we coerce the actual
     # value rather than the operator standing in for it.
