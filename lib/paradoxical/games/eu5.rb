@@ -52,7 +52,7 @@ module Paradoxical::Games::EU5
     "2774" => "1.3.0",   # open-beta build; publicly-displayed checksum (obfuscated) is 5ad0
     "fc9d" => "1.3.2",   # 1.3.1 skipped; publicly-displayed checksum (obfuscated) is ede5
     "6064" => "1.3.4",   # 1.3.3 skipped; beta patch; publicly-displayed checksum (obfuscated) is 3244
-    "ed4b" => "1.3.6",   # beta patch; in-game-pulled checksum (obfuscated) is 872e — Paradox announced no official checksum for this build
+    "ed4b" => "1.3.6",   # 1.3.5 reserved (odd numbers held for hotfixes, none shipped); obfuscated checksum 872e
   }.freeze
 
   def self.installed_version game
