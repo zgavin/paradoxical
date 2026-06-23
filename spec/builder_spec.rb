@@ -386,4 +386,68 @@ RSpec.describe Paradoxical::Builder do
       expect(rendered).to include("} trigger_else = {")
     end
   end
+
+  describe "#template" do
+    # Clausewitz GUI keyword block: `template NAME { ... }` — the keyword
+    # is a `kind` prefix and there is no `=` operator, with an unquoted name.
+    it "emits a List with kind \"template\" and no operator" do
+      obj = builder.template("my_widget")
+      expect(obj).to be_a(Paradoxical::Elements::List)
+      expect(obj.kind).to eq("template")
+      expect(obj.operator).to be_nil
+    end
+
+    it "keeps the name unquoted" do
+      obj = builder.template("my_widget")
+      expect(obj.key.to_s).to eq("my_widget")
+      expect(obj.key.quoted?).to be(false)
+    end
+
+    it "accepts a Symbol name" do
+      expect(builder.template(:my_widget).key.to_s).to eq("my_widget")
+    end
+
+    it "builds children from a block" do
+      obj = builder.template("my_widget") { p("size", 10) }
+      expect(obj.map(&:key)).to eq(["size"])
+    end
+
+    it "renders as `template NAME { ... }`" do
+      rendered = builder.template("my_widget") { p("size", 10) }.to_pdx
+      expect(rendered).to eq("\ntemplate my_widget {\n\tsize = 10\n}")
+    end
+  end
+
+  describe "#blockoverride" do
+    # Clausewitz GUI keyword block: `blockoverride "NAME" { ... }` — like
+    # `template`, but the name is quoted.
+    it "emits a List with kind \"blockoverride\" and no operator" do
+      obj = builder.blockoverride("the_override")
+      expect(obj).to be_a(Paradoxical::Elements::List)
+      expect(obj.kind).to eq("blockoverride")
+      expect(obj.operator).to be_nil
+    end
+
+    it "quotes the name" do
+      obj = builder.blockoverride("the_override")
+      expect(obj.key.to_s).to eq("the_override")
+      expect(obj.key.quoted?).to be(true)
+    end
+
+    it "accepts a Symbol name" do
+      obj = builder.blockoverride(:the_override)
+      expect(obj.key.to_s).to eq("the_override")
+      expect(obj.key.quoted?).to be(true)
+    end
+
+    it "builds children from a block" do
+      obj = builder.blockoverride("the_override") { p("x", 1) }
+      expect(obj.map(&:key)).to eq(["x"])
+    end
+
+    it "renders as `blockoverride \"NAME\" { ... }`" do
+      rendered = builder.blockoverride("the_override") { p("x", 1) }.to_pdx
+      expect(rendered).to eq("\nblockoverride \"the_override\" {\n\tx = 1\n}")
+    end
+  end
 end
