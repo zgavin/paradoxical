@@ -52,6 +52,7 @@ module Paradoxical::Games::EU5
     "2774" => "1.3.0",   # open-beta build; publicly-displayed checksum (obfuscated) is 5ad0
     "fc9d" => "1.3.2",   # 1.3.1 skipped; publicly-displayed checksum (obfuscated) is ede5
     "6064" => "1.3.4",   # 1.3.3 skipped; beta patch; publicly-displayed checksum (obfuscated) is 3244
+    "ed4b" => "1.3.6",   # beta patch; in-game-pulled checksum (obfuscated) is 872e — Paradox announced no official checksum for this build
   }.freeze
 
   def self.installed_version game
@@ -75,7 +76,7 @@ module Paradoxical::Games::EU5
   # stable through patches.
   CORRECTIONS = {
     # Earliest publicly-released build is 1.0.4. All three defects
-    # below are present from that release through the latest (1.3.0
+    # below are present from that release through the latest (1.3.6
     # at time of writing), so keying at 1.0.4 covers every known
     # build via `Corrections.resolve`'s `<= installed` selection.
     "1.0.4" => {
