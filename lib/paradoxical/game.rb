@@ -232,15 +232,18 @@ end
 # currently CK2, which predates both the SqliteConfig and JsonConfig
 # launchers. Returns empty lists so parser-only usage works
 # transparently (parse_file falls through to the bare FileParser
-# path); `paradoxical!` with `mod:`/`playset:` set on a `:legacy`
-# game silently no-ops on selection, which is a known gap until/
-# unless someone needs it.
+# path); `paradoxical!` with `mod:` set on a `:legacy` game silently
+# no-ops on selection, which is a known gap until/unless someone needs
+# it. A `playset:` raises, though — there's no playset registry here,
+# so any name is by definition unknown, same as a bad name elsewhere.
 module LegacyConfig
   def _mods
     @mods ||= []
   end
 
   def _enabled_mods
+    raise "No playset named #{@playset.inspect}" if @playset.present?
+
     @enabled_mods ||= []
   end
 end
@@ -266,6 +269,12 @@ module SqliteConfig
     @enabled_mods ||= begin
       enabled_mods =
         if @playset.present? then
+          # A name that matches no playset row is almost always a typo or a
+          # stale config — fail loudly rather than silently enabling nothing.
+          raise "No playset named #{@playset.inspect}" unless db.execute(
+            "SELECT 1 FROM playsets WHERE name = ? LIMIT 1;", [@playset]
+          ).any?
+
           sql = <<~SQL
             SELECT m.id FROM mods m
             JOIN playsets_mods pm ON pm.modId = m.id
@@ -309,6 +318,10 @@ module JsonConfig
           playsets_path = File.join(user_directory, "playsets.json")
           playsets = JSON.parse(File.read(playsets_path, encoding: "bom|utf-8"))["playsets"]
           playset = playsets.find do |p| p["name"] === self.playset end
+          # A name that matches no playset is almost always a typo or a stale
+          # config — fail loudly rather than dereferencing nil below.
+          raise "No playset named #{self.playset.inspect}" if playset.nil?
+
           _mods.filter do |mod|
             playset["orderedListMods"].any? do |entry|
               entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path)

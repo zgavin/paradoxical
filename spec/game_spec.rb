@@ -69,4 +69,79 @@ RSpec.describe Paradoxical::Game do
       expect(result.map { |d| d["value"].value }).to eq(%w[A B])
     end
   end
+
+  # A playset name that resolves to nothing is almost always a typo or a
+  # stale config. Every launcher format should fail loudly rather than
+  # silently enabling no mods (or, for JSON, dereferencing nil).
+  describe "#enabled_mods playset validation" do
+    let(:tmpdir) { Pathname.new(Dir.mktmpdir) }
+    let(:user_dir) { Pathname.new(Dir.mktmpdir) }
+    after do
+      FileUtils.remove_entry(tmpdir) if Dir.exist?(tmpdir)
+      FileUtils.remove_entry(user_dir) if Dir.exist?(user_dir)
+    end
+
+    def game_for(game_module, user_directory: tmpdir)
+      Paradoxical::Game.new(game_module, root: tmpdir, user_directory: user_directory)
+    end
+
+    context "legacy launcher (no playset registry at all)" do
+      it "raises for any playset name" do
+        game = game_for(Paradoxical::Games::CK2)
+        game.playset = "Anything"
+        expect { game.enabled_mods }.to raise_error(/No playset named "Anything"/)
+      end
+
+      it "does not raise when no playset is set" do
+        game = game_for(Paradoxical::Games::CK2)
+        expect(game.enabled_mods).to eq([])
+      end
+    end
+
+    context "sqlite launcher" do
+      before do
+        db = SQLite3::Database.new(user_dir.join("launcher-v2.sqlite").to_s)
+        db.execute_batch(<<~SQL)
+          CREATE TABLE mods (id TEXT, gameRegistryId TEXT);
+          CREATE TABLE playsets (id TEXT, name TEXT);
+          CREATE TABLE playsets_mods (playsetId TEXT, modId TEXT, enabled BOOLEAN, position INTEGER);
+          INSERT INTO playsets (id, name) VALUES ('p1', 'Standard');
+        SQL
+        db.close
+      end
+
+      it "raises for an unknown playset name" do
+        game = game_for(Paradoxical::Games::EU4, user_directory: user_dir)
+        game.playset = "Nope"
+        expect { game.enabled_mods }.to raise_error(/No playset named "Nope"/)
+      end
+
+      it "does not raise for a known playset name" do
+        game = game_for(Paradoxical::Games::EU4, user_directory: user_dir)
+        game.playset = "Standard"
+        expect(game.enabled_mods).to eq([])
+      end
+    end
+
+    context "json launcher" do
+      before do
+        File.write(
+          user_dir.join("playsets.json"),
+          JSON.generate("playsets" => [{ "name" => "Standard", "orderedListMods" => [] }]),
+        )
+      end
+
+      it "raises for an unknown playset name" do
+        game = game_for(Paradoxical::Games::EU5, user_directory: user_dir)
+        game.playset = "Nope"
+        expect { game.enabled_mods }.to raise_error(/No playset named "Nope"/)
+      end
+
+      it "does not raise for a known playset name" do
+        game = game_for(Paradoxical::Games::EU5, user_directory: user_dir)
+        game.playset = "Standard"
+        expect(game.enabled_mods).to eq([])
+      end
+    end
+  end
 end
