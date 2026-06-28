@@ -277,7 +277,7 @@ module SqliteConfig
             .execute(sql)
             .map do |id,| _mods.find do |mod| mod.id == id end end
         else
-          _mods.dup
+          []
         end
 
       enabled_mods.delete_if do |other| other.id == @mod.id end if @mod.present?
@@ -315,7 +315,7 @@ module JsonConfig
             end
           end
         else
-          _mods.dup
+          []
         end
 
       enabled_mods.delete_if do |other| other.name == @mod.name end if @mod.present?
