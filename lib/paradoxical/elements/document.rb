@@ -27,7 +27,16 @@ class Paradoxical::Elements::Document
   end
 
   def dup children: nil, path: nil
-    copy = self.class.new (children or @children).map(&:dup), whitespace: @whitespace.dup, path: path, bom: @bom
+    copy = self.class.new (children or @children).map(&:dup), whitespace: @whitespace.dup,
+                                                              path: path, owner: @owner, bom: @bom, encoding: @encoding
+    # `full_path` and `line_break` have no initializer params (the parser
+    # stamps them after construction), so carry them across by hand. A dup
+    # must be a faithful copy: detach_from_cache swaps it back into the
+    # parse cache, where a missing owner/encoding/line_break would silently
+    # degrade later re-parses (broken `vanilla?`, lost re-encoding, CRLF
+    # round-trips collapsing to LF).
+    copy.instance_variable_set :@full_path, @full_path
+    copy.instance_variable_set :@line_break, @line_break
     # Shallow-copy the string_lookup reference — the table itself is
     # potentially large (37k+ entries in real saves) and immutable
     # from the doc's perspective, so sharing it across dups is fine
@@ -38,11 +47,11 @@ class Paradoxical::Elements::Document
   end
 
   def eql? other
-    other.is_a?(Document) and @children.eql?(other.send(:children))
+    other.is_a?(Paradoxical::Elements::Document) and @children.eql?(other.send(:children))
   end
 
   def == other
-    other.is_a?(Document) and @children == other.send(:children)
+    other.is_a?(Paradoxical::Elements::Document) and @children == other.send(:children)
   end
 
   def hash

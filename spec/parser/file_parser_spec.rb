@@ -56,4 +56,45 @@ RSpec.describe Paradoxical::FileParser do
       }.to raise_error(Paradoxical::Parser::ParseError)
     end
   end
+
+  describe "#detach_from_cache" do
+    let(:cache) { wrapper.instance_variable_get(:@file_cache) }
+
+    it "swaps a pristine copy into the cache, returning the original as the private copy" do
+      doc = wrapper.parse("foo = 1\n", path: "some/file.txt")
+      cache[doc.path] = doc
+
+      returned = wrapper.detach_from_cache(doc)
+
+      expect(returned).to be(doc)            # caller keeps the original (mutable & private)
+      expect(cache[doc.path]).not_to be(doc) # cache now holds a different object
+      expect(cache[doc.path]).to eq(doc)     # ...with identical content
+    end
+
+    it "leaves the original safely mutable — the cached copy is untouched" do
+      doc = wrapper.parse("foo = 1\n", path: "some/file.txt")
+      cache[doc.path] = doc
+      wrapper.detach_from_cache(doc)
+
+      doc.instance_variable_get(:@children).clear # mutate the original
+
+      expect(cache[doc.path]).not_to eq(doc) # pristine copy unaffected
+    end
+
+    it "is a no-op for a document with no path" do
+      doc = wrapper.parse("foo = 1\n")
+      expect(wrapper.detach_from_cache(doc)).to be(doc)
+      expect(cache).to be_empty
+    end
+
+    it "is a no-op when the document is not the live cache entry" do
+      doc = wrapper.parse("foo = 1\n", path: "some/file.txt")
+      other = wrapper.parse("foo = 1\n", path: "some/file.txt")
+      cache[doc.path] = other
+
+      wrapper.detach_from_cache(doc)
+
+      expect(cache[doc.path]).to be(other) # unchanged — only the live entry is swapped
+    end
+  end
 end

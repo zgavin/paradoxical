@@ -176,4 +176,17 @@ RSpec.describe Paradoxical::Parser do
       expect(doc.to_pdx).to eq(input)
     end
   end
+
+  describe "equality" do
+    it "== and eql? compare by children, not identity (regression: unqualified Document const)" do
+      a = parse("foo = 1\nbar = 2\n")
+      b = parse("foo = 1\nbar = 2\n")
+      c = parse("foo = 1\nbar = 3\n")
+
+      expect(a).to eq(b)
+      expect(a).to eql(b)
+      expect(a).not_to eq(c)
+      expect(a == "not a document").to be(false)
+    end
+  end
 end

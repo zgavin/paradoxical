@@ -80,6 +80,21 @@ module Paradoxical::FileParser
     return document
   end
 
+  # Detach a parsed document from the cache before it's mutated (e.g. a full-file
+  # override via `write`). parse_file memoizes one document per path, so mutating it in
+  # place would leak into anything that re-parses the same path. We swap a pristine copy
+  # into the cache and hand the original back as the caller's private, mutable document.
+  # No-op unless the document IS the live cache entry — freshly-built or already-detached
+  # documents (and those whose path was never parsed) pass through untouched.
+  def detach_from_cache document
+    path = document.path
+    return document if path.nil?
+
+    @file_cache[path] = document.dup(path: path) if @file_cache[path].equal? document
+
+    document
+  end
+
   def parse data, path: nil, bom: false, encoding: nil
     document = Paradoxical::Parser.parse data
 

@@ -33,6 +33,10 @@ module Paradoxical::Helper
   def write file_or_path, bom: true, &block
     file =
       if file_or_path.is_a? Paradoxical::Elements::Document then
+        # Copy-on-write at the write boundary: if this document is the live parse-cache
+        # entry, swap a pristine copy into the cache so the mutations below stay private
+        # to this write and don't leak to anything that re-parses the same path.
+        file_or_path.owner&.detach_from_cache file_or_path
         file_or_path.tap do |doc|
           children = doc.instance_variable_get :@children
           children.concat build &block unless block.nil?
