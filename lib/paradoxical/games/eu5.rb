@@ -58,6 +58,8 @@ module Paradoxical::Games::EU5
     "6064" => "1.3.4", # open-beta build; public checksum 3244
     # 1.3.5 skipped; reserved for a hotfix that proved unnecessary
     "ed4b" => "1.3.6", # open-beta build; no official checksum, in-game only (872e)
+    # 1.3.7 skipped; reserved for a hotfix that proved unnecessary
+    "2f83" => "1.3.8", # open-beta build; public checksum 98b8
   }.freeze
 
   def self.installed_version game
@@ -81,7 +83,7 @@ module Paradoxical::Games::EU5
   # stable through patches.
   CORRECTIONS = {
     # Earliest publicly-released build is 1.0.4. All three defects
-    # below are present from that release through the latest (1.3.6
+    # below are present from that release through the latest (1.3.8
     # at time of writing), so keying at 1.0.4 covers every known
     # build via `Corrections.resolve`'s `<= installed` selection.
     "1.0.4" => {

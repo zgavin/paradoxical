@@ -24,6 +24,8 @@ RSpec.describe "parse smoke", :parse_smoke do
       clausewitz_rev.txt
       eu4_branch.txt
       eu4_rev.txt
+      hoi4_branch.txt
+      hoi4_rev.txt
       console_history.txt
       credits.txt
       credits_l_simp_chinese.txt
