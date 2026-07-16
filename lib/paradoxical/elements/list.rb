@@ -153,4 +153,21 @@ class Paradoxical::Elements::List < Paradoxical::Elements::Node
 
     self
   end
+
+  # Enables hash pattern matching (`case list in {key:}`). Ruby passes the
+  # requested keys, or nil when the pattern is open-ended (`**rest`), in which
+  # case we surface every keyed child. Lookup is case-insensitive (matching
+  # `#[]`), a Property yields its value, and absent keys are omitted so the
+  # pattern fails rather than binding nil.
+  def deconstruct_keys keys
+    keys ||= self.keys.map do |key| key.to_s.to_sym end
+
+    keys.each_with_object({}) do |key, matched|
+      node = self[key.to_s]
+
+      next if node.nil?
+
+      matched[key] = node.is_a?(Paradoxical::Elements::Property) ? node.value : node
+    end
+  end
 end

@@ -45,4 +45,73 @@ RSpec.describe Paradoxical::Elements::List do
       expect(copy.values.map { |v| v.value.to_s }).to eq(%w[9])
     end
   end
+
+  describe "#deconstruct_keys" do
+    def country
+      parse(<<~PDX).first
+        country = {
+          name = "Francia"
+          capital = 123
+          color = { 1 2 3 }
+        }
+      PDX
+    end
+
+    it "unwraps a Property to its value" do
+      result = country.deconstruct_keys([:name, :capital])
+      expect(result[:name].to_s).to eq("Francia")
+      expect(result[:capital].to_s).to eq("123")
+    end
+
+    it "yields the node itself for a list-valued key" do
+      result = country.deconstruct_keys([:color])
+      expect(result[:color]).to be_a(Paradoxical::Elements::List)
+      expect(result[:color].values.map { |v| v.value.to_s }).to eq(%w[1 2 3])
+    end
+
+    it "looks keys up case-insensitively, returning them under the requested symbol" do
+      expect(country.deconstruct_keys([:NAME]).keys).to eq([:NAME])
+      expect(country.deconstruct_keys([:NAME])[:NAME].to_s).to eq("Francia")
+    end
+
+    it "omits absent keys rather than binding nil" do
+      expect(country.deconstruct_keys([:nonexistent])).to eq({})
+    end
+
+    it "returns every keyed child when passed nil (the **rest contract)" do
+      result = country.deconstruct_keys(nil)
+      expect(result.keys).to contain_exactly(:name, :capital, :color)
+    end
+
+    describe "in a pattern match" do
+      it "binds present keys" do
+        matched =
+          case country
+          in { name:, capital: } then [name.to_s, capital.to_s]
+          else :no_match
+          end
+
+        expect(matched).to eq(["Francia", "123"])
+      end
+
+      it "fails to match on an absent key" do
+        matched =
+          case country
+          in { totally_missing: } then :matched
+          else :no_match
+          end
+
+        expect(matched).to eq(:no_match)
+      end
+
+      it "captures every keyed child via **rest" do
+        matched =
+          case country
+          in { **rest } then rest.keys
+          end
+
+        expect(matched).to contain_exactly(:name, :capital, :color)
+      end
+    end
+  end
 end
