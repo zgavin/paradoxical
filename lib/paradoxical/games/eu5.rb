@@ -49,8 +49,10 @@ module Paradoxical::Games::EU5
     "78ec" => "1.2.3",   # publicly-displayed checksum (obfuscated) is 6a4a
     "c9d1" => "1.2.4",   # publicly-displayed checksum (obfuscated) is e02d
     "4e92" => "1.2.5",   # publicly-displayed checksum (obfuscated) is cf2f
-    # 1.3.x is an open-beta cycle for an eventual 1.3.x final; odd
-    # numbers are reserved for hotfixes and none have shipped.
+    # 1.3.0–1.3.10 were an open-beta cycle; 1.3.10 was both the final
+    # beta build and the first official (non-beta) 1.3.x release, and
+    # subsequent releases are official builds. Odd numbers through the
+    # beta were reserved for hotfixes and none shipped.
     "2774" => "1.3.0", # open-beta build; public checksum 5ad0
     # 1.3.1 skipped; reserved for a hotfix that proved unnecessary
     "fc9d" => "1.3.2", # open-beta build; public checksum ede5
@@ -61,7 +63,8 @@ module Paradoxical::Games::EU5
     # 1.3.7 skipped; reserved for a hotfix that proved unnecessary
     "2f83" => "1.3.8", # open-beta build; public checksum 98b8
     # 1.3.9 skipped; reserved for a hotfix that proved unnecessary
-    "a2c4" => "1.3.10", # open-beta build; public checksum c764
+    "a2c4" => "1.3.10", # final beta / first official 1.3.x release; public checksum c764
+    "54cd" => "1.3.11", # official 1.3.x release; public checksum b08d
   }.freeze
 
   def self.installed_version game
