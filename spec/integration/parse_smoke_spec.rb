@@ -106,8 +106,8 @@ RSpec.describe "parse smoke", :parse_smoke do
     # Walk the game's own scripts under `game.root`, plus the
     # engine-default sibling dirs the engine ships (jomini/,
     # clausewitz/) so they get regression coverage too. Engine files
-    # don't go through Game.parse_file (no corrections apply at the
-    # engine level) — parsed via the bare Parser instead.
+    # are parsed by absolute path; corrections for them are keyed
+    # root-relative (`../clausewitz/...`) and resolve to the same file.
     script_roots = [game.root]
     if game_module::HAS_GAME_SUBDIR
       %w[jomini clausewitz].each do |engine|
@@ -198,11 +198,10 @@ RSpec.describe "parse smoke", :parse_smoke do
             # Use Game.parse_file for both game/ and engine paths so BOM
             # stripping, per-game corrections, and the FileParser-level
             # Windows-1252 fallback flow through uniformly. Game files
-            # use a relative path (so per-game corrections fire); engine
-            # files use an absolute path (FileParser#full_path_for
-            # returns absolute as-is) — corrections key off relative
-            # paths and don't apply at the engine layer, which is fine
-            # since engine files ship clean.
+            # use a relative path; engine files use an absolute path
+            # (FileParser#full_path_for returns absolute as-is).
+            # Corrections key off the resolved absolute path, so they
+            # fire for both.
             arg =
               if full_path.start_with?(game_prefix) then
                 full_path.sub(/\A#{Regexp.escape(game_prefix)}/, "")

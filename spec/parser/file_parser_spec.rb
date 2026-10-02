@@ -97,4 +97,35 @@ RSpec.describe Paradoxical::FileParser do
       expect(cache[doc.path]).to be(other) # unchanged — only the live entry is swapped
     end
   end
+
+  describe "#add_correction" do
+    around do |example|
+      Dir.mktmpdir do |dir|
+        @dir = Pathname.new(dir)
+        @dir.join("game").mkpath
+        @dir.join("engine").mkpath
+        @dir.join("game/broken.txt").write("foo = { bar = 1 } }\n")
+        @dir.join("engine/broken.txt").write("foo = { bar = 1 } }\n")
+        example.run
+      end
+    end
+
+    let(:wrapper) { wrapper_class.new(@dir.join("game")) }
+    let(:fix) { ->(data) { data.sub!(/\} \}/, "}") } }
+
+    it "applies a root-relative correction when the file is parsed by relative path" do
+      wrapper.add_correction("broken.txt", &fix)
+      expect(wrapper.parse_file("broken.txt").to_pdx).to eq("foo = { bar = 1 }\n")
+    end
+
+    it "applies a root-relative correction when the file is parsed by absolute path" do
+      wrapper.add_correction("broken.txt", &fix)
+      expect(wrapper.parse_file(@dir.join("game/broken.txt").to_s).to_pdx).to eq("foo = { bar = 1 }\n")
+    end
+
+    it "applies a correction keyed outside the root to files parsed by absolute path" do
+      wrapper.add_correction("../engine/broken.txt", &fix)
+      expect(wrapper.parse_file(@dir.join("engine/broken.txt").to_s).to_pdx).to eq("foo = { bar = 1 }\n")
+    end
+  end
 end
