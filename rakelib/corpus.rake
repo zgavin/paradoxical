@@ -16,6 +16,38 @@ namespace :corpus do
     abort e.message
   end
 
+  desc "Run the parse smoke against every stored build of a game (every game when slug is omitted)"
+  task :smoke, [:slug] do |_task, args|
+    require "paradoxical"
+    require_relative "../spec/support/corpus"
+
+    corpora =
+      if args[:slug] then
+        [Paradoxical::Corpus.new(Paradoxical::Games.find(args[:slug]))]
+      else
+        Paradoxical::Corpus.all
+      end
+    abort "The corpus is empty; store a build with corpus:snapshot first" if corpora.empty?
+
+    failed = []
+
+    corpora.each do |corpus|
+      corpus.tags.each do |tag|
+        result = corpus.smoke(tag)
+        puts "#{result.passed? ? "ok  " : "FAIL"} #{result.summary}"
+        failed << [corpus, result] unless result.passed?
+      end
+    end
+
+    failed.each do |corpus, result|
+      puts "\n===== #{corpus.game_module::SLUG} #{result.version} =====\n#{result.output}"
+    end
+
+    abort "\n#{failed.size} stored build(s) failed the parse smoke" unless failed.empty?
+  rescue Paradoxical::Corpus::Error => e
+    abort e.message
+  end
+
   desc "List the builds stored in the corpus for a game"
   task :list, [:slug] do |_task, args|
     require "paradoxical"

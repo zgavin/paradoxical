@@ -1,5 +1,6 @@
 require "fileutils"
 require "find"
+require "open3"
 require "pathname"
 
 # Local, off-repo snapshots of each verified game build's text files,
@@ -40,11 +41,63 @@ class Paradoxical::Corpus
     path
   end
 
-  attr_reader :game_module, :repo
+  # Every game with a repo in the corpus.
+  def self.all corpus_root: root
+    Paradoxical::Games.all.map do |game_module|
+      new(game_module, corpus_root: corpus_root)
+    end.select do |corpus| corpus.repo.join(".git").directory? end
+  end
+
+  # Outcome of smoking one stored build.
+  SmokeResult = Struct.new(:version, :passed, :summary, :output, keyword_init: true) do
+    alias_method :passed?, :passed
+  end
+
+  SMOKE_SPEC = File.expand_path("../integration/parse_smoke_spec.rb", __dir__)
+  PROJECT_ROOT = File.expand_path("../..", __dir__)
+
+  attr_reader :game_module, :repo, :worktree
 
   def initialize game_module, corpus_root: self.class.root
     @game_module = game_module
     @repo = Pathname.new(corpus_root).join(game_module::SLUG)
+    # Outside the repo so the snapshot mirror never sees it; reused
+    # across runs so moving between tags only rewrites changed files.
+    @worktree = Pathname.new(corpus_root).join(".smoke", game_module::SLUG)
+  end
+
+  # Checks `tag` out into the smoke worktree. Returns the game root
+  # to point the smoke at.
+  def checkout tag
+    raise Error, "#{game_module::SLUG} #{tag} isn't in the corpus" unless tag? tag
+
+    if worktree.join(".git").exist? then
+      git_in worktree, "checkout", "--quiet", "--detach", "--force", tag
+    else
+      worktree.dirname.mkpath
+      git "worktree", "prune"
+      git "worktree", "add", "--quiet", "--detach", worktree.to_s, tag
+    end
+
+    game_module::HAS_GAME_SUBDIR ? worktree.join("game") : worktree
+  end
+
+  # Runs the parse smoke against the stored build `tag` in a
+  # subprocess, asserting the snapshot is detected as that version.
+  def smoke tag
+    env = {
+      "PARADOXICAL_PARSE_SMOKE" => game_module::SLUG,
+      "PARADOXICAL_PARSE_SMOKE_ROOT" => checkout(tag).to_s,
+      "PARADOXICAL_PARSE_SMOKE_EXPECT_VERSION" => tag,
+    }
+    output, status = Open3.capture2e(env, "bundle", "exec", "rspec", SMOKE_SPEC, chdir: PROJECT_ROOT)
+
+    SmokeResult.new(
+      version: tag,
+      passed: status.success?,
+      summary: output[/^Parse smoke \(.*$/] || "no smoke summary (see output)",
+      output: output,
+    )
   end
 
   # Mirrors `game`'s install into the repo, commits, and tags the
@@ -149,8 +202,12 @@ class Paradoxical::Corpus
   # Signing is off so snapshots never block on a key prompt; this repo
   # is never pushed anywhere.
   def git *args
-    ok = system "git", "-C", repo.to_s, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args
-    raise Error, "git #{args.join(" ")} failed in #{repo}" unless ok
+    git_in repo, *args
+  end
+
+  def git_in dir, *args
+    ok = system "git", "-C", dir.to_s, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args
+    raise Error, "git #{args.join(" ")} failed in #{dir}" unless ok
   end
 
   def git_output *args

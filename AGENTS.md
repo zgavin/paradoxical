@@ -46,7 +46,7 @@ These are not in this repository but are essential context. Never copy their con
   `~/.steam/steam/steamapps/common/{Europa Universalis IV, Stellaris, ImperatorRome, Europa Universalis V}` — chronological order; EU5 has the newest dialect.
 - **Example consumer of the gem:**
   `~/.pdx/Europa Universalis V/mod/PancakeTaco's Mod` — Ruby in `scripts/ruby/`, generated `.txt` output in the other top-level directories. Used as a manual integration smoke test today; will become the off-repo integration corpus in MODERNIZATION.md phase 1.
-- **Regression corpus** (MODERNIZATION.md phase 1e): one local git repo per game under `$PARADOXICAL_CORPUS`, holding the text files of every verified build, one tag per version. After a new build passes the parse smoke, store it with `rake "corpus:snapshot[<slug>,<game-root>]"`. Never push these repos or copy from them into this one.
+- **Regression corpus** (MODERNIZATION.md phase 1e): one local git repo per game under `$PARADOXICAL_CORPUS`, holding the text files of every verified build, one tag per version. After a new build passes the parse smoke, store it with `rake "corpus:snapshot[<slug>,<game-root>]"`; `rake "corpus:smoke[<slug>]"` re-smokes every stored build (all games without a slug). Never push these repos or copy from them into this one.
 
 ## Current state
 
@@ -75,5 +75,5 @@ See **MODERNIZATION.md** for the phased plan to address all of the above. Read i
 - **Tests first for non-trivial migrations.** The whitespace/BOM/encoding round-trip behavior is easy to break silently. If MODERNIZATION.md phase 1 isn't done yet, raise it before starting phases 2+.
 - **One concern per PR.** Especially for dependency bumps — they should land individually, low-risk first, so regressions stay bisectable.
 - **Don't type the DSL.** The `method_missing` surface in `builder.rb` resists static typing; the public API classes are where types pay off.
-- **Touching `script.pest`, `search.pest`, or YAML parsing?** Once the parser smoke from MODERNIZATION.md phase 1 lands, run it (`PARADOXICAL_PARSE_SMOKE=<game-root>`) against at least one real install before declaring the change done. Grammar regressions silently affect the long tail of game files we never look at directly.
+- **Touching `script.pest`, `search.pest`, or YAML parsing?** Once the parser smoke from MODERNIZATION.md phase 1 lands, run it (`PARADOXICAL_PARSE_SMOKE=<game-root>`) against at least one real install before declaring the change done. Also run `rake corpus:smoke` (MODERNIZATION.md phase 1e) so every stored build of every game is checked, not just the installed one. Grammar regressions silently affect the long tail of game files we never look at directly.
 
