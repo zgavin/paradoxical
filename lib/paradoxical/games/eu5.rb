@@ -65,7 +65,7 @@ module Paradoxical::Games::EU5
     # 1.3.9 skipped; reserved for a hotfix that proved unnecessary
     "a2c4" => "1.3.10", # final beta / first official 1.3.x release; public checksum c764
     "54cd" => "1.3.11", # official 1.3.x release; public checksum b08d
-    "9fc8" => "1.4.0", # open-beta build; public checksum 592b
+    "d9c8" => "1.4.0", # open-beta build; public checksum 592b
   }.freeze
 
   def self.installed_version game
