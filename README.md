@@ -37,7 +37,7 @@ builds within a range that weren't run or can no longer be restored.
 | **Stellaris** | 4.3.x <sup>[1](#note-1)</sup><br>4.4.x <sup>[2](#note-2)</sup><br>4.5.1 <sup>[3](#note-3)</sup> | 100% |
 | **Imperator: Rome** | 2.0.5 | 100% |
 | **Europa Universalis V** | 1.0.x <sup>[4](#note-4)</sup><br>1.1.x <sup>[5](#note-5)</sup><br>1.2.x<br>1.3.0, 1.3.2, 1.3.4, 1.3.6, 1.3.8, 1.3.10, 1.3.11 <sup>[6](#note-6)</sup><br>1.4.0 <sup>[6](#note-6)</sup> | 100% |
-| **Hearts of Iron IV** | 1.18.x.x <sup>[7](#note-7)</sup><br>1.19.0.0 <sup>[8](#note-8)</sup>, 1.19.0.1, 1.19.1.0, 1.19.2.0 | 100% |
+| **Hearts of Iron IV** | 1.18.x.x <sup>[7](#note-7)</sup><br>1.19.0.0 <sup>[8](#note-8)</sup>, 1.19.0.1, 1.19.1.0, 1.19.2.0, 1.19.3.0 | 100% |
 | **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[9](#note-9)</sup> |
 | **Crusader Kings III** | — | unknown <sup>[10](#note-10)</sup> |
 | **Victoria 3** | — | unknown <sup>[10](#note-10)</sup> |
