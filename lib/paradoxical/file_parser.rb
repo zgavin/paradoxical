@@ -3,10 +3,16 @@ module Paradoxical::FileParser
     @corrections ||= {}
   end
 
+  # Corrections are keyed by resolved absolute path, so a correction
+  # registered root-relative still fires when the file is parsed by
+  # absolute path (and vice versa). This also lets a game key engine
+  # files that live outside its root — e.g. EU5's sibling
+  # `clausewitz/` dir as `../clausewitz/...`.
   def add_correction path, &block
-    corrections[path] ||= []
+    key = correction_key_for path
+    corrections[key] ||= []
 
-    corrections[path] << block
+    corrections[key] << block
   end
 
   def exists? relative_path
@@ -67,7 +73,7 @@ module Paradoxical::FileParser
       data.gsub!(bom_marker, "")
     end
 
-    (corrections[path] or []).each do |block|
+    (corrections[correction_key_for path] or []).each do |block|
       block.call data
     end
 
@@ -114,6 +120,10 @@ module Paradoxical::FileParser
   end
 
   protected
+
+  def correction_key_for path
+    full_path_for(path).cleanpath
+  end
 
   def enforce_encoding! data, encoding: nil, path: nil
     return data if data.valid_encoding?
