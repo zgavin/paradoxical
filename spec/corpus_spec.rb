@@ -105,6 +105,82 @@ RSpec.describe Paradoxical::Corpus do
     end
   end
 
+  describe "#checkout" do
+    before do
+      install_build "54cd"
+      write "game/in_game/gui/old.gui", "old = {}\n"
+      corpus.snapshot(game)
+
+      install_build "d9c8"
+      install.join("game/in_game/gui/old.gui").delete
+      write "game/in_game/gui/new.gui", "new = {}\n"
+      corpus.snapshot(game)
+    end
+
+    it "checks a stored build out into the smoke worktree and returns its game root" do
+      root = corpus.checkout("1.3.11")
+
+      expect(root).to eq(corpus_root.join(".smoke/eu5/game"))
+      expect(root.join("in_game/gui/old.gui")).to exist
+      expect(root.join("in_game/gui/new.gui")).not_to exist
+    end
+
+    it "moves the same worktree between builds" do
+      corpus.checkout("1.3.11")
+      root = corpus.checkout("1.4.0")
+
+      expect(root.join("in_game/gui/new.gui")).to exist
+      expect(root.join("in_game/gui/old.gui")).not_to exist
+    end
+
+    it "leaves the snapshot work tree on the latest build" do
+      corpus.checkout("1.3.11")
+
+      expect(repo.join("game/in_game/gui/new.gui")).to exist
+    end
+
+    it "refuses a build that isn't stored" do
+      expect { corpus.checkout("9.9.9") }.to raise_error(described_class::Error, /isn't in the corpus/)
+    end
+  end
+
+  # End to end: runs the real parse smoke in a subprocess against a
+  # tiny fake EU5 corpus.
+  describe "#smoke" do
+    before do
+      install_build "54cd"
+      write "game/in_game/common/ok.txt", "foo = { bar = 1 }\n"
+      corpus.snapshot(game)
+
+      install_build "d9c8"
+      write "game/in_game/common/broken.txt", "foo = { bar = 1\n"
+      corpus.snapshot(game)
+    end
+
+    it "passes a build that parses and is detected as its tag" do
+      result = corpus.smoke("1.3.11")
+
+      expect(result).to be_passed, result.output
+      expect(result.summary).to match(/Parse smoke \(eu5 1\.3\.11\): \d+ files/)
+    end
+
+    it "fails a build with a file that doesn't parse" do
+      result = corpus.smoke("1.4.0")
+
+      expect(result).not_to be_passed
+      expect(result.output).to include("broken.txt")
+    end
+
+    it "fails a build whose tag doesn't match the detected version" do
+      system "git", "-C", repo.to_s, "tag", "1.3.9", "1.3.11", exception: true
+
+      result = corpus.smoke("1.3.9")
+
+      expect(result).not_to be_passed
+      expect(result.output).to include("detects eu5 1.3.9")
+    end
+  end
+
   describe ".root" do
     around do |example|
       original = ENV["PARADOXICAL_CORPUS"]

@@ -164,6 +164,20 @@ RSpec.describe "parse smoke", :parse_smoke do
     # objects).
     n_workers = (ENV["PARADOXICAL_PARSE_SMOKE_WORKERS"] || ::Etc.nprocessors).to_i
 
+    # An unrecognized build makes `installed_version` nil, and nil
+    # applies every correction regardless of version, so the smoke can
+    # pass while version detection is broken. Always report what was
+    # detected; PARADOXICAL_PARSE_SMOKE_EXPECT_VERSION turns a mismatch
+    # into a failure (the corpus runner sets it to each build's tag).
+    detected_version = game_module.installed_version(game)
+    expected_version = ENV["PARADOXICAL_PARSE_SMOKE_EXPECT_VERSION"]
+
+    if expected_version.present?
+      it "detects #{slug} #{expected_version}" do
+        expect(detected_version).to eq(Gem::Version.new(expected_version))
+      end
+    end
+
     it "parses every #{parseable_exts.join("/")} file under #{slug} (root: #{game.root})" do
       ok = 0
       failures = []
@@ -234,7 +248,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       threads.each(&:join)
 
       total = files.size
-      puts "\nParse smoke (#{slug}): #{total} files | #{ok} ok | " \
+      puts "\nParse smoke (#{slug} #{detected_version || "unknown version"}): #{total} files | #{ok} ok | " \
            "#{failures.size} failed | #{allowlisted_fail} allowlisted-fail | " \
            "#{allowlisted_pass.size} allowlisted-pass"
 

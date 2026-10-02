@@ -73,7 +73,7 @@ Implementation choices:
   - `document_spec.rb` (19): top-level shape (empty, comment-only, mixed), accessor methods (`[]` by key, `value_for`, `keys`), comment text capture, byte-identical round-trip for ten well-formed inputs covering operators / nested lists / quoted strings / dates / irregular whitespace, plus a CRLF case.
   - `file_parser_spec.rb` (7): BOM stamping, CRLF/LF detection, path/encoding pass-through, re-raise-with-path-prefix on `ParseError` (covering the phase-1c FileParser fix).
 
-#### 1e. Multi-version regression corpus
+#### 1e. Multi-version regression corpus (landed)
 
 The parse smoke only checks the build of each game that's currently installed. Every build listed in the README is supposed to keep working, and version-keyed corrections make old builds take different code paths from the latest. But rolling a game back through Steam means re-downloading changed files one build at a time, so in practice a grammar or corrections change only ever gets checked against the newest build of each game.
 
@@ -84,13 +84,15 @@ The fix is a local, off-repo corpus holding the parseable text files of every bu
 - **Contents mirror the install layout.** Every `.txt`/`.gui`/`.gfx`/`.yml` under the game root, plus `jomini/` and `clausewitz/` for `game/`-subdir titles, plus the version-detection files (`launcher-settings.json`, `launcher/launcher-settings.json`, `binaries/checksum.txt`). Carrying the version files is load-bearing: `installed_version` then resolves the same corrections against a snapshot that it did against the real install. The corpus repo sets `* -text` in `.gitattributes`, so git never rewrites line endings; BOM, CRLF, and Windows-1252 bytes come back exactly as shipped.
 - **Copy everything with a parseable extension, not just what the smoke parses.** Exclusions stay in the smoke spec, so tightening or loosening them later re-applies to every stored build.
 
-##### 1e-1. Snapshot task
+##### 1e-1. Snapshot task (landed)
 
 `rake "corpus:snapshot[<slug>,<root>]"` (root defaults to the game's default install root). Detects the version the same way `Game` does and refuses a nil version (an unmapped EU5 checksum, say) or a tag that already exists. Mirrors the files into the repo's work tree, deleting anything the build no longer ships, then commits and tags. A build that changed no script files still gets its own commit and tag, since its version file always differs. Becomes the last step of the version-bump runbook, after the smoke passes.
 
-##### 1e-2. Multi-version smoke
+##### 1e-2. Multi-version smoke (landed)
 
 `rake "corpus:smoke[<slug>]"` runs the parse smoke against every tag in version order. It checks each tag out into a dedicated worktree, reused across tags so git only rewrites the files that changed, then asserts the version detected from the snapshot matches the tag before running the smoke. Prints a per-version summary and fails if any version fails. Run it after any change to the grammar, corrections, or `FileParser`.
+
+As landed: omitting the slug runs every game in the corpus. The worktree lives at `$PARADOXICAL_CORPUS/.smoke/<slug>`, outside the game's repo so the snapshot mirror never touches it. Each build runs as a `bundle exec rspec` subprocess, because the smoke spec builds its examples from env vars at load time. The version check is a general smoke feature: every smoke run prints the detected version in its summary line, and `PARADOXICAL_PARSE_SMOKE_EXPECT_VERSION` turns a mismatch into a failure. That closes the gap where an unmapped build detected as nil, nil applied every correction, and the smoke passed anyway (EU5 1.4.0's wrong checksum key, fixed in #118). First full run (2026-10-02), seeded with the current build of EU4, Stellaris, Imperator, EU5, and HOI4: all pass, in about a minute.
 
 ##### Backfill
 
