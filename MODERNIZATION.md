@@ -73,6 +73,29 @@ Implementation choices:
   - `document_spec.rb` (19): top-level shape (empty, comment-only, mixed), accessor methods (`[]` by key, `value_for`, `keys`), comment text capture, byte-identical round-trip for ten well-formed inputs covering operators / nested lists / quoted strings / dates / irregular whitespace, plus a CRLF case.
   - `file_parser_spec.rb` (7): BOM stamping, CRLF/LF detection, path/encoding pass-through, re-raise-with-path-prefix on `ParseError` (covering the phase-1c FileParser fix).
 
+#### 1e. Multi-version regression corpus
+
+The parse smoke only checks the build of each game that's currently installed. Every build listed in the README is supposed to keep working, and version-keyed corrections make old builds take different code paths from the latest. But rolling a game back through Steam means re-downloading changed files one build at a time, so in practice a grammar or corrections change only ever gets checked against the newest build of each game.
+
+The fix is a local, off-repo corpus holding the parseable text files of every build we've verified, so the smoke can be pointed at any of them.
+
+- **Location.** Set by the `PARADOXICAL_CORPUS` env var. The tasks error when it's unset or its parent directory is missing, rather than defaulting somewhere on the main drive, since the corpus is meant to sit on a separate data drive. Never inside this repo.
+- **One git repo per game** at `$PARADOXICAL_CORPUS/<slug>`, never pushed anywhere. Each verified build is one commit, tagged with its version (`1.4.0`). Git stores each unchanged file once and compresses text well, so a patch costs roughly what it changed. Measured uncompressed script+loc text per install (2026-10): EU4 ~100MB, Stellaris ~205MB, Imperator ~135MB, EU5 ~500MB, HOI4 ~255MB, against installs of 3–29GB.
+- **Contents mirror the install layout.** Every `.txt`/`.gui`/`.gfx`/`.yml` under the game root, plus `jomini/` and `clausewitz/` for `game/`-subdir titles, plus the version-detection files (`launcher-settings.json`, `launcher/launcher-settings.json`, `binaries/checksum.txt`). Carrying the version files is load-bearing: `installed_version` then resolves the same corrections against a snapshot that it did against the real install. The corpus repo sets `* -text` in `.gitattributes`, so git never rewrites line endings; BOM, CRLF, and Windows-1252 bytes come back exactly as shipped.
+- **Copy everything with a parseable extension, not just what the smoke parses.** Exclusions stay in the smoke spec, so tightening or loosening them later re-applies to every stored build.
+
+##### 1e-1. Snapshot task
+
+`rake "corpus:snapshot[<slug>,<root>]"` (root defaults to the game's default install root). Detects the version the same way `Game` does and refuses a nil version (an unmapped EU5 checksum, say) or a tag that already exists. Mirrors the files into the repo's work tree, deleting anything the build no longer ships, then commits and tags. A build that changed no script files still gets its own commit and tag, since its version file always differs. Becomes the last step of the version-bump runbook, after the smoke passes.
+
+##### 1e-2. Multi-version smoke
+
+`rake "corpus:smoke[<slug>]"` runs the parse smoke against every tag in version order. It checks each tag out into a dedicated worktree, reused across tags so git only rewrites the files that changed, then asserts the version detected from the snapshot matches the tag before running the smoke. Prints a per-version summary and fails if any version fails. Run it after any change to the grammar, corrections, or `FileParser`.
+
+##### Backfill
+
+Seed each game's repo from its current install. Older builds can be fetched with [DepotDownloader](https://github.com/SteamRE/DepotDownloader) by depot manifest ID (SteamDB lists them); its `-filelist` regex restricts the download to text files, so a historical build costs a few hundred MB instead of a full install. Best effort: Paradox doesn't keep every build available, and commit order doesn't matter, since tags are the index and git packs deltas across all objects regardless of history.
+
 #### Caveats (apply to all of the above)
 
 - Treat PancakeTaco as a regression baseline, not a correctness baseline — it was written for gameplay, not to exhaust the grammar.
@@ -794,6 +817,7 @@ Captured here so we don't re-litigate them.
 - **Permissive parse, calendar = arithmetic engine, not validator (8c).** Original framing was "guarantee in-game-valid dates by construction" — i.e. validate at parse time. Empirical sweep refuted: real game data ships sentinel dates (`0000.00.00`, `1.0.1`) and Feb 29 dates that the engine itself accepts. Same pattern as the color homogeneity rule — empirically validate the rule before committing to it. Settled on: parse permissively, attach the calendar as arithmetic metadata, garbage-in / garbage-out for the arithmetic on engine-invalid inputs. Round-trip preservation is the load-bearing property; "valid by construction" was aspirational.
 - **Imperator BC support via integer-year math, no subclass (8c).** Originally planned as `Calendar365` + `ImperatorCalendar < Calendar365` with an `allows_bc?` flag. Once we dropped construction-time validation, the BC distinction stopped paying for itself — `Calendar365#to_day_count` works on any integer year via Ruby's `divmod`-with-negative-floor semantics. Single class handles every non-Stellaris game including Imperator.
 - **BigDecimal over Integer × scale for floats (8d).** Originally planned as either-or. EU5 game-data floats carry 4-6 digits of precision (with 6 a soft limit), so fixed-scale Integer doesn't fit — precision varies per file. BigDecimal is stdlib, arithmetic plugs into the Impersonator concern's existing comparison/infix delegation through `to_real`, and the migration surface is one-line (`PropertyMatcher#matches?`'s `is_a?(::Float)` check). PancakeTaco is the only consumer so the broader Ruby-side audit is tiny.
+- **Regression corpus as a git repo per game, not plain copies (1e).** Re-verifying old builds by rolling Steam back is too slow to do on every parser change, so we keep local snapshots of each verified build's text files. Plain directory copies would store the whole text set for every build; one git repo per game with a commit per build stores only what each patch changed, and `git checkout` between tags rewrites only those files. Local-only and never pushed, which keeps the never-commit-Paradox-files rule intact. Lives on a separate data drive set by `PARADOXICAL_CORPUS`, with no default, because the maintainer's main drive is short on space.
 - **Synthetic fixtures + env-var-gated integration.** Avoids any question of shipping Paradox-owned data.
 - **One PR per dep bump.** Activesupport especially is high-risk; isolating the changes makes regressions trivially bisectable.
 - **No type coverage on the DSL.** The metaprogramming-heavy `method_missing` surface costs more in friction than it returns in safety.
