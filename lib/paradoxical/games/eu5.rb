@@ -65,6 +65,7 @@ module Paradoxical::Games::EU5
     # 1.3.9 skipped; reserved for a hotfix that proved unnecessary
     "a2c4" => "1.3.10", # final beta / first official 1.3.x release; public checksum c764
     "54cd" => "1.3.11", # official 1.3.x release; public checksum b08d
+    "9fc8" => "1.4.0", # open-beta build; public checksum 592b
   }.freeze
 
   def self.installed_version game
@@ -88,9 +89,11 @@ module Paradoxical::Games::EU5
   # stable through patches.
   CORRECTIONS = {
     # Earliest publicly-released build is 1.0.4. All three defects
-    # below are present from that release through the latest (1.3.10
-    # at time of writing), so keying at 1.0.4 covers every known
-    # build via `Corrections.resolve`'s `<= installed` selection.
+    # below are present from that release through 1.3.11, so keying at
+    # 1.0.4 covers every known build via `Corrections.resolve`'s
+    # `<= installed` selection. crusade.gui is fixed in 1.4.0 and
+    # unregistered there; the other two persist through the latest
+    # (1.4.0 at time of writing).
     "1.0.4" => {
       # Stray `}` directly after the self-closing
       # `country_flag_small = {}`. `country_flag_small = {}` is unique
@@ -142,6 +145,25 @@ module Paradoxical::Games::EU5
       # close unambiguously belongs at EOF — append one `}` line.
       "main_menu/gui/report_issue.gui" =>
         ->(data) { data.sub!(/\}\n\z/, "}\n}\n") },
+    },
+
+    "1.4.0" => {
+      # Fixed by Paradox in the 1.4.0 open beta. Both files now
+      # balance, and the corrections' anchors still match legitimate
+      # braces, so leaving them registered would strip a real close
+      # and break the parse.
+      "in_game/gui/panels/organization/crusade.gui" => nil,
+      "in_game/gui/estate_actions_lateralview.gui" => nil,
+
+      # First engine-file defect. The engine dirs sit beside `game/`,
+      # so the key is root-relative via `..`. The block holding the
+      # scrollbar spacer closes twice: the spacer is followed by two
+      # `}` lines at the same indent, and every enclosing brace after
+      # that is off by one until the stray close at EOF. The spacer's
+      # comment is unique to the file; keep the first `}` and drop the
+      # duplicate.
+      "../clausewitz/loading_screen/gui/tools/save_dialog.gui" =>
+        ->(data) { data.sub!(/(# make space for scrollbar\n(\t*)\}\n)\2\}\n/, '\1') },
     },
   }
 
