@@ -34,6 +34,12 @@ module Paradoxical::Games::Stellaris
       "gfx/models/ui/nomads_frontend.gfx" =>
         ->(data) { data << "\n}\n" },
     },
+
+    # Fixed by Paradox as of 4.5.1: the closing `}` now ships, so
+    # appending another would leave a stray close at EOF.
+    "4.5.1" => {
+      "common/scripted_loc/scripted_loc_ruloc.txt" => nil,
+    },
   }
 
   SLOW_FILES = [].freeze
