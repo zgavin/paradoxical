@@ -75,6 +75,14 @@ RSpec.describe Paradoxical::Corpus do
       expect(blob.b).to eq("\xEF\xBB\xBFfoo = 1\r\n".b)
     end
 
+    it "stores every file as 0644 whatever its mode at the source" do
+      install.join("game/in_game/common/foo.txt").chmod(0o755)
+      corpus.snapshot(game)
+
+      tree = IO.popen(["git", "-C", repo.to_s, "ls-tree", "-r", "1.3.11"], &:read)
+      expect(tree.lines.map do |line| line.split.first end.uniq).to eq(["100644"])
+    end
+
     it "mirrors a later build, dropping files it no longer ships" do
       corpus.snapshot(game)
 
@@ -178,6 +186,126 @@ RSpec.describe Paradoxical::Corpus do
 
       expect(result).not_to be_passed
       expect(result.output).to include("detects eu5 1.3.9")
+    end
+  end
+
+  describe "#fetch" do
+    # Stands in for DepotDownloader: logs its arguments, copies the
+    # fake install into `-dir`, and records each pinned manifest the
+    # way the real tool does (unless told to skip one).
+    let(:fake_depotdownloader) do
+      @dir.join("DepotDownloader").tap do |path|
+        path.write(<<~RUBY)
+          #!/usr/bin/env ruby
+          require "fileutils"
+          File.open(ENV.fetch("FAKE_DD_LOG"), "a") do |f| f.puts ARGV.join(" ") end
+          exit 1 if ENV["FAKE_DD_FAIL"]
+
+          dir = ARGV[ARGV.index("-dir") + 1]
+          FileUtils.cp_r(File.join(ENV.fetch("FAKE_DD_SOURCE"), "."), dir)
+          FileUtils.mkdir_p(File.join(dir, ".DepotDownloader/staging"))
+          File.write(File.join(dir, ".DepotDownloader/staging/chunk.txt"), "in flight")
+
+          if (i = ARGV.index("-depot")) then
+            depot = ARGV[i + 1]
+            manifest = ARGV[ARGV.index("-manifest") + 1]
+            unless ENV["FAKE_DD_SKIP_DEPOT"] == depot then
+              File.write(File.join(dir, ".DepotDownloader/\#{depot}_\#{manifest}.manifest"), "")
+            end
+          end
+        RUBY
+        path.chmod(0o755)
+      end
+    end
+
+    let(:log) { @dir.join("depotdownloader.log") }
+
+    around do |example|
+      keys = %w[FAKE_DD_LOG FAKE_DD_SOURCE FAKE_DD_FAIL FAKE_DD_SKIP_DEPOT]
+      original = ENV.to_h.slice(*keys)
+      ENV["FAKE_DD_LOG"] = log.to_s
+      ENV["FAKE_DD_SOURCE"] = install.to_s
+      example.run
+    ensure
+      keys.each do |key| ENV[key] = original[key] end
+    end
+
+    before do
+      install_build "54cd"
+      write "game/in_game/common/foo.txt", "foo = 1\n"
+    end
+
+    def fetch **options
+      corpus.fetch(depotdownloader: fake_depotdownloader.to_s, username: "someone", **options)
+    end
+
+    it "fetches a branch's current build for the game's platform and snapshots it" do
+      expect(fetch(branch: "1.3-open-beta")).to eq(Gem::Version.new("1.3.11"))
+
+      command = log.read.lines.map(&:chomp)
+      expect(command.size).to eq(1)
+      expect(command.first).to include(
+        "-app 3450310 -os windows", "-branch 1.3-open-beta", "-username someone -remember-password",
+      )
+      expect(committed_files("1.3.11")).to contain_exactly(
+        ".gitattributes", "binaries/checksum.txt", "game/in_game/common/foo.txt",
+      )
+    end
+
+    it "fetches pinned manifests one depot at a time" do
+      fetch(manifests: { 3450311 => 111, 3450312 => 222 })
+
+      expect(log.read.lines.map(&:chomp)).to contain_exactly(
+        a_string_including("-app 3450310 -depot 3450311 -manifest 111"),
+        a_string_including("-app 3450310 -depot 3450312 -manifest 222"),
+      )
+      expect(corpus.tags).to eq(["1.3.11"])
+    end
+
+    it "removes the staging dir after snapshotting" do
+      fetch
+
+      expect(corpus_root.join(".staging/eu5")).not_to exist
+    end
+
+    it "refuses to snapshot when a pinned depot wasn't downloaded" do
+      ENV["FAKE_DD_SKIP_DEPOT"] = "3450312"
+
+      expect { fetch(manifests: { 3450311 => 111, 3450312 => 222 }) }
+        .to raise_error(described_class::Error, /depot 3450312 manifest 222 wasn't downloaded/)
+      expect(corpus.tags).to be_empty
+      expect(corpus_root.join(".staging/eu5/game/in_game/common/foo.txt")).to exist
+    end
+
+    it "stops when DepotDownloader fails" do
+      ENV["FAKE_DD_FAIL"] = "1"
+
+      expect { fetch }.to raise_error(described_class::Error, /DepotDownloader failed/)
+      expect(corpus.tags).to be_empty
+    end
+  end
+
+  describe "#filelist_patterns" do
+    let(:patterns) do
+      corpus.filelist_patterns.map do |pattern| Regexp.new(pattern.delete_prefix("regex:")) end
+    end
+
+    def selected? path
+      patterns.any? do |pattern| pattern.match? path end
+    end
+
+    it "selects text files and version files with either separator" do
+      expect(selected?("game/in_game/common/foo.txt")).to be(true)
+      expect(selected?("game\\localization\\english\\foo_l_english.yml")).to be(true)
+      expect(selected?("binaries\\checksum.txt")).to be(true)
+      expect(selected?("launcher/launcher-settings.json")).to be(true)
+      expect(selected?("launcher\\launcher-settings.json")).to be(true)
+    end
+
+    it "skips everything else" do
+      expect(selected?("game/gfx/texture.dds")).to be(false)
+      expect(selected?("binaries/eu5.exe")).to be(false)
+      expect(selected?("game/settings.json")).to be(false)
     end
   end
 

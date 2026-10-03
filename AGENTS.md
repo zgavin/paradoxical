@@ -46,7 +46,7 @@ These are not in this repository but are essential context. Never copy their con
   `~/.steam/steam/steamapps/common/{Europa Universalis IV, Stellaris, ImperatorRome, Europa Universalis V}` — chronological order; EU5 has the newest dialect.
 - **Example consumer of the gem:**
   `~/.pdx/Europa Universalis V/mod/PancakeTaco's Mod` — Ruby in `scripts/ruby/`, generated `.txt` output in the other top-level directories. Used as a manual integration smoke test today; will become the off-repo integration corpus in MODERNIZATION.md phase 1.
-- **Regression corpus** (MODERNIZATION.md phase 1e): one local git repo per game under `$PARADOXICAL_CORPUS`, holding the text files of every verified build, one tag per version. After a new build passes the parse smoke, store it with `rake "corpus:snapshot[<slug>,<game-root>]"`; `rake "corpus:smoke[<slug>]"` re-smokes every stored build (all games without a slug). Never push these repos or copy from them into this one.
+- **Regression corpus** (MODERNIZATION.md phase 1e): one local git repo per game under `$PARADOXICAL_CORPUS`, holding the text files of every verified build, one tag per version. After a new build passes the parse smoke, store it with `rake "corpus:fetch[<slug>,branch=<name>]"`, which downloads it from Steam, rather than `corpus:snapshot` on the install; installs drift with local edits and stale renames. `rake "corpus:smoke[<slug>]"` re-smokes every stored build (all games without a slug). Never push these repos or copy from them into this one.
 
 ## Current state
 

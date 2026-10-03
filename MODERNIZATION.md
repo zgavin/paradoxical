@@ -94,9 +94,22 @@ The fix is a local, off-repo corpus holding the parseable text files of every bu
 
 As landed: omitting the slug runs every game in the corpus. The worktree lives at `$PARADOXICAL_CORPUS/.smoke/<slug>`, outside the game's repo so the snapshot mirror never touches it. Each build runs as a `bundle exec rspec` subprocess, because the smoke spec builds its examples from env vars at load time. The version check is a general smoke feature: every smoke run prints the detected version in its summary line, and `PARADOXICAL_PARSE_SMOKE_EXPECT_VERSION` turns a mismatch into a failure. That closes the gap where an unmapped build detected as nil, nil applied every correction, and the smoke passed anyway (EU5 1.4.0's wrong checksum key, fixed in #118). First full run (2026-10-02), seeded with the current build of EU4, Stellaris, Imperator, EU5, and HOI4: all pass, in about a minute.
 
+##### 1e-3. Fetch builds from Steam, not installs
+
+The first seed snapshotted the local installs, and diffing those against fresh depot downloads showed installs aren't a faithful source. Every file present in both was byte-identical, but the installs held:
+- files the maintainer had added (console scripts in `run/`, `console_history.txt`);
+- a game file the maintainer had edited (an EU4 hegemon file, from mod work);
+- stale filenames: Steam on Linux doesn't apply case-only renames, so 20 EU5 files kept old uppercase names the depot no longer ships.
+
+So the corpus is built from [DepotDownloader](https://github.com/SteamRE/DepotDownloader) downloads. `rake "corpus:fetch[<slug>,branch=<name>]"` fetches a branch's current build (all of the game's depots, for its native platform, or Windows for EU5). `rake "corpus:fetch[<slug>,<depot>=<manifest>,…]"` pins depots to historical manifests. Each fetch downloads into `$PARADOXICAL_CORPUS/.staging/<slug>`, then snapshots, so version detection and the existing-tag check apply unchanged. The `-filelist` is generated from the snapshot's own extension and version-file lists, so a build costs a few hundred MB instead of a full install.
+
+- Configured with `PARADOXICAL_DEPOTDOWNLOADER` (executable path) and `PARADOXICAL_STEAM_USERNAME`. Runs are non-interactive (stdin closed), so they rely on a login token saved by one interactive `-remember-password` run. An expired token fails instead of hanging on a prompt.
+- DepotDownloader can exit 0 after skipping a depot it couldn't access, so a pinned fetch checks that each depot's `.manifest` file arrived before snapshotting. Otherwise a gutted build could be stored under a valid version.
+- Staging is deleted after a successful snapshot and kept on failure, for inspection.
+
 ##### Backfill
 
-Seed each game's repo from its current install. Older builds can be fetched with [DepotDownloader](https://github.com/SteamRE/DepotDownloader) by depot manifest ID (SteamDB lists them); its `-filelist` regex restricts the download to text files, so a historical build costs a few hundred MB instead of a full install. Best effort: Paradox doesn't keep every build available, and commit order doesn't matter, since tags are the index and git packs deltas across all objects regardless of history.
+Older builds come from their depot manifest IDs. Steam's API only exposes current manifests and SteamDB blocks automated requests, so the maintainer copies each depot's history table from SteamDB by hand. A manifest's label there is the branch it was seen on, not a version, so builds are identified by fetching the depot that carries the version file (EU5's `binaries/checksum.txt` is in its own depot, 3450312), then pairing it with the other depots' manifests current at the same moment. Best effort: Paradox doesn't keep every build available, and commit order doesn't matter, since tags are the index and git packs deltas across all objects regardless of history.
 
 #### Caveats (apply to all of the above)
 

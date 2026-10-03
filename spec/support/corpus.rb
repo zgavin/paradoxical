@@ -58,12 +58,96 @@ class Paradoxical::Corpus
 
   attr_reader :game_module, :repo, :worktree
 
+  # DepotDownloader (https://github.com/SteamRE/DepotDownloader)
+  # fetches builds straight from Steam, so the corpus never depends on
+  # a local install that may have drifted (stale renames, edited or
+  # added files).
+  def self.depotdownloader
+    path = ENV["PARADOXICAL_DEPOTDOWNLOADER"]
+    raise Error, "PARADOXICAL_DEPOTDOWNLOADER is unset; point it at the DepotDownloader executable" if path.blank?
+
+    path
+  end
+
+  # The account whose login token DepotDownloader saved with
+  # `-remember-password`. Runs are non-interactive, so a missing token
+  # fails instead of prompting.
+  def self.steam_username
+    name = ENV["PARADOXICAL_STEAM_USERNAME"]
+    raise Error, "PARADOXICAL_STEAM_USERNAME is unset" if name.blank?
+
+    name
+  end
+
   def initialize game_module, corpus_root: self.class.root
     @game_module = game_module
     @repo = Pathname.new(corpus_root).join(game_module::SLUG)
     # Outside the repo so the snapshot mirror never sees it; reused
     # across runs so moving between tags only rewrites changed files.
     @worktree = Pathname.new(corpus_root).join(".smoke", game_module::SLUG)
+    @staging = Pathname.new(corpus_root).join(".staging", game_module::SLUG)
+  end
+
+  # Downloads a build's text files from Steam and snapshots it.
+  # `manifests` pins depots to historical builds ({depot_id =>
+  # manifest_id}); without it, every depot of `branch`'s current build
+  # is fetched. The staging dir is removed after a successful snapshot
+  # and kept on failure for inspection. Returns the version.
+  def fetch manifests: {}, branch: nil, depotdownloader: self.class.depotdownloader, username: self.class.steam_username
+    @staging.rmtree if @staging.exist?
+    @staging.mkpath
+    filelist = @staging.dirname.join("#{game_module::SLUG}.filelist")
+    filelist.write("#{filelist_patterns.join("\n")}\n")
+
+    commands = download_commands(
+      manifests: manifests, branch: branch, depotdownloader: depotdownloader, username: username, filelist: filelist,
+    )
+    commands.each do |command|
+      # No stdin, so an expired login token fails instead of prompting.
+      ok = system(*command, in: File::NULL)
+      raise Error, "DepotDownloader failed: #{command.join(" ")}" unless ok
+    end
+
+    # DepotDownloader can report success while skipping a depot it
+    # couldn't access; a missing manifest file means that depot's
+    # files never arrived.
+    manifests.each do |depot, manifest|
+      next if @staging.join(".DepotDownloader", "#{depot}_#{manifest}.manifest").file?
+
+      raise Error, "depot #{depot} manifest #{manifest} wasn't downloaded; staging kept at #{@staging}"
+    end
+
+    root = game_module::HAS_GAME_SUBDIR ? @staging.join("game") : @staging
+    game = Paradoxical::Game.new(game_module, root: root, user_directory: "/tmp/no-paradoxical-mods-loaded")
+    version = snapshot game
+
+    @staging.rmtree
+    filelist.delete
+    version
+  end
+
+  # DepotDownloader matches each pattern against depot-relative paths,
+  # which may use either separator.
+  def filelist_patterns
+    extensions = EXTENSIONS.map do |ext| Regexp.escape(ext.delete_prefix(".")) end.join("|")
+    versions = VERSION_FILES.map do |rel| Regexp.escape(rel).gsub("/") { "[\\\\/]" } end
+
+    ["regex:.*\\.(#{extensions})$", *versions.map do |rel| "regex:^#{rel}$" end]
+  end
+
+  def download_commands manifests:, branch:, depotdownloader:, username:, filelist:
+    common = ["-username", username, "-remember-password", "-filelist", filelist.to_s, "-dir", @staging.to_s]
+    common += ["-branch", branch] if branch.present?
+    app = ["-app", game_module::STEAM_ID.to_s]
+
+    if manifests.empty? then
+      os = game_module::NATIVE_PLATFORMS.include?(:linux) ? "linux" : "windows"
+      [[depotdownloader, *app, "-os", os, *common]]
+    else
+      manifests.map do |depot, manifest|
+        [depotdownloader, *app, "-depot", depot.to_s, "-manifest", manifest.to_s, *common]
+      end
+    end
   end
 
   # Checks `tag` out into the smoke worktree. Returns the game root
@@ -141,9 +225,19 @@ class Paradoxical::Corpus
       end
 
     scripts = script_roots.select(&:directory?).flat_map do |dir|
-      Find.find(dir.to_s).select do |path|
-        EXTENSIONS.include?(File.extname(path)) and File.file?(path)
+      found = []
+
+      Find.find(dir.to_s) do |path|
+        # Hidden dirs aren't game content (e.g. DepotDownloader's
+        # `.DepotDownloader/` bookkeeping and in-flight chunks).
+        if File.directory?(path) and File.basename(path).start_with?(".") and path != dir.to_s then
+          Find.prune
+        elsif EXTENSIONS.include?(File.extname(path)) and File.file?(path) then
+          found << path
+        end
       end
+
+      found
     end
 
     versions = VERSION_FILES.map do |rel| install_root.join(rel).to_s end.select do |path| File.file? path end
@@ -163,6 +257,10 @@ class Paradoxical::Corpus
       target = repo.join(rel)
       target.dirname.mkpath
       FileUtils.cp install_root.join(rel), target
+      # Installs mark game files executable and downloads don't; the
+      # mode means nothing for script, so normalize it rather than let
+      # the source decide.
+      target.chmod 0o644
     end
   end
 

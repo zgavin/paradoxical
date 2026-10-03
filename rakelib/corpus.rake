@@ -16,6 +16,34 @@ namespace :corpus do
     abort e.message
   end
 
+  # rake "corpus:fetch[eu5,branch=1.4-open-beta]"          current build of a branch
+  # rake "corpus:fetch[eu5,3450311=2614…,3450312=2659…]"   pinned historical manifests
+  desc "Download a build's text files from Steam with DepotDownloader and snapshot it"
+  task :fetch, [:slug] do |_task, args|
+    require "paradoxical"
+    require_relative "../spec/support/corpus"
+
+    manifests = {}
+    branch = nil
+
+    args.extras.each do |extra|
+      key, value = extra.split("=", 2)
+      abort "expected depot=manifest or branch=name, got #{extra.inspect}" if value.blank?
+
+      if key == "branch" then
+        branch = value
+      else
+        manifests[Integer(key)] = Integer(value)
+      end
+    end
+
+    corpus = Paradoxical::Corpus.new(Paradoxical::Games.find(args[:slug]))
+    version = corpus.fetch(manifests: manifests, branch: branch)
+    puts "Fetched and snapshotted #{args[:slug]} #{version} into #{corpus.repo}"
+  rescue Paradoxical::Corpus::Error, ArgumentError => e
+    abort e.message
+  end
+
   desc "Run the parse smoke against every stored build of a game (every game when slug is omitted)"
   task :smoke, [:slug] do |_task, args|
     require "paradoxical"
