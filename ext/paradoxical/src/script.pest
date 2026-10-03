@@ -139,7 +139,11 @@ keyless_list          =  { ws ~ "{" ~ ( expression | value | keyless_list )* ~ w
 
 primitive             =  { ( color | percentage | date | float | integer | boolean | placeholder | var_ref | string ) }
 
-operator              = @{ ( "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
+// Comparison and assignment operators. `==` (CK3 trigger equality,
+// e.g. `rite.head_of_rite == root`) must come before `=`: pest's
+// ordered choice would otherwise take the first `=` and leave a stray
+// `=` for the value. Likewise `>=`/`<=` before `>`/`<`.
+operator              = @{ ( "==" | "=" | ">=" | "<=" | ">" | "<" | "?=" | "!=" ) }
 
 // De-atomized so each color subtype + its components are individually
 // captured. Each subtype rule names the keyword inline; the Rust side
