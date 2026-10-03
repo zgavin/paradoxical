@@ -52,6 +52,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       info.txt
       changelog.txt
       ChangeLog.txt
+      set-up_info.txt
     ].to_set
 
     # Whole directories of non-script content, plus the odd single file

@@ -38,8 +38,8 @@ against all of them.
 | **Europa Universalis V** | 1.0.0 – 1.3.11 <sup>[2](#note-2)</sup>, 1.4.0 | 100% |
 | **Hearts of Iron IV** | 1.8.2 – 1.18.3.0 <sup>[1](#note-1)</sup>, 1.19.0.0, 1.19.0.1, 1.19.1.0, 1.19.2.0, 1.19.3.0 | 100% |
 | **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[3](#note-3)</sup> |
-| **Crusader Kings III** | 1.20.0.3 | 100% |
-| **Victoria 3** | 1.13.11 | 100% |
+| **Crusader Kings III** | 1.0.3 – 1.19.0.6 <sup>[1](#note-1)</sup>, 1.20.0.2, 1.20.0.3 | 100% |
+| **Victoria 3** | 1.0.6 – 1.12.5 <sup>[1](#note-1)</sup>, 1.13.0, 1.13.1, 1.13.2, 1.13.3, 1.13.4, 1.13.5, 1.13.6, 1.13.7, 1.13.8, 1.13.9, 1.13.10, 1.13.11 | 100% |
 
 1. <a id="note-1"></a> Within the range, only the final patch of each minor version is tested: the build a returning player would land on. Beta patches aren't tested. The range starts at the first build that ships `launcher-settings.json`, which is how the game's version is detected.
 2. <a id="note-2"></a> Every build in the range is tested, including open-beta patches.

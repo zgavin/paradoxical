@@ -77,5 +77,11 @@ seen on, not a version.
 
 ## Crusader Kings III
 
-- **The wiki's patch list stops at 1.19.0.6** (May 25, 2026), but a
-  public build shipped on June 4, 2026.
+- **Two final patches are missing from the wiki's patch list:** 1.11.5
+  (the wiki's last 1.11 is 1.11.4) and 1.16.2.3 (its last 1.16 is
+  1.16.2.1).
+- **1.1.3.1 has no public build.** The wiki dates it Oct 22, 2020, but
+  no depot changed between 1.1.3 (Oct 15) and 1.2, and that build
+  reports itself as 1.1.3.
+- **1.19.0.6's public build is dated June 4, 2026**, ten days after
+  the wiki's date.
