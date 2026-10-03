@@ -39,7 +39,7 @@ builds within a range that weren't run or can no longer be restored.
 | **Europa Universalis V** | 1.0.x <sup>[4](#note-4)</sup><br>1.1.x <sup>[5](#note-5)</sup><br>1.2.x<br>1.3.0, 1.3.2, 1.3.4, 1.3.6, 1.3.8, 1.3.10, 1.3.11 <sup>[6](#note-6)</sup><br>1.4.0 <sup>[6](#note-6)</sup> | 100% |
 | **Hearts of Iron IV** | 1.18.x.x <sup>[7](#note-7)</sup><br>1.19.0.0 <sup>[8](#note-8)</sup>, 1.19.0.1, 1.19.1.0, 1.19.2.0, 1.19.3.0 | 100% |
 | **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[9](#note-9)</sup> |
-| **Crusader Kings III** | — | unknown <sup>[10](#note-10)</sup> |
+| **Crusader Kings III** | 1.20.0.3 | 100% |
 | **Victoria 3** | 1.13.11 | 100% |
 
 Every listed version is smoke-validated except where a note says otherwise.
@@ -53,7 +53,6 @@ Every listed version is smoke-validated except where a note says otherwise.
 7. <a id="note-7"></a> Smoked 1.18 builds are 1.18.1.0, 1.18.2.0, and 1.18.3.0.
 8. <a id="note-8"></a> 1.19.0.0 shipped for ~2 days before the 1.19.0.1 hotfix replaced it and is no longer independently restorable; its corrections are validated against 1.19.0.1 and 1.19.1.0.
 9. <a id="note-9"></a> EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works.
-10. <a id="note-10"></a> Placeholder — game module exists, no install validation yet.
 
 ## Installation
 

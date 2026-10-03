@@ -36,10 +36,19 @@ value                 =  { ws ~ primitive }
 
 // LHS may be a `{ … }` block (compound key — PDX saves use this for
 // maps keyed by a sub-list, e.g. `{ demand=pop_demand }=42`) or a
-// primitive. RHS is always a primitive — when the RHS is itself a
-// `{ … }` block the wire is a `list` with a `compound_head`, not a
-// `property`. See MODERNIZATION.md phase 10b.
-property              =  { ws ~ ( keyless_list | primitive ) ~ ws ~ operator ~ ws ~ primitive }
+// primitive. RHS is a primitive or a bare comparison operator — when
+// the RHS is itself a `{ … }` block the wire is a `list` with a
+// `compound_head`, not a `property`. See MODERNIZATION.md phase 10b.
+property              =  { ws ~ ( keyless_list | primitive ) ~ ws ~ operator ~ ws ~ ( operator_value | primitive ) }
+
+// A comparison operator passed as a value, e.g. a scripted trigger
+// argument `OPERATOR = <=` that the trigger body splices into
+// operator position (`count $OPERATOR$ $COUNT$`). Value position
+// only: an operator is never a key. Only the comparison operators
+// make sense as arguments, so assignment `=` and `?=` are excluded.
+// Longer operators come first for the same ordered-choice reason as
+// in `operator`.
+operator_value        = @{ ( "==" | "!=" | ">=" | "<=" | ">" | "<" ) ~ &break_character }
 
 // One unified list shape. Each head alternative is silent, so the
 // inner ws/primitive/operator/kind tokens flow up to `list` regardless
