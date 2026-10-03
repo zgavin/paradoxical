@@ -71,6 +71,8 @@ static INTEGER_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("Integer").unwrap());
 static PERCENTAGE_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("Percentage").unwrap());
+static OPERATOR_CLASS: Lazy<RClass> =
+    Lazy::new(|ruby| primitives(ruby).const_get("Operator").unwrap());
 static VARIABLE_REF_CLASS: Lazy<RClass> =
     Lazy::new(|ruby| primitives(ruby).const_get("VariableRef").unwrap());
 static STRING_CLASS: Lazy<RClass> =
@@ -170,6 +172,14 @@ fn property(ruby: &Ruby, pair: Pair<Rule>) -> Value {
         match inner.as_rule() {
             Rule::ws => whitespace.push(p(ruby, inner)).unwrap(),
             Rule::operator => operator = p(ruby, inner),
+            // Only ever the RHS — the grammar never allows an
+            // operator in key position.
+            Rule::operator_value => {
+                val = ruby
+                    .get_inner(&OPERATOR_CLASS)
+                    .new_instance((p(ruby, inner),))
+                    .unwrap()
+            }
             Rule::primitive => {
                 if did_set_key {
                     val = primitive(ruby, inner);

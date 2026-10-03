@@ -65,6 +65,7 @@ end
   elements/primitives/date
   elements/primitives/float
   elements/primitives/integer
+  elements/primitives/operator
   elements/primitives/percentage
   elements/primitives/string
   elements/primitives/variable_ref

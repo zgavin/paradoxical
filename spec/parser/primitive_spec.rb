@@ -981,6 +981,45 @@ RSpec.describe Paradoxical::Parser do
     end
   end
 
+  describe "operator values" do
+    %w[== != >= <= > <].each do |op|
+      it "parses #{op.inspect} as an Operator primitive in value position" do
+        prop = parse("OPERATOR = #{op}").first
+        expect(prop.value).to be_a(Paradoxical::Elements::Primitives::Operator)
+        expect(prop.value.to_pdx).to eq(op)
+      end
+    end
+
+    it "round-trips inside a scripted trigger call" do
+      src = "check = {\n\tRELATION = friend\n\tOPERATOR = <=\n\tCOUNT = 0\n}\n"
+      expect(Paradoxical::Parser.parse(src).to_pdx).to eq(src)
+    end
+
+    it "rejects assignment operators as values" do
+      expect { parse("OPERATOR = =") }.to raise_error(Paradoxical::Parser::ParseError)
+      expect { parse("OPERATOR = ?=") }.to raise_error(Paradoxical::Parser::ParseError)
+    end
+
+    it "rejects an operator in key position" do
+      expect { parse("<= = 5") }.to raise_error(Paradoxical::Parser::ParseError)
+    end
+
+    it "rejects an operator run into other text" do
+      expect { parse("OPERATOR = <=5") }.to raise_error(Paradoxical::Parser::ParseError)
+    end
+
+    it "compares by operator text" do
+      a, b, c = %w[<= <= >=].map do |op| Paradoxical::Elements::Primitives::Operator.new(op) end
+      expect(a).to eq(b)
+      expect(a.hash).to eq(b.hash)
+      expect(a).not_to eq(c)
+    end
+
+    it "refuses to construct a non-comparison operator" do
+      expect { Paradoxical::Elements::Primitives::Operator.new("=") }.to raise_error(ArgumentError)
+    end
+  end
+
   describe "operators" do
     %w[= == >= <= > < ?= !=].each do |op|
       it "parses the #{op.inspect} operator" do
