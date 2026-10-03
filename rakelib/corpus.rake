@@ -80,6 +80,30 @@ namespace :corpus do
     abort e.message
   end
 
+  desc "Rebuild a game's corpus history in version order (every game when slug is omitted)"
+  task :reorder, [:slug] do |_task, args|
+    require "paradoxical"
+    require_relative "../spec/support/corpus"
+
+    corpora =
+      if args[:slug] then
+        [Paradoxical::Corpus.new(Paradoxical::Games.find(args[:slug]))]
+      else
+        Paradoxical::Corpus.all
+      end
+
+    corpora.each do |corpus|
+      if corpus.ordered? then
+        puts "#{corpus.game_module::SLUG}: already in version order"
+      else
+        corpus.reorder
+        puts "#{corpus.game_module::SLUG}: reordered #{corpus.tags.size} builds"
+      end
+    end
+  rescue Paradoxical::Corpus::Error => e
+    abort e.message
+  end
+
   desc "List the builds stored in the corpus for a game"
   task :list, [:slug] do |_task, args|
     require "paradoxical"

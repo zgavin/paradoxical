@@ -113,6 +113,60 @@ RSpec.describe Paradoxical::Corpus do
     end
   end
 
+  describe "history order" do
+    def snapshot_build suffix, file
+      install_build suffix
+      write "game/in_game/common/#{file}.txt", "#{file} = 1\n"
+      corpus.snapshot(game)
+    end
+
+    def history
+      IO.popen(["git", "-C", repo.to_s, "log", "--reverse", "--format=%s", "main"], &:read).lines.map(&:chomp)
+    end
+
+    def tree tag
+      IO.popen(["git", "-C", repo.to_s, "rev-parse", "#{tag}^{tree}"], &:read).strip
+    end
+
+    # Suffixes: 9d08 is 1.1.0, 54cd is 1.3.11, d9c8 is 1.4.0.
+    it "rebuilds the history oldest first when a backfilled build lands out of order" do
+      snapshot_build "d9c8", "newest"
+      snapshot_build "54cd", "middle"
+      snapshot_build "9d08", "oldest"
+
+      expect(history).to eq(["eu5 1.1.0", "eu5 1.3.11", "eu5 1.4.0"])
+      expect(corpus).to be_ordered
+    end
+
+    it "keeps every build's exact contents" do
+      snapshot_build "d9c8", "newest"
+      newest_tree = tree("1.4.0")
+      snapshot_build "54cd", "middle"
+      middle_tree = tree("1.3.11")
+      snapshot_build "9d08", "oldest"
+
+      expect(tree("1.4.0")).to eq(newest_tree)
+      expect(tree("1.3.11")).to eq(middle_tree)
+      expect(committed_files("1.1.0")).to include("game/in_game/common/oldest.txt")
+    end
+
+    it "leaves the work tree on the newest build" do
+      snapshot_build "d9c8", "newest"
+      snapshot_build "9d08", "oldest"
+
+      expect(repo.join("binaries/checksum.txt").read).to end_with("d9c8\n")
+    end
+
+    it "appends without rewriting when builds arrive in version order" do
+      snapshot_build "9d08", "oldest"
+      first = IO.popen(["git", "-C", repo.to_s, "rev-parse", "1.1.0"], &:read).strip
+      snapshot_build "d9c8", "newest"
+
+      expect(IO.popen(["git", "-C", repo.to_s, "rev-parse", "1.1.0"], &:read).strip).to eq(first)
+      expect(history).to eq(["eu5 1.1.0", "eu5 1.4.0"])
+    end
+  end
+
   describe "#checkout" do
     before do
       install_build "54cd"
