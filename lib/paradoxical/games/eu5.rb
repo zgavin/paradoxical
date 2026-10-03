@@ -48,7 +48,21 @@ module Paradoxical::Games::EU5
     "6cba" => "1.0.9",
     "1cb4" => "1.0.10",
     "6166" => "1.0.11",
-    "d718" => "1.1.9",   # "Rossbach", first official 1.1.x release (1.1.0–1.1.8 were beta-only)
+    # 1.1.0–1.1.8 were the "Rossbach" open beta, all on Steam's `1.1.0`
+    # branch. Checksums are from the forum update posts, except 1.1.3:
+    # its post repeats 1.1.2's `2675`, apparently copied over, and
+    # `d568` is the only branch build between 1.1.2 and 1.1.4, two days
+    # after 1.1.2, matching the posts.
+    "9d08" => "1.1.0",
+    "79a8" => "1.1.1",
+    "2675" => "1.1.2",
+    "d568" => "1.1.3",
+    "318e" => "1.1.4",
+    "e728" => "1.1.5",
+    "f7ef" => "1.1.6",
+    "5c65" => "1.1.7",
+    "33c6" => "1.1.8",
+    "d718" => "1.1.9",   # first official 1.1.x release
     "b0ac" => "1.1.10",
     "2a62" => "1.2.0",   # "Echinades"; publicly-displayed checksum (obfuscated) is 5be7
     "cb31" => "1.2.1",   # publicly-displayed checksum (obfuscated) is e429
