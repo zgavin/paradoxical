@@ -36,6 +36,7 @@ lib/paradoxical/
 paradoxical.gemspec        Ruby gem manifest (declares `ext/paradoxical/extconf.rb`)
 Rakefile                   `rake compile` builds the extension via rb_sys
 MODERNIZATION.md           The current plan and decision log
+PATCH_DISCREPANCIES.md     Running log of Paradox versioning oddities (skipped/unlisted patches)
 ```
 
 ## Off-repo references
