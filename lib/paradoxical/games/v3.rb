@@ -13,7 +13,24 @@ module Paradoxical::Games::V3
     Paradoxical::Games.read_launcher_version(game)
   end
 
-  CORRECTIONS = {}
+  # Portrait-editor DNA exports wrapped by hand in
+  # `dna_<name> = { portrait_info = { … } }`, with the outer `}`
+  # forgotten: `portrait_info` closes, then `dna_<name>` runs off EOF.
+  # Every one ends in a newline, so append the missing close.
+  APPEND_BRACE = ->(data) { data << "}\n" }
+
+  CORRECTIONS = {
+    # First build checked (2026-10, via the corpus); defects may be
+    # older, and get re-keyed if backfilled builds show it.
+    "1.13.11" => %w[
+      bal_gangadhar_tilak
+      iwasaki_yataro
+      mahatma_gandhi
+      rani_lakshmibai
+      sarojni_naidu
+      zhou_xuexi
+    ].to_h do |name| ["common/dna_data/00_#{name}.txt", APPEND_BRACE] end,
+  }
 
   SLOW_FILES = [].freeze
 

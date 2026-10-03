@@ -40,7 +40,7 @@ builds within a range that weren't run or can no longer be restored.
 | **Hearts of Iron IV** | 1.18.x.x <sup>[7](#note-7)</sup><br>1.19.0.0 <sup>[8](#note-8)</sup>, 1.19.0.1, 1.19.1.0, 1.19.2.0, 1.19.3.0 | 100% |
 | **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[9](#note-9)</sup> |
 | **Crusader Kings III** | — | unknown <sup>[10](#note-10)</sup> |
-| **Victoria 3** | — | unknown <sup>[10](#note-10)</sup> |
+| **Victoria 3** | 1.13.11 | 100% |
 
 Every listed version is smoke-validated except where a note says otherwise.
 
