@@ -36,8 +36,15 @@ module Paradoxical::Games::EU5
   # install. 4 hex chars = 16 bits = ~65k space; Paradox treats
   # that as adequately unique so we do too.
   BUILD_VERSION_MAP = {
-    "f98c" => "1.0.4",   # "Lepanto", earliest publicly-released build
-    "e7e4" => "1.0.7",
+    "e7e4" => "1.0.0",   # "Lepanto" launch build (patchnotes call it 1.0)
+    # no 1.0.1 in the depot history or the patchnotes
+    "ae68" => "1.0.2",
+    "94d0" => "1.0.3",
+    "f98c" => "1.0.4",
+    "cdab" => "1.0.5",
+    "7ff6" => "1.0.6",
+    "724a" => "1.0.7",
+    "dce5" => "1.0.8",
     "6cba" => "1.0.9",
     "1cb4" => "1.0.10",
     "6166" => "1.0.11",
