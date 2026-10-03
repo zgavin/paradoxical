@@ -213,7 +213,44 @@ class Paradoxical::Corpus
     git "commit", "--quiet", "--allow-empty", "--no-verify", "-m", "#{game_module::SLUG} #{version}"
     git "tag", version.to_s
 
+    # A new patch is the newest build, so it just appends; a backfilled
+    # older build lands out of order until the history is rebuilt.
+    reorder unless ordered?
+
     version
+  end
+
+  # True when `main`'s history runs oldest build to newest, one commit
+  # per tag.
+  def ordered?
+    chain = git_output("rev-list", "--reverse", "--first-parent", "main").lines.map(&:chomp)
+    chain == tags.map do |tag| git_output("rev-parse", "#{tag}^{commit}").strip end
+  end
+
+  # Rebuilds `main` so each build's commit sits on the previous
+  # version's, oldest first: a new patch then lands directly after its
+  # predecessor, and a finished minor line can be squashed. Each tag
+  # keeps its exact tree, so no build's content changes and nothing is
+  # re-downloaded; only parentage moves. Messages and dates are kept.
+  def reorder
+    parent = nil
+
+    tags.each do |tag|
+      tree = git_output("rev-parse", "#{tag}^{tree}").strip
+      original = git_output("log", "-1", "--format=%B%x00%aI%x00%cI", tag)
+      message, author_date, committer_date = original.split("\0").map(&:strip)
+      env = { "GIT_AUTHOR_DATE" => author_date, "GIT_COMMITTER_DATE" => committer_date }
+
+      args = ["commit-tree", tree, "-m", message]
+      args += ["-p", parent] if parent
+      parent = git_output(*args, env: env).strip
+      git "tag", "--force", tag, parent, out: File::NULL
+    end
+
+    git "update-ref", "refs/heads/main", parent
+    git "reset", "--quiet", "--hard", "main"
+    git "reflog", "expire", "--expire=now", "--all"
+    git "gc", "--quiet", "--prune=now"
   end
 
   def tags
@@ -311,17 +348,17 @@ class Paradoxical::Corpus
 
   # Signing is off so snapshots never block on a key prompt; this repo
   # is never pushed anywhere.
-  def git *args
-    git_in repo, *args
+  def git *args, **options
+    git_in repo, *args, **options
   end
 
-  def git_in dir, *args
-    ok = system "git", "-C", dir.to_s, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args
+  def git_in dir, *args, **options
+    ok = system "git", "-C", dir.to_s, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args, **options
     raise Error, "git #{args.join(" ")} failed in #{dir}" unless ok
   end
 
-  def git_output *args
-    output = IO.popen(["git", "-C", repo.to_s, *args], &:read)
+  def git_output *args, env: {}
+    output = IO.popen([env, "git", "-C", repo.to_s, "-c", "commit.gpgsign=false", *args], &:read)
     raise Error, "git #{args.join(" ")} failed in #{repo}" unless $?.success?
 
     output

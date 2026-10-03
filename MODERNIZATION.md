@@ -107,6 +107,10 @@ So the corpus is built from [DepotDownloader](https://github.com/SteamRE/DepotDo
 - DepotDownloader can exit 0 after skipping a depot it couldn't access, so a pinned fetch checks that each depot's `.manifest` file arrived before snapshotting. Otherwise a gutted build could be stored under a valid version.
 - Staging is deleted after a successful snapshot and kept on failure, for inspection.
 
+##### History order
+
+Each game's `main` runs oldest build to newest, one commit per tag, so the next patch lands directly after its predecessor and a finished minor line can later be squashed into one commit. A snapshot of the newest build just appends; one that lands out of order (a backfill) triggers `Corpus#reorder`, which re-creates the commit chain from the tags' existing trees: no build's contents change and nothing is re-downloaded. `rake "corpus:reorder[<slug>]"` does the same on demand.
+
 ##### Backfill
 
 Older builds come from their depot manifest IDs. Steam's API only exposes current manifests and SteamDB blocks automated requests, so the maintainer copies each depot's history table from SteamDB by hand. A manifest's label there is the branch it was seen on, not a version, so builds are identified by fetching the depot that carries the version file (EU5's `binaries/checksum.txt` is in its own depot, 3450312), then pairing it with the other depots' manifests current at the same moment. Best effort: Paradox doesn't keep every build available, and commit order doesn't matter, since tags are the index and git packs deltas across all objects regardless of history.
