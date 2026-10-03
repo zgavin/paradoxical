@@ -982,7 +982,7 @@ RSpec.describe Paradoxical::Parser do
   end
 
   describe "operators" do
-    %w[= >= <= > < ?= !=].each do |op|
+    %w[= == >= <= > < ?= !=].each do |op|
       it "parses the #{op.inspect} operator" do
         prop = parse("foo #{op} 5").first
         expect(prop.operator).to eq(op)
