@@ -37,7 +37,7 @@ builds within a range that weren't run or can no longer be restored.
 | **Stellaris** | 4.3.x <sup>[1](#note-1)</sup><br>4.4.x <sup>[2](#note-2)</sup><br>4.5.1 <sup>[3](#note-3)</sup> | 100% |
 | **Imperator: Rome** | 2.0.5 | 100% |
 | **Europa Universalis V** | 1.0.x <sup>[4](#note-4)</sup><br>1.1.x <sup>[5](#note-5)</sup><br>1.2.x<br>1.3.0, 1.3.2, 1.3.4, 1.3.6, 1.3.8, 1.3.10, 1.3.11 <sup>[6](#note-6)</sup><br>1.4.0 <sup>[6](#note-6)</sup> | 100% |
-| **Hearts of Iron IV** | 1.18.x.x <sup>[7](#note-7)</sup><br>1.19.0.0 <sup>[8](#note-8)</sup>, 1.19.0.1, 1.19.1.0, 1.19.2.0, 1.19.3.0 | 100% |
+| **Hearts of Iron IV** | 1.8.2, 1.9.3, 1.10.8, 1.11.13, 1.12.14, 1.13.7, 1.14.10, 1.15.4, 1.16.10, 1.17.5.2 <sup>[7](#note-7)</sup><br>1.18.x.x<br>1.19.0.0 <sup>[8](#note-8)</sup>, 1.19.0.1, 1.19.1.0, 1.19.2.0, 1.19.3.0 | 100% |
 | **Crusader Kings II** | 3.3.5.1 | ~90% <sup>[9](#note-9)</sup> |
 | **Crusader Kings III** | 1.20.0.3 | 100% |
 | **Victoria 3** | 1.13.11 | 100% |
@@ -50,8 +50,8 @@ Every listed version is smoke-validated except where a note says otherwise.
 4. <a id="note-4"></a> Every public 1.0.x build is smoked: the 1.0.0 launch build and 1.0.2–1.0.11. Paradox never shipped a 1.0.1.
 5. <a id="note-5"></a> Includes the 1.1.0–1.1.8 open beta, all on Steam's `1.1.0` branch, as well as the 1.1.9–1.1.10 releases. 1.1.3's forum post repeats 1.1.2's checksum; its build is `d568`, the only branch build between 1.1.2 and 1.1.4.
 6. <a id="note-6"></a> 1.3.x builds are listed individually rather than as a range: 1.3.0–1.3.10 were the open beta, with 1.3.10 doubling as the first official (non-beta) release, and subsequent releases are official builds. Within the beta, 1.3.0 was the initial open beta; 1.3.1, 1.3.3, 1.3.5, 1.3.7, and 1.3.9 were skipped by Paradox; and 1.3.2, 1.3.4, 1.3.6, 1.3.8, and 1.3.10 are the smoked beta patches. Every 1.2.0+ `BUILD_VERSION_MAP` entry keys on the disk-checksum suffix read from the install, since Paradox obfuscates the publicly-displayed checksum from 1.2.0 on (1.3.6 had no official checksum at all — in-game value `872e`; 1.3.8's is `98b8`, 1.3.10's is `c764`, 1.3.11's is `b08d`). 1.4.0 opens the open beta for the eventual 1.4 release (public checksum `592b`), so 1.4.x builds are listed individually the same way.
-7. <a id="note-7"></a> Smoked 1.18 builds are 1.18.1.0, 1.18.2.0, and 1.18.3.0.
-8. <a id="note-8"></a> 1.19.0.0 shipped for ~2 days before the 1.19.0.1 hotfix replaced it and is no longer independently restorable; its corrections are validated against 1.19.0.1 and 1.19.1.0.
+7. <a id="note-7"></a> Before 1.18, only the final patch of each minor version is covered: the build a returning player would land on. 1.8.2 is the floor, the first build that ships `launcher-settings.json`, which is how the version is detected. Smoked 1.18 builds are 1.18.1.0, 1.18.2.0, and 1.18.3.0.
+8. <a id="note-8"></a> 1.19.0.0 shipped for ~2 days before the 1.19.0.1 hotfix replaced it. It can't be restored through Steam's beta branches, but its depot manifests can still be downloaded directly, which is how it was smoked.
 9. <a id="note-9"></a> EOL since Sep 2021. Parser-only; the ~10% of files that fail use older pre-Jomini script conventions, not yet triaged. CK2's legacy launcher format means mod selection is also unsupported; only direct parse / round-trip works.
 
 ## Installation

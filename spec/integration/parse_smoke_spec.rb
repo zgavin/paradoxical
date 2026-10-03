@@ -50,6 +50,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       license.txt
       SIL_Open_Font_License_1.1.txt
       info.txt
+      changelog.txt
     ].to_set
 
     # Whole directories of non-script content. Path substrings since
