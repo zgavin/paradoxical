@@ -109,13 +109,12 @@ module Paradoxical::Games::EU5
   # earlier in the file, but the surrounding context tends to stay
   # stable through patches.
   CORRECTIONS = {
-    # Earliest publicly-released build is 1.0.4. All three defects
-    # below are present from that release through 1.3.11, so keying at
-    # 1.0.4 covers every known build via `Corrections.resolve`'s
-    # `<= installed` selection. crusade.gui is fixed in 1.4.0 and
-    # unregistered there; the other two persist through the latest
-    # (1.4.0 at time of writing).
-    "1.0.4" => {
+    # All three defects below shipped with the 1.0.0 launch build and
+    # persist through 1.3.11, so keying at 1.0.0 covers every build via
+    # `Corrections.resolve`'s `<= installed` selection. crusade.gui is
+    # fixed in 1.4.0 and unregistered there; the other two persist
+    # through the latest (1.4.0 at time of writing).
+    "1.0.0" => {
       # Stray `}` directly after the self-closing
       # `country_flag_small = {}`. `country_flag_small = {}` is unique
       # to this file so anchoring on it is sufficient. The capture
