@@ -51,10 +51,14 @@ RSpec.describe "parse smoke", :parse_smoke do
       SIL_Open_Font_License_1.1.txt
       info.txt
       changelog.txt
+      ChangeLog.txt
     ].to_set
 
-    # Whole directories of non-script content. Path substrings since
-    # the same dirs recur across games. /licenses/ vs /licences/ —
+    # Whole directories of non-script content, plus the odd single file
+    # whose basename is too generic to exclude everywhere (Stellaris's
+    # edicts README is half prose, while most `readme.txt` files are
+    # all-comment script that parses fine). Path substrings since the
+    # same dirs recur across games. /licenses/ vs /licences/ —
     # Imperator uses British spelling.
     excluded_path_substrings = %w[
       /sound/banks/
@@ -64,6 +68,7 @@ RSpec.describe "parse smoke", :parse_smoke do
       /previewer_assets/
       /pdx_launcher/
       /fonts/korean/
+      /common/edicts/README.txt
     ].freeze
 
     # Directories at the root of the game install that aren't script.
