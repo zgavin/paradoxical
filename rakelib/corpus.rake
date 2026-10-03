@@ -18,6 +18,7 @@ namespace :corpus do
 
   # rake "corpus:fetch[eu5,branch=1.4-open-beta]"          current build of a branch
   # rake "corpus:fetch[eu5,3450311=2614…,3450312=2659…]"   pinned historical manifests
+  # add expect=<version> to refuse a download detected as anything else
   desc "Download a build's text files from Steam with DepotDownloader and snapshot it"
   task :fetch, [:slug] do |_task, args|
     require "paradoxical"
@@ -25,20 +26,23 @@ namespace :corpus do
 
     manifests = {}
     branch = nil
+    expect = nil
 
     args.extras.each do |extra|
       key, value = extra.split("=", 2)
-      abort "expected depot=manifest or branch=name, got #{extra.inspect}" if value.blank?
+      abort "expected depot=manifest, branch=name or expect=version, got #{extra.inspect}" if value.blank?
 
       if key == "branch" then
         branch = value
+      elsif key == "expect" then
+        expect = value
       else
         manifests[Integer(key)] = Integer(value)
       end
     end
 
     corpus = Paradoxical::Corpus.new(Paradoxical::Games.find(args[:slug]))
-    version = corpus.fetch(manifests: manifests, branch: branch)
+    version = corpus.fetch(manifests: manifests, branch: branch, expect: expect)
     puts "Fetched and snapshotted #{args[:slug]} #{version} into #{corpus.repo}"
   rescue Paradoxical::Corpus::Error, ArgumentError => e
     abort e.message

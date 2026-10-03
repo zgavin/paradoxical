@@ -91,9 +91,12 @@ class Paradoxical::Corpus
   # Downloads a build's text files from Steam and snapshots it.
   # `manifests` pins depots to historical builds ({depot_id =>
   # manifest_id}); without it, every depot of `branch`'s current build
-  # is fetched. The staging dir is removed after a successful snapshot
-  # and kept on failure for inspection. Returns the version.
-  def fetch manifests: {}, branch: nil, depotdownloader: self.class.depotdownloader, username: self.class.steam_username
+  # is fetched. `expect` refuses to snapshot unless the download is
+  # detected as that version, guarding against a manifest picked for
+  # the wrong build. The staging dir is removed after a successful
+  # snapshot and kept on failure for inspection. Returns the version.
+  def fetch manifests: {}, branch: nil, expect: nil,
+            depotdownloader: self.class.depotdownloader, username: self.class.steam_username
     @staging.rmtree if @staging.exist?
     @staging.mkpath
     filelist = @staging.dirname.join("#{game_module::SLUG}.filelist")
@@ -119,6 +122,15 @@ class Paradoxical::Corpus
 
     root = game_module::HAS_GAME_SUBDIR ? @staging.join("game") : @staging
     game = Paradoxical::Game.new(game_module, root: root, user_directory: "/tmp/no-paradoxical-mods-loaded")
+
+    if expect.present? then
+      detected = game_module.installed_version(game)
+      unless detected == Gem::Version.new(expect) then
+        found = detected || "no version"
+        raise Error, "expected #{game_module::SLUG} #{expect} but detected #{found}; staging kept at #{@staging}"
+      end
+    end
+
     version = snapshot game
 
     @staging.rmtree

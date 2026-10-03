@@ -277,6 +277,17 @@ RSpec.describe Paradoxical::Corpus do
       expect(corpus_root.join(".staging/eu5/game/in_game/common/foo.txt")).to exist
     end
 
+    it "snapshots a download detected as the expected version" do
+      expect(fetch(expect: "1.3.11")).to eq(Gem::Version.new("1.3.11"))
+    end
+
+    it "refuses a download detected as a different version than expected" do
+      expect { fetch(expect: "1.3.10") }
+        .to raise_error(described_class::Error, /expected eu5 1.3.10 but detected 1.3.11; staging kept/)
+      expect(corpus.tags).to be_empty
+      expect(corpus_root.join(".staging/eu5/binaries/checksum.txt")).to exist
+    end
+
     it "stops when DepotDownloader fails" do
       ENV["FAKE_DD_FAIL"] = "1"
 
