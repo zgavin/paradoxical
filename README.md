@@ -106,7 +106,11 @@ What this does:
 
 Supported game slugs: `eu4`, `eu5`, `stellaris`, `imperator`, `hoi4`,
 `ck2`, `ck3`, `v3`. Pass `root:` and/or `user_directory:` to
-`paradoxical!` to override the default install / user paths. CK2's
+`paradoxical!` to override the default install / user paths. If your
+Steam library lives somewhere other than the platform default, pass
+`steam_dir:` (the folder containing `steamapps`, e.g.
+`steam_dir: "/var/.steam"`); game installs and workshop mods are both
+found under it. CK2's
 legacy launcher format isn't supported, so passing `mod:` / `playset:`
 silently no-ops on that game.
 

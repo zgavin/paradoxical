@@ -70,6 +70,27 @@ RSpec.describe Paradoxical::Game do
     end
   end
 
+  describe "steam_dir:" do
+    let(:steam) { Pathname.new(Dir.mktmpdir) }
+    let(:user) { Pathname.new(Dir.mktmpdir) }
+    after { [steam, user].each { |dir| FileUtils.remove_entry(dir) } }
+
+    let(:game) { Paradoxical::Game.new(Paradoxical::Games::EU5, steam_dir: steam, user_directory: user) }
+
+    it "resolves the default install root under the given Steam root" do
+      expect(game.root).to eq(steam.join("steamapps", "common", "Europa Universalis V", "game"))
+    end
+
+    it "finds workshop mods under steamapps/workshop/content" do
+      metadata = steam.join("steamapps", "workshop", "content", "3450310", "1234567890", ".metadata", "metadata.json")
+      metadata.dirname.mkpath
+      metadata.write({ name: "Workshop Mod", id: "workshop.mod" }.to_json)
+
+      expect(game.mods.map(&:name)).to eq(["Workshop Mod"])
+      expect(game.mods.first.steam_id).to eq("1234567890")
+    end
+  end
+
   # A playset name that resolves to nothing is almost always a typo or a
   # stale config. Every launcher format should fail loudly rather than
   # silently enabling no mods (or, for JSON, dereferencing nil).

@@ -136,10 +136,11 @@ require "paradoxical/paradoxical"
 #
 # `root:` and `user_directory:` override the default install / user
 # paths; everything else flows from the game module's constants.
-def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil, binary_tokens: nil
+def paradoxical! game:, playset: nil, mod: nil, root: nil, user_directory: nil, steam_dir: nil, binary_tokens: nil
   game_module = Paradoxical::Games.find(game)
 
-  Paradoxical.game = Paradoxical::Game.new(game_module, root: root, user_directory: user_directory)
+  Paradoxical.game = Paradoxical::Game.new(game_module, root: root, user_directory: user_directory,
+                                                        steam_dir: steam_dir)
   Paradoxical.game.playset = playset if playset
   Paradoxical.game.mod = Paradoxical.game.mods.find { |m| m.name == mod } if mod
   Paradoxical.game.register_calendar

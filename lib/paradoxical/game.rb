@@ -13,14 +13,16 @@ class Paradoxical::Game
   # constants (NAME, STEAM_ID, NATIVE_PLATFORMS, HAS_GAME_SUBDIR,
   # LAUNCHER_FORMAT, etc.) flow from there. `root:` and
   # `user_directory:` override the default install / user paths for
-  # advanced callers.
+  # advanced callers; `steam_dir:` retargets the Steam root (installs
+  # and workshop mods) for a library moved off the platform default.
   #
   # The constructor wires up everything a mod script expects:
   # - install + user dirs (with userdir.txt fallback)
   # - launcher dispatch (Sqlite / JSON / Legacy stub)
   # - per-version corrections from the game module's CORRECTIONS hash
-  def initialize game_module, root: nil, user_directory: nil
+  def initialize game_module, root: nil, user_directory: nil, steam_dir: nil
     @game_module = game_module
+    @steam_dir = steam_dir
     @name = game_module::NAME
     @steam_id = game_module::STEAM_ID
     @slug = game_module::SLUG
@@ -212,18 +214,21 @@ class Paradoxical::Game
     )
   end
 
+  # `steam_dir:` (the Steam root, the folder containing `steamapps`)
+  # overrides the platform default for libraries moved elsewhere. Game
+  # installs live under `steamapps/common`, workshop mods under
+  # `steamapps/workshop/content`.
   def steamapps_dir
-    @steamapps_dir ||= begin
-      prefix =
-        if OS.linux? then
-          ["~", ".local", "share"]
-        elsif OS.mac? then
-          ["~", "Library", "Application Support"]
-        else
-          ["C", "Program Files (x86)"]
-        end
+    @steamapps_dir ||= File.join(@steam_dir || default_steam_dir, "steamapps")
+  end
 
-      File.expand_path(File.join(*prefix, "Steam", "steamapps",))
+  def default_steam_dir
+    if OS.linux? then
+      File.expand_path(File.join("~", ".local", "share", "Steam"))
+    elsif OS.mac? then
+      File.expand_path(File.join("~", "Library", "Application Support", "Steam"))
+    else
+      File.join("C:", "Program Files (x86)", "Steam")
     end
   end
 end
@@ -299,7 +304,7 @@ end
 module JsonConfig
   def _mods
     @mods ||= (
-      Dir[File.join(steamapps_dir, "common", "workshop", "content", steam_id.to_s, "*", ".metadata", "metadata.json")] +
+      Dir[File.join(steamapps_dir, "workshop", "content", steam_id.to_s, "*", ".metadata", "metadata.json")] +
       Dir[File.join(user_directory, "mod", "*", ".metadata", "metadata.json")]
     ).map do |metadata_path|
       path = File.expand_path File.join(metadata_path, "..", "..")
