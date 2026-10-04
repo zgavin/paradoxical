@@ -118,8 +118,14 @@ class Paradoxical::Game
     super relative_path
   end
 
-  def glob relative_path
-    [super, *_enabled_mods.map do |mod| mod.glob relative_path end].flatten.uniq.sort
+  # Same `mod:` semantics as `parse_file`: a `Mod` globs only that mod,
+  # `false` only vanilla, and `nil` (the default) the union of vanilla
+  # and every enabled mod.
+  def glob relative_path, mod: nil
+    return super(relative_path).sort if mod == false
+    return mod.glob(relative_path).sort unless mod.nil?
+
+    [super(relative_path), *_enabled_mods.map do |m| m.glob relative_path end].flatten.uniq.sort
   end
 
   def read relative_path, mod: false, encoding: nil
