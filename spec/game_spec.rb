@@ -70,6 +70,69 @@ RSpec.describe Paradoxical::Game do
     end
   end
 
+  describe "#glob" do
+    let(:steam) { Pathname.new(Dir.mktmpdir) }
+    let(:user) { Pathname.new(Dir.mktmpdir) }
+    after { [steam, user].each { |dir| FileUtils.remove_entry(dir) } }
+
+    let(:game) do
+      Paradoxical::Game.new(Paradoxical::Games::EU5, steam_dir: steam, user_directory: user).tap do |g|
+        g.playset = "Test"
+      end
+    end
+
+    let(:pattern) { "in_game/common/foo/*.txt" }
+
+    def touch root, *files
+      files.each do |file|
+        path = root.join("in_game/common/foo", file)
+        path.dirname.mkpath
+        path.write("x = 1\n")
+      end
+    end
+
+    def add_mod name, *files
+      root = user.join("mod", name)
+      root.join(".metadata").mkpath
+      root.join(".metadata/metadata.json").write({ name: name, id: name }.to_json)
+      touch root, *files
+      root
+    end
+
+    before do
+      touch game.root, "vanilla.txt", "shared.txt"
+      add_mod "alpha", "a.txt", "shared.txt"
+      add_mod "beta", "b.txt"
+      user.join("playsets.json").write({
+        playsets: [{
+          name: "Test",
+          orderedListMods: [
+            { path: user.join("mod/alpha").to_s, isEnabled: true },
+            { path: user.join("mod/beta").to_s, isEnabled: true },
+          ],
+        }],
+      }.to_json)
+    end
+
+    def names paths
+      paths.map do |path| File.basename(path) end
+    end
+
+    it "globs vanilla and every enabled mod by default" do
+      expect(names(game.glob(pattern))).to eq(%w[a.txt b.txt shared.txt vanilla.txt])
+    end
+
+    it "globs only the given mod" do
+      alpha = game.mods.find { |m| m.name == "alpha" }
+
+      expect(names(game.glob(pattern, mod: alpha))).to eq(%w[a.txt shared.txt])
+    end
+
+    it "globs only vanilla when mod is false" do
+      expect(names(game.glob(pattern, mod: false))).to eq(%w[shared.txt vanilla.txt])
+    end
+  end
+
   describe "steam_dir:" do
     let(:steam) { Pathname.new(Dir.mktmpdir) }
     let(:user) { Pathname.new(Dir.mktmpdir) }

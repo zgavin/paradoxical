@@ -16,8 +16,8 @@ module Paradoxical::Helper
     mod.present? and mod.enabled?
   end
 
-  def common_files dir
-    glob "common/#{dir}/*.txt"
+  def common_files dir, mod: nil
+    glob "common/#{dir}/*.txt", mod: mod
   end
 
   def build &block
