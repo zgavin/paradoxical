@@ -333,10 +333,12 @@ module JsonConfig
           # config — fail loudly rather than dereferencing nil below.
           raise "No playset named #{self.playset.inspect}" if playset.nil?
 
-          _mods.filter do |mod|
-            playset["orderedListMods"].any? do |entry|
-              entry["isEnabled"] and File.basename(entry["path"]) == File.basename(mod.path)
-            end
+          # The list's order is the load order (entries carry no position),
+          # so walk it rather than `_mods`, whose order is just discovery.
+          playset["orderedListMods"].filter_map do |entry|
+            next unless entry["isEnabled"]
+
+            _mods.find do |mod| File.basename(entry["path"]) == File.basename(mod.path) end
           end
         else
           []
