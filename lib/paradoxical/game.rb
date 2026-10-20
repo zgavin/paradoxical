@@ -94,13 +94,11 @@ class Paradoxical::Game
 
   def mod= mod
     @mod = mod
-    @enabled_mods = nil
-    @mod
   end
 
   def playset= playset
     @playset = playset
-    @enabled_mods = nil
+    @playset_mods = nil
     @playset
   end
 
@@ -120,12 +118,12 @@ class Paradoxical::Game
 
   # Same `mod:` semantics as `parse_file`: a `Mod` globs only that mod,
   # `false` only vanilla, and `nil` (the default) the union of vanilla
-  # and every enabled mod.
+  # and every source mod (see `_source_mods`).
   def glob relative_path, mod: nil
     return super(relative_path).sort if mod == false
     return mod.glob(relative_path).sort unless mod.nil?
 
-    [super(relative_path), *_enabled_mods.map do |m| m.glob relative_path end].flatten.uniq.sort
+    [super(relative_path), *_source_mods.map do |m| m.glob relative_path end].flatten.uniq.sort
   end
 
   def read relative_path, mod: false, encoding: nil
@@ -168,7 +166,7 @@ class Paradoxical::Game
     mutex = Mutex.new
 
     # Resolve mods up-front (single-threaded; mod_for_path walks
-    # _enabled_mods and we don't want that work happening N times
+    # _source_mods and we don't want that work happening N times
     # under thread contention).
     jobs = files.each_with_index.map do |path, i|
       [i, path, mod_for_path(path, mod: mod)]
@@ -202,7 +200,25 @@ class Paradoxical::Game
   def mod_for_path relative_path, mod: nil
     return mod unless mod.nil?
 
-    _enabled_mods.reverse_each.find do |m| m.exists? relative_path end
+    _source_mods.reverse_each.find do |m| m.exists? relative_path end
+  end
+
+  # The playset's enabled mods in load order, less the mod being compiled.
+  def _enabled_mods
+    _playset_mods.reject do |m| compiling? m end
+  end
+
+  # The mods whose files a build reads: only those loaded ahead of the mod
+  # being compiled. In game every later mod overrides it, and reading a later
+  # mod's output would feed it back into its own build when both are compiled
+  # from one playset. A mod outside the playset reads every enabled mod.
+  def _source_mods
+    index = _playset_mods.index do |m| compiling? m end
+    index ? _playset_mods.take(index) : _enabled_mods
+  end
+
+  def compiling? other
+    @mod.present? and other.path == @mod.path
   end
 end
 
@@ -252,10 +268,10 @@ module LegacyConfig
     @mods ||= []
   end
 
-  def _enabled_mods
+  def _playset_mods
     raise "No playset named #{@playset.inspect}" if @playset.present?
 
-    @enabled_mods ||= []
+    @playset_mods ||= []
   end
 end
 
@@ -276,34 +292,28 @@ module SqliteConfig
     end
   end
 
-  def _enabled_mods
-    @enabled_mods ||= begin
-      enabled_mods =
-        if @playset.present? then
-          # A name that matches no playset row is almost always a typo or a
-          # stale config — fail loudly rather than silently enabling nothing.
-          raise "No playset named #{@playset.inspect}" unless db.execute(
-            "SELECT 1 FROM playsets WHERE name = ? LIMIT 1;", [@playset]
-          ).any?
+  def _playset_mods
+    @playset_mods ||=
+      if @playset.present? then
+        # A name that matches no playset row is almost always a typo or a
+        # stale config — fail loudly rather than silently enabling nothing.
+        raise "No playset named #{@playset.inspect}" unless db.execute(
+          "SELECT 1 FROM playsets WHERE name = ? LIMIT 1;", [@playset]
+        ).any?
 
-          sql = <<~SQL
-            SELECT m.id FROM mods m
-            JOIN playsets_mods pm ON pm.modId = m.id
-            JOIN playsets p ON pm.playsetId = p.id
-            WHERE pm.enabled AND p.name = '#{@playset}'
-            ORDER BY pm.position ASC;
-          SQL
-          db
-            .execute(sql)
-            .map do |id,| _mods.find do |mod| mod.id == id end end
-        else
-          []
-        end
-
-      enabled_mods.delete_if do |other| other.id == @mod.id end if @mod.present?
-
-      enabled_mods
-    end
+        sql = <<~SQL
+          SELECT m.id FROM mods m
+          JOIN playsets_mods pm ON pm.modId = m.id
+          JOIN playsets p ON pm.playsetId = p.id
+          WHERE pm.enabled AND p.name = '#{@playset}'
+          ORDER BY pm.position ASC;
+        SQL
+        db
+          .execute(sql)
+          .map do |id,| _mods.find do |mod| mod.id == id end end
+      else
+        []
+      end
   end
 end
 
@@ -322,31 +332,25 @@ module JsonConfig
     end
   end
 
-  def _enabled_mods
-    @enabled_mods ||= begin
-      enabled_mods =
-        if @playset.present? then
-          playsets_path = File.join(user_directory, "playsets.json")
-          playsets = JSON.parse(File.read(playsets_path, encoding: "bom|utf-8"))["playsets"]
-          playset = playsets.find do |p| p["name"] === self.playset end
-          # A name that matches no playset is almost always a typo or a stale
-          # config — fail loudly rather than dereferencing nil below.
-          raise "No playset named #{self.playset.inspect}" if playset.nil?
+  def _playset_mods
+    @playset_mods ||=
+      if @playset.present? then
+        playsets_path = File.join(user_directory, "playsets.json")
+        playsets = JSON.parse(File.read(playsets_path, encoding: "bom|utf-8"))["playsets"]
+        playset = playsets.find do |p| p["name"] === self.playset end
+        # A name that matches no playset is almost always a typo or a stale
+        # config — fail loudly rather than dereferencing nil below.
+        raise "No playset named #{self.playset.inspect}" if playset.nil?
 
-          # The list's order is the load order (entries carry no position),
-          # so walk it rather than `_mods`, whose order is just discovery.
-          playset["orderedListMods"].filter_map do |entry|
-            next unless entry["isEnabled"]
+        # The list's order is the load order (entries carry no position),
+        # so walk it rather than `_mods`, whose order is just discovery.
+        playset["orderedListMods"].filter_map do |entry|
+          next unless entry["isEnabled"]
 
-            _mods.find do |mod| File.basename(entry["path"]) == File.basename(mod.path) end
-          end
-        else
-          []
+          _mods.find do |mod| File.basename(entry["path"]) == File.basename(mod.path) end
         end
-
-      enabled_mods.delete_if do |other| other.name == @mod.name end if @mod.present?
-
-      enabled_mods
-    end
+      else
+        []
+      end
   end
 end
