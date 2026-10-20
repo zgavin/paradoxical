@@ -131,6 +131,31 @@ RSpec.describe Paradoxical::Game do
     it "globs only vanilla when mod is false" do
       expect(names(game.glob(pattern, mod: false))).to eq(%w[shared.txt vanilla.txt])
     end
+
+    describe "load order" do
+      # Listed opposite to discovery order (mods are found alphabetically),
+      # so these fail if enabled mods follow discovery instead of the playset.
+      before do
+        user.join("mod/beta/in_game/common/foo/shared.txt").write("x = beta\n")
+        user.join("playsets.json").write({
+          playsets: [{
+            name: "Test",
+            orderedListMods: [
+              { path: user.join("mod/beta").to_s, isEnabled: true },
+              { path: user.join("mod/alpha").to_s, isEnabled: true },
+            ],
+          }],
+        }.to_json)
+      end
+
+      it "follows the playset's order" do
+        expect(game.enabled_mods.map(&:name)).to eq(%w[beta alpha])
+      end
+
+      it "lets the mod loaded last override a shared file" do
+        expect(game.parse_file("in_game/common/foo/shared.txt")["x"].value).to eq(1)
+      end
+    end
   end
 
   describe "steam_dir:" do
