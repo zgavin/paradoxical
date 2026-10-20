@@ -87,6 +87,8 @@ module Paradoxical::Games::EU5
     "a2c4" => "1.3.10", # final beta / first official 1.3.x release; public checksum c764
     "54cd" => "1.3.11", # official 1.3.x release; public checksum b08d
     "d9c8" => "1.4.0", # open-beta build; public checksum 592b
+    "63ec" => "1.4.1", # open-beta build; public checksum 80e7
+    "e6dc" => "1.4.2", # open-beta build; public checksum cf99
   }.freeze
 
   def self.installed_version game
@@ -113,7 +115,7 @@ module Paradoxical::Games::EU5
     # persist through 1.3.11, so keying at 1.0.0 covers every build via
     # `Corrections.resolve`'s `<= installed` selection. crusade.gui is
     # fixed in 1.4.0 and unregistered there; the other two persist
-    # through the latest (1.4.0 at time of writing).
+    # through the latest (1.4.2 at time of writing).
     "1.0.0" => {
       # Stray `}` directly after the self-closing
       # `country_flag_small = {}`. `country_flag_small = {}` is unique
