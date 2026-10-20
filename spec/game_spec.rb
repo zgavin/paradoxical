@@ -156,6 +156,40 @@ RSpec.describe Paradoxical::Game do
         expect(game.parse_file("in_game/common/foo/shared.txt")["x"].value).to eq(1)
       end
     end
+
+    describe "while compiling a mod" do
+      def compile name
+        game.mod = game.mods.find { |m| m.name == name }
+      end
+
+      it "reads mods loaded ahead of it" do
+        compile "beta"
+
+        expect(names(game.glob(pattern))).to eq(%w[a.txt shared.txt vanilla.txt])
+        expect(game.parse_file("in_game/common/foo/shared.txt")["x"].value).to eq(1)
+      end
+
+      it "ignores mods loaded after it" do
+        compile "alpha"
+
+        expect(names(game.glob(pattern))).to eq(%w[shared.txt vanilla.txt])
+        expect(game.exists?("in_game/common/foo/b.txt", mod: nil)).to be(false)
+      end
+
+      it "still counts later mods as enabled" do
+        compile "alpha"
+
+        expect(game.enabled_mods.map(&:name)).to eq(%w[beta])
+        expect(game.mods.find { |m| m.name == "beta" }).to be_enabled
+      end
+
+      it "reads every enabled mod when it isn't in the playset" do
+        add_mod "gamma"
+        compile "gamma"
+
+        expect(names(game.glob(pattern))).to eq(%w[a.txt b.txt shared.txt vanilla.txt])
+      end
+    end
   end
 
   describe "steam_dir:" do
