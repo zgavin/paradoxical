@@ -13,7 +13,7 @@ This is a personal long-term project, not a published library. The gem
 isn't on RubyGems — install it locally (instructions below). Current
 state:
 
-- Runs on Ruby 4.0.3 + Rust 1.95.0 (pinned in `.tool-versions`).
+- Runs on Ruby 4.0.9 + Rust 1.95.0 (pinned in `.tool-versions`).
 - Round-trip preserves the original bytes — whitespace, comments, BOMs,
   CRLF line endings — so editing is non-destructive.
 - The parser regression suite walks every script file in EU4 / EU5 /
