@@ -131,6 +131,11 @@ module Paradoxical::Games::HOI4
       # Outer `guiTypes = {` never closes.
       "interface/sia_movie_theater_campaigns_scripted_gui.gui" => APPEND_BRACE,
     },
+
+    "1.19.4.0" => {
+      # Fixed: `BRA_fnm_organization`'s `ELSE` block now closes.
+      "common/military_industrial_organization/organizations/BRA_organization.txt" => nil,
+    },
   }
 
   SLOW_FILES = [].freeze
