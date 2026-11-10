@@ -94,7 +94,7 @@ module Paradoxical::Games::EU5
     "c0cd" => "1.4.5", # official 1.4.x release; public checksum 200c
     "de25" => "1.4.6", # hotfix; public checksum 0705
     "1ab1" => "1.4.7", # hotfix; public checksum 66ac
-    "5169" => "1.4.8", # open-beta build; public checksum 66ac
+    "5169" => "1.4.8", # open-beta build; public checksum 2491
   }.freeze
 
   def self.installed_version game
